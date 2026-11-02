@@ -400,7 +400,7 @@ void incMainMenu() {
         // This code is very ugly because imgui doesn't really exactly understand this
         // stuff natively.
         ImVec2 secondSectionLength = ImVec2(0, 0);
-        bool teacherDiffActive = viewport::common::mesheditor::brushstate::ngBrushHasTeacherPart();
+        bool teacherDiffActive = ::nijigenerate::viewport::common::mesheditor::brushstate::ngBrushHasTeacherPart();
         const auto statsPlaceholder = teacherDiffActive ?
             compat::RetainedString::fromStaticLiteral("1000ms | Diff 0.000") :
             compat::RetainedString::fromStaticLiteral("1000ms");

@@ -83,14 +83,16 @@ std::size_t ngRefineWeldingSeams(std::shared_ptr<nicxlive::core::nodes::Drawable
         coarseLocal.append(vertex);
         const auto world = core::math::ngTransformHomogeneousPoint(coarse->transform().matrix(),
             {vertex.x, vertex.y, 0});
-        coarseWorld.append({world.x, world.y});
+        const Vec2 coarseWorldPoint{world.x, world.y};
+        coarseWorld.append(coarseWorldPoint);
     }
     const auto fineVertices = fine->getVertices();
     for (std::size_t i = 0; i < fineVertices.size(); ++i) {
         const auto vertex = fineVertices.at(i);
         const auto world = core::math::ngTransformHomogeneousPoint(fine->transform().matrix(),
             {vertex.x, vertex.y, 0});
-        fineWorld.append({world.x, world.y});
+        const Vec2 fineWorldPoint{world.x, world.y};
+        fineWorld.append(fineWorldPoint);
     }
     const auto& fineIndices = fine->nicxlive::core::nodes::Drawable::getMesh().indices;
     const auto& coarseIndices = coarse->nicxlive::core::nodes::Drawable::getMesh().indices;

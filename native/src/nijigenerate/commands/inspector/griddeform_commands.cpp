@@ -22,7 +22,8 @@ void ngRunGridDynamicCommand(std::shared_ptr<Inspector> inspector,Selection<Node
     if(!command)throw std::runtime_error("Registered Grid inspector command type mismatch");
     if(!commands::ngCommandAllowedInCurrentContext(command))return;
     auto context=std::make_shared<commands::Context>();
-    context->inspectors(commands::Context::Inspectors{std::move(inspector)});
+    context->inspectors(commands::Context::Inspectors{
+        std::dynamic_pointer_cast<::nijigenerate::panels::inspector::TypedInspector<Node>>(std::move(inspector))});
     context->nodes(static_cast<commands::Context::Nodes>(nodes));
     command->value=value;commands::ngRunCommand(command,context);
 }

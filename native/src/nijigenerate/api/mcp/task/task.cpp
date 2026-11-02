@@ -1,8 +1,8 @@
 #include "task.hpp"
 #include <nijigenerate/compat/slice.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
-#include <core/compat/source_mutex.hpp>
-#include <core/compat/source_condition.hpp>
+#include <compat/source_mutex.hpp>
+#include <compat/source_condition.hpp>
 
 #include <mutex>
 #include <utility>

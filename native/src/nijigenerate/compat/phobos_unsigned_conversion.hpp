@@ -4,7 +4,9 @@
 // Copyright The D Language Foundation 2007- (conv), 2000-2012 (utf).
 // Boost Software License 1.0: native/port/licenses/phobos-unicode.txt.
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <nijigenerate/compat/phobos_unicode_cursor.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <limits>

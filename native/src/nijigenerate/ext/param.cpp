@@ -73,7 +73,10 @@ serde::ReadError ExParameterGroup::deserializeFromFghj(serde::TypedJsonView data
     [[maybe_unused]] const auto receiverLifetime = shared_from_this();
     (void)serde::deserializeValue(data.findFirst("groupUUID"), uuid);
     const auto label = data.findFirst("name");
-    if (!label.isMissing()) (void)serde::deserializeValue(label, name);
+    if (!label.isMissing()) {
+        nicxlive::core::d_runtime::RetainedString decodedName;
+        if (!serde::deserializeValue(label, decodedName)) name = decodedName.toNullableString();
+    }
     const auto inputColor = data.findFirst("color");
     if (!inputColor.isMissing() && inputColor.kind() == serde::JsonKind::Array) {
         std::array<float, 3> components{color.x, color.y, color.z};

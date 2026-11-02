@@ -240,8 +240,8 @@ template<> struct SourceCommandConstructor<puppet::view::CaptureLiveScreenshotCo
 namespace nijigenerate::commands::puppet::view {
 namespace initialization {
 struct Table {
-    using map_type = decltype(commands);
-    static map_type& get() { return commands; }
+    using map_type = decltype(::nijigenerate::commands::puppet::view::commands);
+    static map_type& get() { return ::nijigenerate::commands::puppet::view::commands; }
 };
 struct ScreenshotArguments { static auto get() { return std::tuple{compat::RetainedString::emptyLiteral()}; } };
 template<auto Id, class C>

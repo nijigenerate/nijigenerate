@@ -190,7 +190,8 @@ nicxlive::core::math::Vec4 FlipPairWindow::previewImage(std::shared_ptr<Part> pa
     ImGui::ItemSize(ImVec2(PreviewSize, PreviewSize));
     ImGui::SetCursorPos({tl.x + center.x - previewSize / 2 + bounds.x,
         tl.y + center.y - previewSize / 2 + bounds.y});
-    ImGui::Image(static_cast<ImTextureID>(texture(340)->getTextureId()), {bounds.z, bounds.w}, uv0, uv1, tint);
+    ImGui::ImageWithBg(static_cast<ImTextureID>(texture(340)->getTextureId()), {bounds.z, bounds.w},
+        uv0, uv1, ImVec4(0, 0, 0, 0), tint);
     return bounds;
 }
 void FlipPairWindow::treeView() {

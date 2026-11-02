@@ -5,6 +5,11 @@
 #include <math/veca.hpp>
 #include <nodes/part.hpp>
 
+// Windows defines this legacy keyword as a macro, but the original uses it as a function name.
+#ifdef near
+#undef near
+#endif
+
 // Module-private declarations shared by translations of the existing original.
 // This header is not part of the public regression module interface.
 namespace nijigenerate_tests::regression::detail {

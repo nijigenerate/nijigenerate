@@ -29,6 +29,7 @@ Json copyJson(Json value) {
     }
     if (value.is_array()) {
         const auto input = value.sourceArrayValue();
+        if (input.empty()) return core::settings::SettingsJsonArray{};
         core::settings::SettingsJsonArray result;
         try {
             // Json's actual default constructor is noexcept; recursive/user

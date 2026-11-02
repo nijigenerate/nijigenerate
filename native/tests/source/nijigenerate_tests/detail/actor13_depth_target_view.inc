@@ -23,6 +23,9 @@ void testDepthTargetViewContracts() {
     const auto check = []<std::size_t N>(bool condition, const char (&message)[N]) {
         require(condition, RetainedString::fromStaticLiteral(message));
     };
+    const auto equalVec2 = [](Vec2 left, Vec2 right) {
+        return left.x == right.x && left.y == right.y;
+    };
     const auto same = [](const auto& left, const auto& right) {
         if (left.size() != right.size()) return false;
         for (std::size_t i = 0; i < left.size(); ++i) if (!(left[i] == right[i])) return false;
@@ -68,15 +71,15 @@ void testDepthTargetViewContracts() {
     check(near(view->getDepth(0), 0.1f) && near(view->getDepth(1), 0.2f) && near(view->getDepth(5), 0.0f),
         "DepthTargetView should preserve existing stored depths and zero-fill new entries");
     check(view->getIndices().size() == 12, "DepthTargetView should build rectangular grid triangle indices");
-    check(view->boundsMin() == Vec2{-20, -10} && view->boundsMax() == Vec2{20, 10},
+    check(equalVec2(view->boundsMin(), Vec2{-20, -10}) && equalVec2(view->boundsMax(), Vec2{20, 10}),
         "DepthTargetView should compute target bounds from vertices");
     auto childA = ExPart::create(grid);
     childA->setName(NullableString::fromStaticLiteral("equal-depth-child-a"));
     auto childB = ExPart::create(grid);
     childB->setName(NullableString::fromStaticLiteral("equal-depth-child-b"));
-    grid->zSort = 1.0f;
-    childA->zSort = -1.0f;
-    childB->zSort = -1.0f;
+    grid->zSort(1.0f);
+    childA->zSort(-1.0f);
+    childB->zSort(-1.0f);
     auto drawables = DepthTargetOffscreenTextureRenderer::drawableChildren(grid);
     check(drawables.size() == 2 && drawables[0] == childA && drawables[1] == childB,
         "depth offscreen drawables with equal zSort must preserve hierarchy traversal order");
@@ -171,10 +174,11 @@ void testDepthTargetViewContracts() {
         auto mesh = renderer->buildMesh(view, renderCamera);
         check(mesh.positions.size() == view->getVertices().size() && mesh.uvs.size() == view->getVertices().size() &&
             same(mesh.indices, view->getIndices()), "DepthTargetRenderer should build projected mesh data from a common DepthTargetView");
-        check(view->projectedPoints.size() == mesh.positions.size() && mesh.uvs[0] == Vec2{0, 1} &&
-            mesh.uvs[mesh.uvs.size() - 1] == Vec2{1, 0},
+        check(view->projectedPoints.size() == mesh.positions.size() && equalVec2(mesh.uvs[0], Vec2{0, 1}) &&
+            equalVec2(mesh.uvs[mesh.uvs.size() - 1], Vec2{1, 0}),
             "DepthTargetRenderer should update projected points and derive stable target UVs");
-        check(view->projectedVertex(0) == view->projectedPoints[0] && view->nearestProjectedVertex(view->projectedPoints[0], 0.1f) == 0,
+        check(equalVec2(view->projectedVertex(0), view->projectedPoints[0]) &&
+            view->nearestProjectedVertex(view->projectedPoints[0], 0.1f) == 0,
             "DepthTargetView should expose projected-point lookup helpers for DepthEdit wrappers");
         auto lines = renderer->buildGridLines(view, renderCamera);
         check(lines.size() == 7, "DepthTargetRenderer should build shared rectangular grid wire lines for DepthEdit and DepthDraw");

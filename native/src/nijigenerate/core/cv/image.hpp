@@ -114,8 +114,9 @@ public:
         if (data.size() != width * height * channels()) {
             static constexpr char8_t message[] = u8"\u30d0\u30c3\u30d5\u30a1\u30b5\u30a4\u30ba\u304c\u753b\u50cf\u306e"
                 u8"\u30b5\u30a4\u30ba\u3068\u30c1\u30e3\u30f3\u30cd\u30eb\u6570\u306b\u4e00\u81f4\u3057\u307e\u305b\u3093";
-            const auto sourceMessage = compat::RetainedString::fromStaticView(
-                std::string_view(reinterpret_cast<const char*>(message), sizeof(message) - 1));
+            // Phobos enforce/bailOut idups its non-null message before constructing Exception.
+            const auto sourceMessage = compat::RetainedString(std::string_view(
+                reinterpret_cast<const char*>(message), sizeof(message) - 1));
             throw compat::ThrowableException(sourceMessage,
                 compat::RetainedString::fromStaticLiteral("nijigenerate/core/cv/image.d"), 54);
         }

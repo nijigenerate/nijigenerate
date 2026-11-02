@@ -85,7 +85,7 @@ compat::Slice<double> projectSolvedOrientation(compat::Slice<contracts::Point2> 
     compat::Slice<double> offsets, solver::quadratic::SolverResult result) {
     enforce(result.solved() && result.constraintViolation < 1e-6,
         "Native control orientation projection failed", 177);
-    auto projected = offsets.dup();
+    auto projected = offsets.duplicate();
     for (std::size_t i = 0; i < rest.size(); ++i)
         projected[i * 2 + 1] = result.solution[i] - rest[i][1];
     return projected;

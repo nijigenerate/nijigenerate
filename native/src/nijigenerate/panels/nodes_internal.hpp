@@ -72,8 +72,9 @@ template<NodeCommand id> inline void run(ContextRef& ctx) {
     commands::ngCmd<id>(ctx);
 }
 template<std::size_t N>
-inline bool input(const char (&id)[N], compat::RetainedString& value, std::optional<float> width = {}) {
+inline bool ngNodeMenuInput(const char (&id)[N], compat::RetainedString& value,
+    std::optional<float> requestedWidth = std::nullopt) {
     const compat::RetainedStringSlice key = compat::RetainedString::fromStaticLiteral(id);
-    return width ? widgets::ngInputText(key, *width, value) : widgets::ngInputText(key, value);
+    return requestedWidth ? widgets::ngInputText(key, *requestedWidth, value) : widgets::ngInputText(key, value);
 }
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "runtime_gl_shader.hpp"
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <render/backend_handles.hpp>
 #include "runtime_gl_texture.hpp"
 #include <memory>

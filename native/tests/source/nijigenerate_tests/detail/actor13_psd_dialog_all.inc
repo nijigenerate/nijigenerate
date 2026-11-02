@@ -333,10 +333,12 @@ void testAllPsdDepthDialogCommands() {
         "failed alpha-depth gap fill must not consume or replace the existing Redo entry");
     auto cancel = ngCmd<PsdDepthDialogCommand::CancelPsdDepthDialog>(ctx);
     check(cancel->succeeded && !dialog->dialogCommandsAvailable(), "CancelPsdDepthDialog must close the active command context");
-    nijigenerate::commands::depth::psd_dialog::commands.forEachRetained([&](PsdDepthDialogCommand, std::shared_ptr<nijigenerate::commands::Command> command) {
+    auto& dialogCommands = nijigenerate::commands::depth::psd_dialog::commands;
+    for (auto commandEntry = dialogCommands.begin(); commandEntry != dialogCommands.end(); ++commandEntry) {
+        auto command = commandEntry->second;
         const bool unavailable = !ngRequireObject(command)->runnable(std::allocate_shared<Context>(SourceAllocator<Context>{}));
         require(unavailable, concatenateSourceStrings({text("every PSD dialog command must be unavailable after Cancel: "), command->label()}));
-    });
+    }
     auto applyDialog = ngCreateWindow<PSDDepthMapWindow>(text("psd-depth-dialog-apply-command-regression.png"));
     applyDialog->beginDialogCommandSessionForRegression();
     check(applyDialog->prepareDialogApplyForRegression(), "Apply command regression fixture must prepare an empty composed import");

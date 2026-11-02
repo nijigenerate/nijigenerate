@@ -27,7 +27,7 @@ void ngMain(compat::Slice<String> args) {
     using contracts::ngRigPoint;
     using contracts::ngRigPoints;
     require(args.size() > 1, 14, String::fromStaticLiteral("Pass real PSD-derived head/neck JSON paths"));
-    for (const auto path : args.subslice(1, args.size())) {
+    for (const auto path : args.slice(1, args.size())) {
         auto input = nijigenerate::autorig::json::ngParseAutoRigJson(compat::phobos::ngReadUtf8Text(path));
         auto face = ngRigPoints(input.sourceIndexValue("face"));
         auto neckPoints = ngRigPoints(input.sourceIndexValue("neck"));

@@ -6,6 +6,7 @@
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>
+#include <nijigenerate/compat/range_error.hpp>
 #include <nijigenerate/viewport/base.hpp>
 #include <nijigenerate/viewport/common/package.hpp>
 #include <nijigenerate/viewport/common/spline.hpp>
@@ -301,7 +302,7 @@ typename IncMeshEditorOneFor<T, mode>::ActionRef IncMeshEditorOneFor<T, mode>::g
         const auto currentTools = tools;
         const auto currentMode = toolMode;
         const auto found = currentTools.find(currentMode);
-        if (found == currentTools.end()) throw compat::ngStaticError<compat::RangeError>(
+        if (found == currentTools.end()) throw compat::ngStaticError<nicxlive::core::d_runtime::RangeError>(
             compat::RetainedString::fromStaticLiteral(
                 "source/nijigenerate/viewport/model/mesheditor/drawable.d"), 277);
         editorAction = compat::ngRequireObject(found->second)->editorAction(target, action);
@@ -448,7 +449,7 @@ void IncMeshEditorOneFor<T, mode>::draw(CameraRef camera) {
         const auto currentTools = tools;
         const auto currentMode = toolMode;
         const auto found = currentTools.find(currentMode);
-        if (found == currentTools.end()) throw compat::ngStaticError<compat::RangeError>(
+        if (found == currentTools.end()) throw compat::ngStaticError<nicxlive::core::d_runtime::RangeError>(
             compat::RetainedString::fromStaticLiteral(
                 "source/nijigenerate/viewport/model/mesheditor/drawable.d"), 419);
         compat::ngRequireObject(found->second)->draw(camera, keepAlive);

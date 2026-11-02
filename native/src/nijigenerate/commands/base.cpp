@@ -169,7 +169,7 @@ compat::Slice<std::shared_ptr<CommandScope>> ngCommandScopeStackSnapshot() {
     compat::Slice<std::shared_ptr<CommandScope>> result;
     result.resize(1);
     result[0] = ngCommandScope<NormalCommandScope>();
-    result.append(scopeStack());
+    result.appendRange(scopeStack());
     return result;
 }
 } // namespace nijigenerate::commands

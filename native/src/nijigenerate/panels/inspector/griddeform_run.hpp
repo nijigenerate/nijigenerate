@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <limits>
 namespace nijigenerate::panels::inspector::griddeform {
-template<ModelEditSubMode mode,class T> requires std::derived_from<T,GridDeformer>
+template<ModelEditSubMode mode,class T> requires std::derived_from<T,nicxlive::core::nodes::GridDeformer>
 void NodeInspector<mode,T>::run() {
     if constexpr(mode==ModelEditSubMode::Layout) {
         using namespace widgets;

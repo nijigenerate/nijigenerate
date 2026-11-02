@@ -36,7 +36,7 @@ template<class Operation> auto allocatePrimitiveArray(Operation operation) {
 // Used contiguous byte reshape/index specialization from selected Mir 3.22.4.
 // Apache-2.0; see port/licenses/mir-ndslice-reshape-NOTICE.txt.
 class MirVisitedSlice2D {
-    compat::Slice<std::uint8_t> backing_;
+    mutable compat::Slice<std::uint8_t> backing_;
     std::array<std::size_t, 2> shape_;
     bool hasIterator_ = false;
 public:
@@ -126,7 +126,9 @@ compat::Slice<Vec2u> extractPath(T skeleton, std::int32_t width, std::int32_t he
                     if (row < 0 || row >= height || column < 0 || column >= width) continue;
                     if (skeleton(row, column) && !visited.at(row, column)) {
                         visited.at(row, column, true) = 1;
-                        queue.append({static_cast<std::uint32_t>(column), static_cast<std::uint32_t>(row)});
+                        const compat::Vec2u next{static_cast<std::uint32_t>(column),
+                            static_cast<std::uint32_t>(row)};
+                        queue.append(next);
                     }
                 }
             }

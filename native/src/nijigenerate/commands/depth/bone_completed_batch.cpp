@@ -1,4 +1,5 @@
 #include "detail/bone_job_workers.hpp"
+#include "detail/bone_string_concatenation.hpp"
 #include "detail/bone_input.hpp"
 #include "detail/bone_action_scope.hpp"
 #include "detail/bone_grid_index.hpp"
@@ -48,19 +49,13 @@ void removeCompletedBatch(std::uint32_t batchId) {
                 depthBoneGpuCompletedJobs = {};
                 continue;
             }
-            try {
-                std::vector<DepthBoneGpuCompletedJob> values;
-                values.reserve(before.size() + after.size());
-                for (auto value : before) values.push_back(value);
-                for (auto value : after) values.push_back(value);
-                depthBoneGpuCompletedJobs = compat::Slice<DepthBoneGpuCompletedJob>(std::move(values));
-            } catch (const std::bad_alloc&) {
-                throw compat::ngStaticError<compat::OutOfMemoryError>(
-                    compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-            } catch (const std::length_error&) {
-                throw compat::ngStaticError<compat::OutOfMemoryError>(
-                    compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-            }
+            std::vector<DepthBoneGpuCompletedJob> values;
+            allocateBoneConcatenation([&] { values.reserve(before.size() + after.size()); });
+            for (auto value : before) values.push_back(value);
+            for (auto value : after) values.push_back(value);
+            depthBoneGpuCompletedJobs = allocateBoneConcatenation([&] {
+                return compat::Slice<DepthBoneGpuCompletedJob>(std::move(values));
+            });
             continue;
         }
         ++i;

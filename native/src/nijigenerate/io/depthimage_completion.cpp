@@ -521,7 +521,7 @@ Array<float> ngDepthDrawSmoothGridDepthValues(
     auto sameGroupValid = [&](int x, int y, int group) {
         if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
         auto index = static_cast<size_t>(y) * static_cast<size_t>(cols) + static_cast<size_t>(x);
-        return compat::ngArrayAt(vertexValid, index) != 0 && compat::ngArrayAt(vertexGroup, index) == group;
+        return sourceAt(vertexValid, index, 745) != 0 && sourceAt(vertexGroup, index, 745) == group;
     };
 
     for (auto gy : dRange(0, rows)) {
@@ -1781,14 +1781,14 @@ void depthDrawPruneThinForeignSeedComponents(
     int componentId{};
 
     for (auto start : dRange(0, totalPixels)) {
-        if (compat::ngArrayAt(visited, start) || !compat::ngArrayAt(maskPixels, start) ||
-            compat::ngArrayAt(depthPixels, start) == 0) continue;
+        if (sourceAt(visited, start, 1908) || !sourceAt(maskPixels, start, 1908) ||
+            sourceAt(depthPixels, start, 1908) == 0) continue;
 
         size_t head{};
         resize(queue, 0);
         queue.append(start);
-        compat::ngArrayAt(visited, start) = 1;
-        compat::ngArrayAt(componentIds, start) = componentId;
+        sourceAt(visited, start, 1913) = 1;
+        sourceAt(componentIds, start, 1914) = componentId;
         Array<size_t> indices;
         Array<ubyte> values;
         auto minX = layer.width;
@@ -1799,30 +1799,30 @@ void depthDrawPruneThinForeignSeedComponents(
         size_t wideContourHits{};
 
         while (head < queue.size()) {
-            auto index = compat::ngArrayAt(queue, head++);
+            auto index = sourceAt(queue, head++, 1925);
             indices.append(index);
-            values.append(compat::ngArrayAt(depthPixels, index));
+            values.append(sourceAt(depthPixels, index, 1927));
             auto x = toInt(index % layer.width);
             auto y = toInt(index / layer.width);
             minX = min(minX, x);
             maxX = max(maxX, x);
             minY = min(minY, y);
             maxY = max(maxY, y);
-            if (compat::ngArrayAt(contourMask, index)) contourHits += 1;
-            if (compat::ngArrayAt(wideContourMask, index)) wideContourHits += 1;
+            if (sourceAt(contourMask, index, 1934)) contourHits += 1;
+            if (sourceAt(wideContourMask, index, 1935)) wideContourHits += 1;
 
             for (auto offset : depthDrawEightNeighborOffsets) {
                 auto sx = add32(x, offset[0]);
                 auto sy = add32(y, offset[1]);
                 if (sx < 0 || sx >= layer.width || sy < 0 || sy >= layer.height) continue;
                 auto sampleIndex = static_cast<size_t>(sy) * static_cast<size_t>(layer.width) + static_cast<size_t>(sx);
-                if (compat::ngArrayAt(visited, sampleIndex) || !compat::ngArrayAt(maskPixels, sampleIndex) ||
-                    compat::ngArrayAt(depthPixels, sampleIndex) == 0) continue;
-                const auto neighborDepth = static_cast<double>(compat::ngArrayAt(depthPixels, sampleIndex));
-                const auto currentDepth = static_cast<double>(compat::ngArrayAt(depthPixels, index));
+                if (sourceAt(visited, sampleIndex, 1942) || !sourceAt(maskPixels, sampleIndex, 1942) ||
+                    sourceAt(depthPixels, sampleIndex, 1942) == 0) continue;
+                const auto neighborDepth = static_cast<double>(sourceAt(depthPixels, sampleIndex, 1943));
+                const auto currentDepth = static_cast<double>(sourceAt(depthPixels, index, 1943));
                 if (std::abs(neighborDepth - currentDepth) > linkThreshold) continue;
-                compat::ngArrayAt(visited, sampleIndex) = 1;
-                compat::ngArrayAt(componentIds, sampleIndex) = componentId;
+                sourceAt(visited, sampleIndex, 1944) = 1;
+                sourceAt(componentIds, sampleIndex, 1945) = componentId;
                 queue.append(sampleIndex);
             }
         }
@@ -1852,11 +1852,11 @@ void depthDrawPruneThinForeignSeedComponents(
             (contourRatio >= 0.35 || wideContourRatio >= 0.7) &&
             (isThin || isSmallish)) {
             for (auto componentIndices = indices; auto index : componentIndices) {
-                compat::ngArrayAt(depthPixels, index) = 0;
-                compat::ngArrayAt(debugState, index) = 4;
-                const auto existingScore = compat::ngArrayAt(debugScore, index);
+                sourceAt(depthPixels, index, 1975) = 0;
+                sourceAt(debugState, index, 1976) = 4;
+                const auto existingScore = sourceAt(debugScore, index, 1977);
                 const auto score = static_cast<ubyte>(min(255, max(0, toInt(std::llround(componentScore * 24.0)))));
-                compat::ngArrayAt(debugScore, index) = max(existingScore, score);
+                sourceAt(debugScore, index, 1977) = max(existingScore, score);
             }
         }
 
@@ -1887,11 +1887,11 @@ Array<ubyte> depthDrawCollectComponentExternalDepthSupport(
     for (auto y : dRange(startY, add32(endY, 1))) {
         for (auto x : dRange(startX, add32(endX, 1))) {
             auto index = add32(mul32(y, width), x);
-            if (!compat::ngArrayAt(maskPixels, index) || compat::ngArrayAt(depthPixels, index) == 0 ||
-                compat::ngArrayAt(componentIds, index) == componentId || compat::ngArrayAt(contourMask, index)) {
+            if (!sourceAt(maskPixels, index, 2009) || sourceAt(depthPixels, index, 2009) == 0 ||
+                sourceAt(componentIds, index, 2010) == componentId || sourceAt(contourMask, index, 2010)) {
                 continue;
             }
-            values.append(compat::ngArrayAt(depthPixels, index));
+            values.append(sourceAt(depthPixels, index, 2013));
         }
     }
     return values;
@@ -1921,9 +1921,9 @@ Array<ubyte> depthDrawCollectComponentForeignVisibleDepthSupport(
                 auto sx = add32(globalX, dx);
                 if (sx < 0 || sx >= imageWidth) continue;
                 auto globalIndex = add32(mul32(sy, imageWidth), sx);
-                auto visibleLayer = compat::ngArrayAt(visibleLayerMap, globalIndex);
+                auto visibleLayer = sourceAt(visibleLayerMap, globalIndex, 2043);
                 if (visibleLayer < 0 || visibleLayer == layerIndex) continue;
-                values.append(compat::ngArrayAt(stableDepthPixels, globalIndex));
+                values.append(sourceAt(stableDepthPixels, globalIndex, 2045));
             }
         }
     }
@@ -1947,8 +1947,8 @@ Array<ubyte> depthDrawCollectLocalDepthSupport(
             auto sx = add32(centerX, dx);
             if (sx < 0 || sx >= width || (dx == 0 && dy == 0)) continue;
             auto sampleIndex = add32(mul32(sy, width), sx);
-            auto sampleDepth = compat::ngArrayAt(depthPixels, sampleIndex);
-            if (!compat::ngArrayAt(maskPixels, sampleIndex) || sampleDepth == 0) continue;
+            auto sampleDepth = sourceAt(depthPixels, sampleIndex, 2069);
+            if (!sourceAt(maskPixels, sampleIndex, 2070) || sampleDepth == 0) continue;
             values.append(sampleDepth);
         }
     }
@@ -1973,9 +1973,9 @@ Array<ubyte> depthDrawCollectForeignVisibleDepthSupport(
             auto sx = add32(centerX, dx);
             if (sx < 0 || sx >= imageWidth || (dx == 0 && dy == 0)) continue;
             auto globalIndex = add32(mul32(sy, imageWidth), sx);
-            auto visibleLayer = compat::ngArrayAt(visibleLayerMap, globalIndex);
+            auto visibleLayer = sourceAt(visibleLayerMap, globalIndex, 2095);
             if (visibleLayer < 0 || visibleLayer == layerIndex) continue;
-            values.append(compat::ngArrayAt(stableDepthPixels, globalIndex));
+            values.append(sourceAt(stableDepthPixels, globalIndex, 2097));
         }
     }
     return values;

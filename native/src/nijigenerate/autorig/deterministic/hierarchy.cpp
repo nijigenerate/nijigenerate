@@ -93,7 +93,7 @@ template<class Map, class Key> auto aaRead(const Map& values, const Key& key,
     const auto entry = values.find(key);
     if (entry == values.end())
         throw compat::ngStaticError<compat::RangeError>(
-            literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), sourceLine);
+            compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), sourceLine);
     return entry->second;
 }
 } // namespace
@@ -153,7 +153,7 @@ Value ngRigCompileHierarchy(Value observation, Array carriers, Value scaffold) {
     }
     if (carriers.empty())
         throw compat::ngStaticError<compat::ArrayIndexError>(0, carriers.size(),
-            literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), 49);
+            compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), 49);
     const auto first = chain(ngRigUnsigned(get(carriers[0], "part")));
     Id scopeId = 0;
     bool found = false;
@@ -215,7 +215,7 @@ Value ngRigCompileHierarchy(Value observation, Array carriers, Value scaffold) {
                 const auto material = materials.find(id);
                 if (material == materials.end())
                     throw compat::ngStaticError<compat::RangeError>(
-                        literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), 86);
+                        compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), 86);
                 if (text(material->second, "role").view() == "face") face.append(id);
             }
             if (!face.empty()) candidates = std::move(face);
@@ -226,14 +226,14 @@ Value ngRigCompileHierarchy(Value observation, Array carriers, Value scaffold) {
             const auto entry = materials.find(id);
             if (entry == materials.end())
                 throw compat::ngStaticError<compat::RangeError>(
-                    literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), 91);
+                    compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), 91);
             const auto material = entry->second;
             const auto fallback = get(aaRead(definitions, domain, 91), "bounds");
             const auto b = ngRigNumbers(ngRigGet(material, literal("bounds"), fallback));
             const auto component = [&](std::size_t index) {
                 if (index >= b.size())
                     throw compat::ngStaticError<compat::ArrayIndexError>(index, b.size(),
-                        literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), 92);
+                        compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), 92);
                 return b[index];
             };
             const auto right = component(2);
@@ -279,11 +279,11 @@ Value ngRigCompileHierarchy(Value observation, Array carriers, Value scaffold) {
                 const auto entry = bones.find(bone);
                 if (entry == bones.end())
                     throw compat::ngStaticError<compat::RangeError>(
-                        literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), 111);
+                        compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), 111);
                 const auto head = array(entry->second, "head");
                 if (head.size() < 2)
                     throw compat::ngStaticError<compat::ArraySliceError>(0, 2, head.size(),
-                        literal("source/nijigenerate/autorig/deterministic/hierarchy.d"), 111);
+                        compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/hierarchy.d"), 111);
                 return head.slice(0, 2);
             }())}}));
     };

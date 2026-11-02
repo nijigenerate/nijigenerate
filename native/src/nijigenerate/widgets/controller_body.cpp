@@ -80,7 +80,7 @@ float controllerDistance(const nicxlive::core::nodes::Vec2& a, const nicxlive::c
     return length.convert_to<float>();
 #endif
 }
-template<class Text> bool controller(Text strId,
+template<class Text> bool controllerImpl(Text strId,
     ParameterHandle& parameter, ImVec2 size,
     bool forceSnap, Text grabParam,
     float oRectOffsetX, float oRectOffsetY, float circleSize, float frameWidth) {
@@ -603,11 +603,11 @@ template<class Text> void axisDemo(Text strId,
 
 bool detail::ngControllerImpl(compat::RetainedStringSlice id, ParameterHandle& parameter,
     ImVec2 size, bool snap, compat::RetainedStringSlice grab, float x, float y, float circle, float frame) {
-    return controller(id, parameter, size, snap, grab, x, y, circle, frame);
+    return controllerImpl(id, parameter, size, snap, grab, x, y, circle, frame);
 }
 bool detail::ngControllerImpl(std::string_view id, ParameterHandle& parameter,
     ImVec2 size, bool snap, std::string_view grab, float x, float y, float circle, float frame) {
-    return controller(id, parameter, size, snap, grab, x, y, circle, frame);
+    return controllerImpl(id, parameter, size, snap, grab, x, y, circle, frame);
 }
 void ngControllerAxisDemo(compat::RetainedStringSlice id, ParameterHandle& parameter,
     std::array<compat::Slice<EditableAxisPoint>, 2>& points, ImVec2 size) {

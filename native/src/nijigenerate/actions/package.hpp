@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <limits>
 #include <nijigenerate/compat/slice.hpp>
 #include <nijigenerate/core/typed_format_enum.hpp>
 #include <nijigenerate/compat/retained_string_slice.hpp>
@@ -291,6 +292,9 @@ template<> struct SourceObjectTypeNames<::nijigenerate::actions::AsyncGroupActio
     inline static constexpr char className[] = "nijigenerate.actions.AsyncGroupAction";
     inline static constexpr char templateArgumentName[] = "(nijigenerate.actions.AsyncGroupAction)";
 };
+}
+
+namespace nicxlive::core::d_runtime {
 }
 
 namespace nijigenerate::core::translation {

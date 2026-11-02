@@ -23,9 +23,9 @@
 namespace nijigenerate::viewport::common::mesheditor::tools::bezierdeform {
 namespace detail {
 template<class Operation>
-decltype(auto) allocateBezierStorage(Operation&& operation) {
+auto allocateBezierStorage(Operation operation) -> decltype(operation()) {
     try {
-        return std::forward<Operation>(operation)();
+        return operation();
     } catch (const std::bad_alloc&) {
         throw compat::ngStaticError<compat::OutOfMemoryError>(std::source_location::current());
     } catch (const std::length_error&) {

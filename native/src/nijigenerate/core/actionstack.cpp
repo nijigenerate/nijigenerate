@@ -280,7 +280,9 @@ settings::SettingsJsonValue ngActionHistoryMemoryInfo() {
     result[String("undo_index")] = Json(static_cast<std::uint64_t>(actionPointer[currentLevel]));
     result[String("action_count")] = Json(objects);
     result[String("groups")] = Json(groups);
-    // Ordinary shared_ptr ownership exposes no containing-allocation size.
+    // The source runtime reports collector object-block size. The native shared pointer
+    // allocator has no equivalent query, so keep this metric unknown rather than reporting
+    // sizeof(Action) or an allocator request that measures different storage.
     result[String("action_object_allocation_bytes")] = Json{};
     result[String("binding_snapshot_bytes")] = Json(bindingBytes);
     result[String("types")] = Json(counts);

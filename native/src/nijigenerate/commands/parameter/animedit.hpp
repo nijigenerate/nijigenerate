@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <nijigenerate/core/typed_format_enum.hpp>
 #include <compat/object_metadata.hpp>
+#include <nijigenerate/commands/command_table.hpp>
 #include <array>
 
 namespace nijigenerate::commands::parameter::animedit {
@@ -11,6 +12,7 @@ enum class AnimeditCommand : std::int32_t {
     CopyAnimationKeyFrame = 1,
     PasteAnimationKeyFrame = 2
 };
+extern thread_local ::nijigenerate::commands::CommandTableStorage<AnimeditCommand> commands;
 
 }
 

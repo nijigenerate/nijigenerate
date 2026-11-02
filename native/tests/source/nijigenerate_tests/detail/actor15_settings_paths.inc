@@ -86,7 +86,11 @@ void testSettingsPathResolution() {
         if (inword) result.append(input.subslice(start, input.size()));
         return result;
     };
-    nicxlive::core::common::ResourceKeyMap<std::uint32_t, bool> materialSymbolCodepoints;
+    struct CodepointHash {
+        std::size_t operator()(std::uint32_t value) const noexcept { return static_cast<std::size_t>(value); }
+    };
+    nicxlive::core::common::ResourceKeyMap<std::uint32_t, bool,
+        CodepointHash, std::equal_to<std::uint32_t>> materialSymbolCodepoints;
     const std::array codepointSegments{text("res"), text("MaterialSymbolsOutlined.codepoints")};
     for (auto line : splitSourceLines(paths::ngReadUtf8Text(paths::ngBuildPath(codepointSegments)))) {
         auto fields = splitFields(line);
@@ -106,7 +110,7 @@ void testSettingsPathResolution() {
     };
     for (auto entry : paths::ngDirEntries(text("source"), paths::SpanMode::depth)) {
         if (!entry.isFile() || !entry.name().view().ends_with(".d")) continue;
-        auto sourceText = paths::ngReadUtf8Text(entry.name());
+        auto sourceText = paths::ngReadUtf8Text(entry.name().retainedString());
         for (Cursor cursor(sourceText); !cursor.empty(); cursor.popFront()) {
             requireSupportedIconCodepoint(static_cast<std::uint32_t>(cursor.front()), entry.name().retainedString());
         }
@@ -122,7 +126,7 @@ void testSettingsPathResolution() {
                 requireSupportedIconCodepoint(codepoint, entry.name().retainedString());
         }
     }
-    settings::incSettingsSet(text("RegressionPathProbe"), text("ok"));
+    settings::incSettingsSet(text("RegressionPathProbe"), settings::SettingsString(text("ok")));
     check(settings::incSettingsGet<settings::SettingsString>(text("RegressionPathProbe")).view() == "ok",
         "settings set/get should round-trip string values");
 }

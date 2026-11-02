@@ -24,7 +24,7 @@ void testCommandBrowserDifferentialReportMatchesBaseline() {
     newValueBinding(paramA, nodeA, text("transform.t.x"), true);
     newValueBinding(paramB, nodeB, text("transform.t.y"), true);
     auto actual = normalizeCommandBrowserDifferentialReport(
-        nijigenerate::windows::command_browser::ngCommandBrowserDifferentialReport());
+        nijigenerate::windows::command_browser::ngCommandBrowserDifferentialReport().retainedString());
     const std::array segments{regressionRepoRoot(), text("source"), text("nijigenerate_tests"),
         text("fixtures"), text("command_browser_differential_expected.txt")};
     auto expectedPath = ngBuildPath(segments);

@@ -110,7 +110,7 @@ std::uint64_t depthBoneRigStructureHash(std::shared_ptr<ExDepthRigRoot> root) {
             hash = hashFloat(hash, setting.depthOffset);
             hash = hashFloat(hash, setting.depthScale);
             hash = hashFloat(hash, ext::nodes::ngNormalizeDepthBoneSourceRotation(setting.rotation));
-            if (const auto* multiplier = binding.influenceRule.multipliersByBoneUuid.find(uuid))
+            if (const auto multiplier = binding.influenceRule.multipliersByBoneUuid.find(uuid))
                 hash = hashFloat(hash, *multiplier);
         }
         auto target = puppet->findNodeById(static_cast<std::uint32_t>(binding.targetUuid));

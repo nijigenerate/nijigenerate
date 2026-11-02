@@ -254,7 +254,8 @@ nicxlive::core::math::Vec4 AutoMeshBatchWindow::previewImage(std::shared_ptr<Par
     ImGui::SetCursorPos({tl.x + center.x - previewSize / 2 + bounds.x,
         tl.y + center.y - previewSize / 2 + bounds.y});
     const auto screen = ImGui::GetCursorScreenPos();
-    ImGui::Image(static_cast<ImTextureID>(texture(138)->getTextureId()), {bounds.z, bounds.w}, uv0, uv1, tint);
+    ImGui::ImageWithBg(static_cast<ImTextureID>(texture(138)->getTextureId()), {bounds.z, bounds.w},
+        uv0, uv1, ImVec4(0, 0, 0, 0), tint);
     if (mesh) {
         auto draw = ImGui::GetWindowDrawList();
         const auto color = ImGui::GetColorU32(ImVec4(.7f, .7f, .7f, 1));

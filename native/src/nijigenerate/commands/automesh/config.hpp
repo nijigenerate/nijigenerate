@@ -21,15 +21,15 @@ template<class C, class Storage, class... Parameters> struct ConfigConstructorPr
 struct ConfigCommandText { compat::RetainedString label; compat::RetainedString description; };
 ConfigCommandText formattedCommandText(std::string_view pattern, std::string_view processorName,
     std::string_view description);
-compat::Slice<std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor>> configProcessors();
+compat::Slice<std::shared_ptr< ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor>> configProcessors();
 std::shared_ptr<CommandResult> runGetConfig(
-    std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor> processor, const compat::RetainedString& level);
+    std::shared_ptr< ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> processor, const compat::RetainedString& level);
 std::shared_ptr<CommandResult> runSetConfig(
-    std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor> processor,
+    std::shared_ptr< ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> processor,
     const compat::RetainedString& level, const compat::RetainedString& updates);
 std::shared_ptr<CommandResult> runPresetConfig(
-    std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor> processor, const compat::RetainedString& preset);
-template<class PT> std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor> resolveConfigProcessor() {
+    std::shared_ptr< ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> processor, const compat::RetainedString& preset);
+template<class PT> std::shared_ptr< ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> resolveConfigProcessor() {
     for (auto processor : configProcessors())
         if (std::dynamic_pointer_cast<PT>(processor)) return processor;
     return {};
@@ -49,11 +49,11 @@ nicxlive::core::d_runtime::SourceTypeSpellingNames configMixinRetainedTypeSpelli
 }
 class AutoMeshConfigChangeAction : public actions::Action,
     public std::enable_shared_from_this<AutoMeshConfigChangeAction> {
-    std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor> processor;
+    std::shared_ptr<::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> processor;
     compat::RetainedString processorName;
     AutoMeshConfigSnapshot oldState, newState;
 public:
-    AutoMeshConfigChangeAction(std::shared_ptr<viewport::vertex::automesh::AutoMeshProcessor>,
+    AutoMeshConfigChangeAction(std::shared_ptr<::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor>,
         AutoMeshConfigSnapshot, AutoMeshConfigSnapshot);
     AutoMeshConfigChangeAction(const AutoMeshConfigChangeAction&) = delete;
     AutoMeshConfigChangeAction& operator=(const AutoMeshConfigChangeAction&) = delete;
@@ -220,15 +220,15 @@ template<> struct CommandFields<automesh::config::SetAutoMeshConfig_OptimumAutoM
 template<> struct CommandFields<automesh::config::AutoMeshSetSimple_OptimumAutoMeshProcessorCommandArguments> {
     using A=automesh::config::AutoMeshSetSimple_OptimumAutoMeshProcessorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
+        ::nijigenerate::viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
         &A::scales,&A::min_distance,&A::mask_threshold,&A::div_per_part>();
 };
 template<> struct CommandFields<automesh::config::AutoMeshSetAdvanced_OptimumAutoMeshProcessorCommandArguments> {
     using A=automesh::config::AutoMeshSetAdvanced_OptimumAutoMeshProcessorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Advanced,
+        ::nijigenerate::viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Advanced,
         &A::large_threshold,&A::length_threshold,&A::ratio_threshold,
         &A::sharp_expand,&A::unsharp_expand,&A::unsharp_contract>();
 };
@@ -254,15 +254,15 @@ template<> struct CommandFields<automesh::config::SetAutoMeshConfig_ContourAutoM
 template<> struct CommandFields<automesh::config::AutoMeshSetSimple_ContourAutoMeshProcessorCommandArguments> {
     using A=automesh::config::AutoMeshSetSimple_ContourAutoMeshProcessorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::contours::ContourAutoMeshProcessor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
+        ::nijigenerate::viewport::vertex::automesh::contours::ContourAutoMeshProcessor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
         &A::sampling_step,&A::mask_threshold>();
 };
 template<> struct CommandFields<automesh::config::AutoMeshSetAdvanced_ContourAutoMeshProcessorCommandArguments> {
     using A=automesh::config::AutoMeshSetAdvanced_ContourAutoMeshProcessorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::contours::ContourAutoMeshProcessor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Advanced,
+        ::nijigenerate::viewport::vertex::automesh::contours::ContourAutoMeshProcessor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Advanced,
         &A::min_distance,&A::max_distance,&A::scales>();
 };
 template<> struct CommandFields<automesh::config::AutoMeshSetPreset_ContourAutoMeshProcessorCommandArguments> {
@@ -287,15 +287,15 @@ template<> struct CommandFields<automesh::config::SetAutoMeshConfig_GridAutoMesh
 template<> struct CommandFields<automesh::config::AutoMeshSetSimple_GridAutoMeshProcessorCommandArguments> {
     using A=automesh::config::AutoMeshSetSimple_GridAutoMeshProcessorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::grid::GridAutoMeshProcessor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
+        ::nijigenerate::viewport::vertex::automesh::grid::GridAutoMeshProcessor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
         &A::mask_threshold,&A::x_segments,&A::y_segments,&A::margin>();
 };
 template<> struct CommandFields<automesh::config::AutoMeshSetAdvanced_GridAutoMeshProcessorCommandArguments> {
     using A=automesh::config::AutoMeshSetAdvanced_GridAutoMeshProcessorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::grid::GridAutoMeshProcessor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Advanced,
+        ::nijigenerate::viewport::vertex::automesh::grid::GridAutoMeshProcessor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Advanced,
         &A::scale_x,&A::scale_y>();
 };
 template<> struct CommandFields<automesh::config::AutoMeshSetPreset_GridAutoMeshProcessorCommandArguments> {
@@ -320,8 +320,8 @@ template<> struct CommandFields<automesh::config::SetAutoMeshConfig_SkeletonExtr
 template<> struct CommandFields<automesh::config::AutoMeshSetSimple_SkeletonExtractorCommandArguments> {
     using A=automesh::config::AutoMeshSetSimple_SkeletonExtractorCommandArguments;
     static constexpr auto descriptors=automesh::config::detail::configSourceFields<
-        viewport::vertex::automesh::skeletonize::SkeletonExtractor,
-        viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
+        ::nijigenerate::viewport::vertex::automesh::skeletonize::SkeletonExtractor,
+        ::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel::Simple,
         &A::mask_threshold,&A::target_point_count>();
 };
 template<> struct CommandFields<automesh::config::AutoMeshSetPreset_SkeletonExtractorCommandArguments> {
@@ -683,7 +683,7 @@ protected:
 public:
     explicit GetConfigCommand(compat::RetainedString level)
         : GetConfigCommand(detail::formattedCommandText("Get Config (%s)",
-            viewport::vertex::automesh::meta::AMProcInfo<PT>::name,
+            ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>::name,
             "Get AutoMesh config (per processor)"),level) {}
     bool runnable(std::shared_ptr<Context>) override {
         const auto receiver=this->weak_from_this().lock();
@@ -708,7 +708,7 @@ protected:
 public:
     SetConfigCommand(compat::RetainedString level, compat::RetainedString updates)
         : SetConfigCommand(detail::formattedCommandText("Set Config (%s)",
-            viewport::vertex::automesh::meta::AMProcInfo<PT>::name,
+            ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>::name,
             "Set AutoMesh config (per processor)"),level,updates) {}
     bool runnable(std::shared_ptr<Context>) override {
         const auto receiver=this->weak_from_this().lock();
@@ -733,7 +733,7 @@ protected:
 public:
     PresetConfigCommand()
         : PresetConfigCommand(detail::formattedCommandText("Set Preset (%s)",
-            viewport::vertex::automesh::meta::AMProcInfo<PT>::name,"Apply preset")) {}
+            ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>::name,"Apply preset")) {}
     bool runnable(std::shared_ptr<Context>) override {
         const auto receiver=this->weak_from_this().lock();
         return true;
@@ -749,10 +749,10 @@ template<class PT> struct ConfigCommandTypes {
     using Set=SetConfigCommand<PT>;
     using Preset=PresetConfigCommand<PT>;
 };
-template<> struct ConfigCommandTypes<viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor> { using Get=GetAutoMeshConfig_OptimumAutoMeshProcessorCommand; using Set=SetAutoMeshConfig_OptimumAutoMeshProcessorCommand; using Simple=AutoMeshSetSimple_OptimumAutoMeshProcessorCommand; using Advanced=AutoMeshSetAdvanced_OptimumAutoMeshProcessorCommand; using Preset=AutoMeshSetPreset_OptimumAutoMeshProcessorCommand; };
-template<> struct ConfigCommandTypes<viewport::vertex::automesh::contours::ContourAutoMeshProcessor> { using Get=GetAutoMeshConfig_ContourAutoMeshProcessorCommand; using Set=SetAutoMeshConfig_ContourAutoMeshProcessorCommand; using Simple=AutoMeshSetSimple_ContourAutoMeshProcessorCommand; using Advanced=AutoMeshSetAdvanced_ContourAutoMeshProcessorCommand; using Preset=AutoMeshSetPreset_ContourAutoMeshProcessorCommand; };
-template<> struct ConfigCommandTypes<viewport::vertex::automesh::grid::GridAutoMeshProcessor> { using Get=GetAutoMeshConfig_GridAutoMeshProcessorCommand; using Set=SetAutoMeshConfig_GridAutoMeshProcessorCommand; using Simple=AutoMeshSetSimple_GridAutoMeshProcessorCommand; using Advanced=AutoMeshSetAdvanced_GridAutoMeshProcessorCommand; using Preset=AutoMeshSetPreset_GridAutoMeshProcessorCommand; };
-template<> struct ConfigCommandTypes<viewport::vertex::automesh::skeletonize::SkeletonExtractor> { using Get=GetAutoMeshConfig_SkeletonExtractorCommand; using Set=SetAutoMeshConfig_SkeletonExtractorCommand; using Simple=AutoMeshSetSimple_SkeletonExtractorCommand; using Advanced=AutoMeshSetAdvanced_SkeletonExtractorCommand; using Preset=AutoMeshSetPreset_SkeletonExtractorCommand; };
+template<> struct ConfigCommandTypes<::nijigenerate::viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor> { using Get=GetAutoMeshConfig_OptimumAutoMeshProcessorCommand; using Set=SetAutoMeshConfig_OptimumAutoMeshProcessorCommand; using Simple=AutoMeshSetSimple_OptimumAutoMeshProcessorCommand; using Advanced=AutoMeshSetAdvanced_OptimumAutoMeshProcessorCommand; using Preset=AutoMeshSetPreset_OptimumAutoMeshProcessorCommand; };
+template<> struct ConfigCommandTypes<::nijigenerate::viewport::vertex::automesh::contours::ContourAutoMeshProcessor> { using Get=GetAutoMeshConfig_ContourAutoMeshProcessorCommand; using Set=SetAutoMeshConfig_ContourAutoMeshProcessorCommand; using Simple=AutoMeshSetSimple_ContourAutoMeshProcessorCommand; using Advanced=AutoMeshSetAdvanced_ContourAutoMeshProcessorCommand; using Preset=AutoMeshSetPreset_ContourAutoMeshProcessorCommand; };
+template<> struct ConfigCommandTypes<::nijigenerate::viewport::vertex::automesh::grid::GridAutoMeshProcessor> { using Get=GetAutoMeshConfig_GridAutoMeshProcessorCommand; using Set=SetAutoMeshConfig_GridAutoMeshProcessorCommand; using Simple=AutoMeshSetSimple_GridAutoMeshProcessorCommand; using Advanced=AutoMeshSetAdvanced_GridAutoMeshProcessorCommand; using Preset=AutoMeshSetPreset_GridAutoMeshProcessorCommand; };
+template<> struct ConfigCommandTypes<::nijigenerate::viewport::vertex::automesh::skeletonize::SkeletonExtractor> { using Get=GetAutoMeshConfig_SkeletonExtractorCommand; using Set=SetAutoMeshConfig_SkeletonExtractorCommand; using Simple=AutoMeshSetSimple_SkeletonExtractorCommand; using Advanced=AutoMeshSetAdvanced_SkeletonExtractorCommand; using Preset=AutoMeshSetPreset_SkeletonExtractorCommand; };
 template<class PT> using GetAutoMeshConfigPT=typename ConfigCommandTypes<PT>::Get;
 template<class PT> using SetAutoMeshConfigPT=typename ConfigCommandTypes<PT>::Set;
 template<class PT> using AutoMeshSetSimpleConfigCommand=typename ConfigCommandTypes<PT>::Simple;

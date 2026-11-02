@@ -1,6 +1,7 @@
 // Port of MCP 1.0.1 tools. Copyright 2025 Garret Noble; port/licenses/mcp-stdio.txt.
 #include "tools.hpp"
 #include <nijigenerate/compat/json_stringify.hpp>
+#include <nijigenerate/compat/exception_message.hpp>
 #include <new>
 
 namespace nijigenerate::providers::mcp::tools {

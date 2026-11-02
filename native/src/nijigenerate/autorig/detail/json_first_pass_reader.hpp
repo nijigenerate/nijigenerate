@@ -184,25 +184,25 @@ public:
             const auto integer = [&] {
                 if (!(c >= '0' && c <= '9')) error("Digit expected");
                 for (;;) {
-                    number += static_cast<char>(c);
+                    appendByte(number, static_cast<char>(c));
                     const auto next = peekChar();
                     if (!(next >= '0' && next <= '9')) break;
                     c = getChar();
                 }
             };
-            if (c == '-') { number += '-'; c = getChar(); negative = true; }
+            if (c == '-') { appendByte(number, '-'); c = getChar(); negative = true; }
             if (strict() && c == '0') {
-                number += '0';
+                appendByte(number, '0');
                 const auto next = peekChar();
                 if (next >= '0' && next <= '9')
                     error("Additional digits not allowed after initial zero digit");
             } else integer();
-            if (testChar('.')) { floating = true; number += '.'; c = getChar(); integer(); }
+            if (testChar('.')) { floating = true; appendByte(number, '.'); c = getChar(); integer(); }
             if (testChar('e', false, false)) {
                 floating = true;
-                number += 'e';
-                if (testChar('+')) number += '+';
-                else if (testChar('-')) number += '-';
+                appendByte(number, 'e');
+                if (testChar('+')) appendByte(number, '+');
+                else if (testChar('-')) appendByte(number, '-');
                 c = getChar();
                 integer();
             }
@@ -225,12 +225,13 @@ public:
         } else if (c == 'n' || (!strict() && c == 'N')) {
             value = nullptr;
             checkChar('u', false, strict()); checkChar('l', false, strict()); checkChar('l', false, strict());
-        } else error(std::string("Unexpected character '") + characterText(c) + "'.");
+        } else error(characterMessage("Unexpected character '", c, "'."));
         depth_ = decrement(depth_);
     }
 
-    [[noreturn]] void error(const std::string& message) const {
-        throw core::settings::SettingsJsonError(message, line_, position_);
+    [[noreturn]] void error(std::string_view message) const {
+        const auto retained = allocateArtifactNumberText([&] { return compat::RetainedString(message); });
+        throw core::settings::SettingsJsonError(retained, line_, position_);
     }
     std::uint32_t popChar() {
         if (remainingEmpty()) error("Unexpected end of data.");
@@ -287,9 +288,14 @@ public:
         if (whitespace) skipWhitespace();
         auto byte = getChar();
         if (!sensitive) byte = lower(byte);
-        if (byte != expected)
-            error(std::string("Found '") + characterText(byte) + "' when expecting '" +
-                static_cast<char>(expected) + "'.");
+        if (byte != expected) {
+            auto message = characterMessage("Found '", byte, "' when expecting '");
+            allocateArtifactNumberText([&] {
+                message += static_cast<char>(expected);
+                message += "'.";
+            });
+            error(message);
+        }
     }
     bool testChar(unsigned char expected, bool whitespace = true, bool sensitive = true) {
         if (whitespace) skipWhitespace();
@@ -326,14 +332,14 @@ public:
             getChar();
             const auto escape = getChar();
             switch (escape) {
-            case '"': result += '"'; break;
-            case '\\': result += '\\'; break;
-            case '/': result += '/'; break;
-            case 'b': result += '\b'; break;
-            case 'f': result += '\f'; break;
-            case 'n': result += '\n'; break;
-            case 'r': result += '\r'; break;
-            case 't': result += '\t'; break;
+            case '"': appendByte(result, '"'); break;
+            case '\\': appendByte(result, '\\'); break;
+            case '/': appendByte(result, '/'); break;
+            case 'b': appendByte(result, '\b'); break;
+            case 'f': appendByte(result, '\f'); break;
+            case 'n': appendByte(result, '\n'); break;
+            case 'r': appendByte(result, '\r'); break;
+            case 't': appendByte(result, '\t'); break;
             case 'u': {
                 const auto first = parseWChar();
                 std::uint32_t scalar = first;
@@ -349,11 +355,11 @@ public:
                 appendUtf8(result, scalar);
                 break;
             }
-            default: error(std::string("Invalid escape sequence '\\") + characterText(escape) + "'.");
+            default: error(characterMessage("Invalid escape sequence '\\", escape, "'."));
             }
         }
         return result.empty() ? core::settings::SettingsString::emptyLiteral()
-            : core::settings::SettingsString(std::move(result));
+            : allocateArtifactNumberText([&] { return core::settings::SettingsString(std::move(result)); });
     }
 
 private:
@@ -390,8 +396,11 @@ private:
         failure.setSequence(sequence);
         throw failure;
     }
+    static void appendByte(std::string& output, char byte) {
+        allocateArtifactNumberText([&] { output += byte; });
+    }
     static void appendCharacter(std::string& output, std::uint32_t character) {
-        if constexpr (byteInput) output += static_cast<char>(character);
+        if constexpr (byteInput) appendByte(output, static_cast<char>(character));
         else {
             if (character >= 0xd800 && character <= 0xdfff)
                 utfFailure("Encoding a surrogate code point in UTF-8", character, 2311);
@@ -405,20 +414,30 @@ private:
         appendCharacter(text, character);
         return text;
     }
+    static std::string characterMessage(std::string_view prefix, std::uint32_t character,
+            std::string_view suffix) {
+        auto message = allocateArtifactNumberText([&] { return std::string(prefix); });
+        const auto text = characterText(character);
+        allocateArtifactNumberText([&] {
+            message.append(text);
+            message.append(suffix);
+        });
+        return message;
+    }
     static void appendUtf8(std::string& output, std::uint32_t scalar) {
-        if (scalar < 0x80) output += static_cast<char>(scalar);
+        if (scalar < 0x80) appendByte(output, static_cast<char>(scalar));
         else if (scalar < 0x800) {
-            output += static_cast<char>(0xc0 | (scalar >> 6));
-            output += static_cast<char>(0x80 | (scalar & 63));
+            appendByte(output, static_cast<char>(0xc0 | (scalar >> 6)));
+            appendByte(output, static_cast<char>(0x80 | (scalar & 63)));
         } else if (scalar < 0x10000) {
-            output += static_cast<char>(0xe0 | (scalar >> 12));
-            output += static_cast<char>(0x80 | ((scalar >> 6) & 63));
-            output += static_cast<char>(0x80 | (scalar & 63));
+            appendByte(output, static_cast<char>(0xe0 | (scalar >> 12)));
+            appendByte(output, static_cast<char>(0x80 | ((scalar >> 6) & 63)));
+            appendByte(output, static_cast<char>(0x80 | (scalar & 63)));
         } else {
-            output += static_cast<char>(0xf0 | (scalar >> 18));
-            output += static_cast<char>(0x80 | ((scalar >> 12) & 63));
-            output += static_cast<char>(0x80 | ((scalar >> 6) & 63));
-            output += static_cast<char>(0x80 | (scalar & 63));
+            appendByte(output, static_cast<char>(0xf0 | (scalar >> 18)));
+            appendByte(output, static_cast<char>(0x80 | ((scalar >> 12) & 63)));
+            appendByte(output, static_cast<char>(0x80 | ((scalar >> 6) & 63)));
+            appendByte(output, static_cast<char>(0x80 | (scalar & 63)));
         }
     }
 };

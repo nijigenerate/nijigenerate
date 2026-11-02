@@ -12,7 +12,7 @@ void testPsdDepthMapImportHelpers() {
     using nicxlive::core::math::Vec2;
     using nicxlive::core::math::Vec3;
     using nicxlive::core::math::ngVecaFromVectorsSource;
-    using nicxlive::common::SharedArray;
+    using nicxlive::core::common::SharedArray;
     using nicxlive::core::nodes::MeshData;
     using nicxlive::core::Texture;
     using nicxlive::core::ShallowTexture;
@@ -338,19 +338,19 @@ void testPsdDepthMapImportHelpers() {
             && persistedPngImported.composedLayers[0].targetGridUuid == pngGrid->getUUID(),
             "PSD depth import should reload layer state from the persistent composed source model, not only dialog settings");
         auto pngImportSummary = ngPsdDepthImportSummaryToJson(pngImported, 0);
-        check(objectMember(pngImportSummary, "compositionMode", 6453).sourceStringValue() == text("1:1")
+        check(objectMember(pngImportSummary, "compositionMode", 6453).as_string().retainedString() == text("1:1")
             && objectMember(pngImportSummary, "compositionWidth", 6454).as_int64() == 4
             && objectMember(pngImportSummary, "compositionHeight", 6455).as_int64() == 4
-            && objectMember(pngImportSummary, "colorSourceKind", 6456).sourceStringValue() == text("ActiveArtTargets")
-            && objectMember(pngImportSummary, "depthSourceKind", 6457).sourceStringValue() == text("FlatImage")
+            && objectMember(pngImportSummary, "colorSourceKind", 6456).as_string().retainedString() == text("ActiveArtTargets")
+            && objectMember(pngImportSummary, "depthSourceKind", 6457).as_string().retainedString() == text("FlatImage")
             && objectMember(pngImportSummary, "composedLayerCount", 6458).as_int64() == 1
-            && objectMember(pngImportSummary, "composedSourceMode", 6459).sourceStringValue() == text("1:1")
+            && objectMember(pngImportSummary, "composedSourceMode", 6459).as_string().retainedString() == text("1:1")
             && objectMember(pngImportSummary, "composedSourceWidth", 6460).as_int64() == 4
             && objectMember(pngImportSummary, "composedSourceHeight", 6461).as_int64() == 4
             && objectMember(pngImportSummary, "composedSourceLayerCount", 6462).as_int64() == 1
             && objectMember(pngImportSummary, "composedLayers", 6463).sourceArrayValue().size() == 1
             && objectMember(objectMember(pngImportSummary, "composedLayers", 6464).sourceArrayValue()[0],
-                "layerPath", 6464).sourceStringValue() == text("/png-depth-grid")
+                "layerPath", 6464).as_string().retainedString() == text("/png-depth-grid")
             && objectMember(pngImportSummary, "compositionDiagnostics", 6465).sourceArrayValue().size() == 0,
             "PSD depth import apply summary should expose depth-draw composition/debug stats");
         check(pngImported.depthSource.kind == PsdDepthCompositeSourceKind::FlatImage
@@ -1257,10 +1257,10 @@ void testPsdDepthMapImportHelpers() {
         fakeDepthDrawGpuPollCount = 0;
         fakeDepthDrawGpuNotReadyPolls = 0;
         fakeDepthDrawGpuReadbacks = nullptr;
-        fakeDepthDrawGpuReadbacks[1] = DepthDrawGpuComposeReadback{pngGrid->getUUID(),
+        fakeDepthDrawGpuReadbacks.insertOrAssign(1, DepthDrawGpuComposeReadback{pngGrid->getUUID(),
             Slice<float>{0.75f, 0.75f, 0.75f}, Slice<std::int32_t>{0, 0, 0},
             Slice<DepthDrawGpuLayerReadback>{DepthDrawGpuLayerReadback{0,
-                Slice<std::uint8_t>{1, 1, 1}, Slice<float>{0.75f, 0.75f, 0.75f}}}};
+                Slice<std::uint8_t>{1, 1, 1}, Slice<float>{0.75f, 0.75f, 0.75f}}}});
         ngSetDepthDrawGpuTestHooks(&fakeDepthDrawGpuSupported, &fakeDepthDrawGpuSubmit, &fakeDepthDrawGpuPoll);
         nijigenerate::compat::ngRunWithScopeExit([&] {
             pngGrid->replaceDepths(Slice<float>{0.1f, 0.2f, 0.3f});
@@ -1278,10 +1278,10 @@ void testPsdDepthMapImportHelpers() {
             fakeDepthDrawGpuNextJobId = 2;
             fakeDepthDrawGpuPollCount = 0;
             fakeDepthDrawGpuNotReadyPolls = 1;
-            fakeDepthDrawGpuReadbacks[2] = DepthDrawGpuComposeReadback{pngGrid->getUUID(),
+            fakeDepthDrawGpuReadbacks.insertOrAssign(2, DepthDrawGpuComposeReadback{pngGrid->getUUID(),
                 Slice<float>{0.6f, 0.6f, 0.6f}, Slice<std::int32_t>{0, 0, 0},
                 Slice<DepthDrawGpuLayerReadback>{DepthDrawGpuLayerReadback{0,
-                    Slice<std::uint8_t>{1, 1, 1}, Slice<float>{0.6f, 0.6f, 0.6f}}}};
+                    Slice<std::uint8_t>{1, 1, 1}, Slice<float>{0.6f, 0.6f, 0.6f}}}});
             auto incrementalGpuImported = ngBuildPsdDepthsFromSource(
                 nijigenerate::project::incActivePuppet(), pngDepthPath, pngGpuSettings);
             auto incrementalDepthsBeforePoll = incrementalGpuImported.grids[0].depths.duplicate();
@@ -1308,10 +1308,10 @@ void testPsdDepthMapImportHelpers() {
                 "a later PSD GPU preview poll should atomically publish the completed readback");
             fakeDepthDrawGpuNextJobId = 3;
             fakeDepthDrawGpuNotReadyPolls = 1;
-            fakeDepthDrawGpuReadbacks[3] = DepthDrawGpuComposeReadback{pngGrid->getUUID(),
+            fakeDepthDrawGpuReadbacks.insertOrAssign(3, DepthDrawGpuComposeReadback{pngGrid->getUUID(),
                 Slice<float>{0.5f, 0.5f, 0.5f}, Slice<std::int32_t>{0, 0, 0},
                 Slice<DepthDrawGpuLayerReadback>{DepthDrawGpuLayerReadback{0,
-                    Slice<std::uint8_t>{1, 1, 1}, Slice<float>{0.5f, 0.5f, 0.5f}}}};
+                    Slice<std::uint8_t>{1, 1, 1}, Slice<float>{0.5f, 0.5f, 0.5f}}}});
             auto canceledGpuImported = ngBuildPsdDepthsFromSource(
                 nijigenerate::project::incActivePuppet(), pngDepthPath, pngGpuSettings);
             PsdDepthGpuComposeWork canceledGpuWork;

@@ -8,6 +8,7 @@
 #include <nijigenerate/core/math/vertex.hpp>
 #include <nijigenerate/compat/const_slice.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>
+#include <nijigenerate/compat/range_error.hpp>
 #include <nijigenerate/ext/nodes/path_vertices.hpp>
 #include <concepts>
 #include <functional>
@@ -208,7 +209,7 @@ public:
 private:
     ToolRef toolAt(VertexToolMode mode,std::size_t sourceLine) {
         const auto found=tools.find(mode);
-        if(found==tools.end())throw compat::ngStaticError<compat::RangeError>(compat::RetainedString::fromStaticLiteral(
+        if(found==tools.end())throw compat::ngStaticError<nicxlive::core::d_runtime::RangeError>(compat::RetainedString::fromStaticLiteral(
             "source/nijigenerate/viewport/common/mesheditor/operations/impl.d"),sourceLine);
         return found->second;
     }

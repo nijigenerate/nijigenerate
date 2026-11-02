@@ -21,7 +21,7 @@ void testI18nPotTemplateCoversSimpleSourceLiterals() {
     const std::array localeSegments{regressionRepoRoot(), text("tl")};
     for (auto entry : paths::ngDirEntries(paths::ngBuildPath(localeSegments), paths::SpanMode::shallow)) {
         if (!entry.isFile() || !entry.name().view().ends_with(".po")) continue;
-        auto catalog = paths::ngReadUtf8Text(entry.name());
+        auto catalog = paths::ngReadUtf8Text(entry.name().retainedString());
         const Slice<char32_t> oldIconChars{static_cast<char32_t>(0xE5CA)};
         // The original fixed BMP scalar selects std.utf.encode's three-byte branch.
         nicxlive::core::common::SharedArray<char> encoded;

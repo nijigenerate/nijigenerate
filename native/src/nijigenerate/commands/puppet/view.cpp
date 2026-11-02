@@ -22,11 +22,16 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <charconv>
 #include <cmath>
 #include <cstdlib>
+#include <iterator>
+#include <limits>
 #include <new>
 #include <source_location>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 namespace nijigenerate::commands::puppet::view {
 namespace {
@@ -45,6 +50,56 @@ namespace runtime = nicxlive::core;
 using namespace core::dbg;
 struct ScreenshotOverlayObject { std::uint32_t uuid{}; String kind; };
 using Overlays = compat::Slice<ScreenshotOverlayObject>;
+
+compat::RetainedString screenshotUuidText(std::uint32_t uuid) {
+    char bytes[10];
+    const auto end = std::to_chars(bytes, bytes + sizeof(bytes), uuid).ptr;
+    try {
+        return compat::RetainedString(std::string(bytes, end));
+    } catch (const std::bad_alloc&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(
+            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
+    } catch (const std::length_error&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(
+            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
+    }
+}
+
+// Explicit source ~ allocates one full byte backing before copying either
+// input. Conversion is complete before entering this allocation boundary.
+compat::RetainedString concatenateScreenshotText(std::string_view prefix, compat::RetainedString suffix) {
+    compat::Slice<char> bytes;
+    try {
+        if (suffix.size() > std::numeric_limits<std::size_t>::max() - prefix.size())
+            throw std::length_error("Screenshot string concatenation overflow");
+        const auto length = prefix.size() + suffix.size();
+        if (!length) return {};
+        bytes.resize(length);
+    } catch (const compat::OutOfMemoryError&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(
+            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+    } catch (const std::bad_alloc&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(
+            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+    } catch (const std::length_error&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(
+            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+    }
+    auto destination = bytes.data();
+    if (!prefix.empty()) destination = std::copy(prefix.begin(), prefix.end(), destination);
+    if (!suffix.empty()) std::copy(suffix.view().begin(), suffix.view().end(), destination);
+    return compat::RetainedString::retainedView(bytes.retentionOwner(), bytes.data(), bytes.size());
+}
+
+compat::RetainedString screenshotPngError(io::imagefmt::Error error, std::size_t sourceLine) {
+    const auto index = static_cast<std::size_t>(static_cast<int>(error));
+    if (index >= std::size(io::imagefmt::errorText))
+        throw compat::ngStaticError<compat::ArrayIndexError>(index, std::size(io::imagefmt::errorText),
+            compat::RetainedString::fromStaticLiteral("source/nijigenerate/commands/puppet/view.d"), sourceLine);
+    // IF_ERROR entries are static strings; to!string preserves that descriptor.
+    return concatenateScreenshotText("PNG encode failed: ",
+        compat::RetainedString::fromStaticView(io::imagefmt::errorText[index]));
+}
 
 bool readUuidString(std::string_view value, std::uint32_t& uuid) {
     try {
@@ -178,13 +233,17 @@ bool drawScreenshotOverlays(std::shared_ptr<Puppet> puppet, Json objects, String
     if (!parseScreenshotOverlayObjects(objects, overlays, message)) return false;
     for (auto overlay : overlays) {
         auto node = compat::ngRequireObject(puppet)->findNodeById(overlay.uuid);
-        if (!node) { message = "overlayObjects target node not found: " + std::to_string(overlay.uuid); return false; }
+        if (!node) {
+            message = concatenateScreenshotText("overlayObjects target node not found: ", screenshotUuidText(overlay.uuid));
+            return false;
+        }
         if (overlay.kind.view() == "bounds") drawScreenshotBoundsOverlay(node);
         else if (overlay.kind.view() == "mesh") {
             if (auto drawable = std::dynamic_pointer_cast<Drawable>(node)) {
                 drawable->drawMeshLines({0.1f, 0.9f, 1, 1}); drawable->drawMeshPoints();
             } else if (!drawScreenshotDeformableMeshOverlay(std::dynamic_pointer_cast<Deformable>(node))) {
-                message = "overlayObjects mesh target is not Drawable or Deformable: " + std::to_string(overlay.uuid);
+                message = concatenateScreenshotText("overlayObjects mesh target is not Drawable or Deformable: ",
+                    screenshotUuidText(overlay.uuid));
                 return false;
             }
         }
@@ -308,7 +367,10 @@ Json buildScreenshotOverlayMappings(std::shared_ptr<Puppet> puppet, Json objects
     auto wi = clipToImageMatrix(width, height) * runtime::inGetCamera().matrix(); Array result;
     for (auto overlay : overlays) {
         auto node = compat::ngRequireObject(puppet)->findNodeById(overlay.uuid);
-        if (!node) { message = "overlayObjects target node not found: " + std::to_string(overlay.uuid); return {}; }
+        if (!node) {
+            message = concatenateScreenshotText("overlayObjects target node not found: ", screenshotUuidText(overlay.uuid));
+            return {};
+        }
         Mat4 target; Json coordinateSystem, overlayPoint; Array points;
         auto drawable = std::dynamic_pointer_cast<Drawable>(node);
         auto deformable = std::dynamic_pointer_cast<Deformable>(node);
@@ -323,7 +385,9 @@ Json buildScreenshotOverlayMappings(std::shared_ptr<Puppet> puppet, Json objects
             target = deformable->transform().matrix(); coordinateSystem = Json(String(compat::RetainedString::fromStaticLiteral("deformable-deformed-vertex")));
             overlayPoint = Json(String(compat::RetainedString::fromStaticLiteral("overlay point is [vertexX + deformationX, vertexY + deformationY, 0, 1]")));
         } else {
-            message = "overlayObjects mesh target is not Drawable or Deformable: " + std::to_string(overlay.uuid); return {};
+            message = concatenateScreenshotText("overlayObjects mesh target is not Drawable or Deformable: ",
+                screenshotUuidText(overlay.uuid));
+            return {};
         }
         auto matrix = wi * target;
         if (overlay.kind.view() == "bounds") {
@@ -395,7 +459,7 @@ std::shared_ptr<CommandResult> SaveScreenshotCommand::run(std::shared_ptr<Contex
     if (!incCaptureLiveViewport(width, height, data, message)) return CommandResult::opCall(false, message.retainedString());
     auto error = io::imagefmt::writeImageFile(file, width, height, {data.data(), data.size()}, 4);
     if (error != io::imagefmt::Error::none)
-        return CommandResult::opCall(false, std::string("PNG encode failed: ") + io::imagefmt::errorText[int(error)]);
+        return CommandResult::opCall(false, screenshotPngError(error, 556));
     return CommandResult::opCall(true);
 }
 CaptureLiveScreenshotCommand::CaptureLiveScreenshotCommand()
@@ -434,7 +498,7 @@ std::shared_ptr<CaptureLiveScreenshotCommand::Result> CaptureLiveScreenshotComma
         auto png = io::imagefmt::writeImageMemory(io::imagefmt::png, width, height,
             {data.data(), data.size()}, 4);
         if (png.error != io::imagefmt::Error::none) {
-            resultValue = failure(std::string("PNG encode failed: ") + io::imagefmt::errorText[int(png.error)]);
+            resultValue = failure(screenshotPngError(png.error, 608));
             return;
         }
         compat::ngRunWithScopeExit([&] {

@@ -17,6 +17,7 @@ if(TARGET nijigenerate_runtime_core)
         "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/api/mcp/server_lifecycle.cpp")
     target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_mcp_queue)
     if(MSVC)
+        target_compile_options(nijigenerate_runtime_core PRIVATE /bigobj)
         set_source_files_properties(
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/api/mcp/server_schema.cpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/api/mcp/server_tools.cpp"

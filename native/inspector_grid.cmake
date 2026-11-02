@@ -28,6 +28,8 @@ if(TARGET nijigenerate_runtime_core)
     if(MSVC)
         set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/inspector/griddeform.cpp"
             APPEND PROPERTY COMPILE_OPTIONS /fp:strict)
+        set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/inspector/apply_node_init.cpp"
+            APPEND PROPERTY COMPILE_OPTIONS /bigobj)
     else()
         set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/inspector/griddeform.cpp"
             APPEND PROPERTY COMPILE_OPTIONS -ffp-contract=off -fno-fast-math)

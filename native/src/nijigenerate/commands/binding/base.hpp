@@ -70,7 +70,11 @@ struct BindingTarget {
     BindingTarget() = default;
     BindingTarget(const ::nicxlive::core::param::BindTarget& value)
         : target(value.getResource()), name(value.name) {}
-    friend bool operator==(const BindingTarget&, const BindingTarget&) = default;
+    friend bool operator==(const BindingTarget& left, const BindingTarget& right) {
+        return ::nicxlive::core::ngResourceInterfaceKeyEquals(
+                   left.target.getResource(), right.target.getResource()) &&
+            left.name == right.name;
+    }
 };
 struct BindingTargetHash {
     std::size_t operator()(const BindingTarget& value) const {

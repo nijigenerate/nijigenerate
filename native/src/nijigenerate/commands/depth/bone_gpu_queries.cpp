@@ -2,6 +2,7 @@
 #include "bone_gpu_async.hpp"
 #include "detail/bone_flush.hpp"
 #include "detail/bone_input.hpp"
+#include "detail/bone_string_concatenation.hpp"
 #include <nijigenerate/core/typed_format.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>
 #include <array>
@@ -20,14 +21,16 @@ compat::RetainedString ngDepthBoneGpuSupportDiagnostic() try {
     if (bone_gpu_async::ngDepthBoneGpuAsyncSupported())
         return compat::RetainedString::fromStaticLiteral("Depth bone GPU async deformation is supported");
     auto missing = bone_gpu_async::ngDepthBoneGpuAsyncMissingRequirements();
-    std::string message = "Depth bone GPU async deformation is unavailable; missing: ";
+    std::string joined;
     bool first = true;
     for (auto name : missing) {
-        if (!first) message.append(", ");
+        if (!first) joined.append(", ");
         first = false;
-        if (!name.empty()) message.append(name.data(), name.size());
+        if (!name.empty()) joined.append(name.data(), name.size());
     }
-    return compat::RetainedString(std::move(message));
+    const auto missingNames = compat::RetainedString(std::move(joined));
+    return detail::concatenateBoneStrings({
+        "Depth bone GPU async deformation is unavailable; missing: ", missingNames.view()});
 } catch (const std::bad_alloc&) {
     throw compat::ngStaticError<compat::OutOfMemoryError>(
         compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);

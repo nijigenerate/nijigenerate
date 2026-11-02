@@ -79,7 +79,7 @@ void incInitFonts() {
     detail::initFontList();
     detail::atlas = ImGui::GetIO().Fonts;
     const auto appName = compat::RetainedString::fromStaticLiteral("APP\0");
-    if (settings::incSettingsGet<bool>(settings::SettingsString::fromStaticLiteral("useOpenDyslexic"))) {
+    if (settings::incSettingsGet<bool>(compat::RetainedString::fromStaticLiteral("useOpenDyslexic"))) {
         detail::_incAddFontData(appName, fonts.dyslexic, 24.0f, glyphRange({0x0020, 0x024F, 0}), ImVec2(0, -8));
         detail::_incAddFontData(appName, fonts.noto, 26.0f, glyphRange({0x0250, 0x036F, 0x0370, 0x03FF, 0x0400, 0x052F,
             0x2000, 0x206F, 0xFFFD, 0xFFFD, 0}), ImVec2(0, -6));

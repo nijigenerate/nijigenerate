@@ -14,8 +14,8 @@ using namespace automesh;
 using DeformableRef = std::shared_ptr<nicxlive::core::nodes::Deformable>;
 class VertexViewport : public base::Viewport, public std::enable_shared_from_this<VertexViewport> {
 protected:
-    std::shared_ptr<common::mesheditor::IncMeshEditor> editor;
-    friend std::shared_ptr<common::mesheditor::IncMeshEditor> ngVertexViewportGetEditor();
+    std::shared_ptr<::nijigenerate::viewport::common::mesheditor::IncMeshEditor> editor;
+    friend std::shared_ptr<::nijigenerate::viewport::common::mesheditor::IncMeshEditor> ngVertexViewportGetEditor();
     friend void incVertexEditSetTarget(DeformableRef);
 public:
     VertexViewport() = default;
@@ -53,10 +53,10 @@ std::shared_ptr<automesh::AutoMeshProcessor> ngActiveAutoMeshProcessor();
 void ngActiveAutoMeshProcessor(std::shared_ptr<automesh::AutoMeshProcessor> processor);
 compat::Slice<std::shared_ptr<automesh::AutoMeshProcessor>> ngAutoMeshProcessors();
 void ngInitializeVertexViewportModule();
-std::shared_ptr<common::mesheditor::IncMeshEditor> ngVertexViewportGetEditor();
+std::shared_ptr<::nijigenerate::viewport::common::mesheditor::IncMeshEditor> ngVertexViewportGetEditor();
 inline auto incVertexViewportGetEditor() { return ngVertexViewportGetEditor(); }
 bool ngApplyDrawableMeshFromCommand(std::shared_ptr<nicxlive::core::nodes::Drawable> target,
-    std::shared_ptr<common::mesh::IncMesh> mesh, compat::RetainedString& message);
+    std::shared_ptr<::nijigenerate::viewport::common::mesh::IncMesh> mesh, compat::RetainedString& message);
 bool ngApplyDeformableVerticesFromCommand(DeformableRef target,
     nicxlive::core::math::Vec2Array positions, compat::RetainedString& message);
 void ngRefreshDeformableCommandEditors(DeformableRef target);

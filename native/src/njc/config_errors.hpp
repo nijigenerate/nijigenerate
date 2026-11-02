@@ -3,6 +3,7 @@
 #include <nijigenerate/compat/phobos_unicode_exception.hpp>
 #include <nijigenerate/compat/throwable.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <source_location>

@@ -18,7 +18,7 @@ using namespace detail;
 using namespace widgets;
 void ngAddOrInsertNodeMenu(bool add) {
     ngText(tr("Suffix")); ImGui::SameLine();
-    if (input("###NAME_SUFFIX", suffixName, ngAvailableSpace().x - 24)) {
+    if (ngNodeMenuInput("###NAME_SUFFIX", suffixName, ngAvailableSpace().x - 24)) {
         // The source retains the buffer when its UTF conversion fails.
         try {
             auto text = cstring(suffixName.view());

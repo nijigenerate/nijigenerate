@@ -19,11 +19,12 @@ namespace nijigenerate::commands {
 // DefApply's default constructor. Custom values need their defining provider.
 template<class Value, class Enable = void> struct SourceInspectorCommandInitialValue;
 
-template<class Value>
-struct SourceInspectorCommandInitialValue<Value, std::enable_if_t<
-        detail::CommandInitializationValue<Value>::value ||
-        requires { panels::inspector::InspectorValueInitialization<Value>::get(); }>> {
+template<class Value, class Enable>
+struct SourceInspectorCommandInitialValue {
     static auto get() {
+        static_assert(detail::CommandInitializationValue<Value>::value ||
+            requires { panels::inspector::InspectorValueInitialization<Value>::get(); },
+            "Inspector command value requires its defining Source initializer provider");
         if constexpr (requires { panels::inspector::InspectorValueInitialization<Value>::get(); })
             return panels::inspector::InspectorValueInitialization<Value>::get();
         else if constexpr (panels::inspector::InspectorStaticArray<Value>::value) {

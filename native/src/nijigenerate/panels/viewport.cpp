@@ -48,7 +48,7 @@ std::int32_t integer(float value) {
         return std::numeric_limits<std::int32_t>::min();
     return static_cast<std::int32_t>(value);
 }
-template<class... Args> std::string format(std::string_view text,const Args&... args) {
+template<class... Args> std::string formatViewportText(std::string_view text,const Args&... args) {
     const std::array values{core::translation::ngFormatArgument(args)...};
     return core::translation::ngFormatTyped(text,values);
 }
@@ -211,7 +211,7 @@ void ViewportPanel::onUpdate() {
                 else {
                     const auto title=core::translation::ngTranslateCString("Error");
                     dialog::ngDialog(dialog::DialogTag::retained(title.data(),title.owner),
-                        dialog::DialogText::owned(format(ngTranslateRetained(
+                        dialog::DialogText::owned(formatViewportText(ngTranslateRetained(
                             compat::RetainedString::fromStaticLiteral("%s is not supported")).view(),name)));
                 }
             }
@@ -222,14 +222,14 @@ void ViewportPanel::onUpdate() {
     size=ImGui::GetContentRegionAvail();
     if(ImGui::BeginChild("##ViewportControls",{0,size.y},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar)) {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY()+4);ImGui::PushItemWidth(72);ImGui::Spacing();ImGui::SameLine(0,8);
-        const auto zoomText=format(std::string_view("%s%%\0",5),integer(view::viewportZoom*100));
+        const auto zoomText=formatViewportText(std::string_view("%s%%\0",5),integer(view::viewportZoom*100));
         if(ImGui::SliderFloat("##Zoom",&view::viewportZoom,static_cast<float>(view::viewportZoomMin),
             static_cast<float>(view::viewportZoomMax),zoomText.c_str(),ImGuiSliderFlags_NoRoundToFormat)) {
             compat::ngRequireObject(camera)->scale={view::viewportZoom,view::viewportZoom};view::viewportTargetZoom=view::viewportZoom;
         }
         if(view::viewportTargetZoom!=1) {ImGui::SameLine(0,8);if(ngButtonColored("",{32,0},colorUndefined)) run(control::ViewportCommand::ResetViewportZoom);}
         ImGui::SameLine(0,8);ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);ImGui::SameLine(0,8);
-        ngText(retainedText(format(ngTranslateRetained(
+        ngText(retainedText(formatViewportText(ngTranslateRetained(
             compat::RetainedString::fromStaticLiteral("x = %.2f y = %.2f")).view(),
             view::viewportTargetPosition.x,view::viewportTargetPosition.y)));
         if(view::viewportTargetPosition.x!=0||view::viewportTargetPosition.y!=0) {
@@ -263,9 +263,9 @@ void ViewportPanel::onUpdate() {
         button("",control::ViewportCommand::OpenAutomeshBatching,"Automesh Batching");ImGui::EndDisabled();
     }
     ImGui::EndChild();
-    view::viewportZoom=static_cast<float>((view::viewportZoom-view::viewportTargetZoom)*std::pow(0.001,nicxlive::core::deltaTime)+view::viewportTargetZoom);
+    view::viewportZoom=static_cast<float>((view::viewportZoom-view::viewportTargetZoom)*std::pow(0.001,nicxlive::core::deltaTime())+view::viewportTargetZoom);
     compat::ngRequireObject(camera)->scale={view::viewportZoom,view::viewportZoom};
-    const float factor=static_cast<float>(std::pow(0.001,nicxlive::core::deltaTime*1.5));
+    const float factor=static_cast<float>(std::pow(0.001,nicxlive::core::deltaTime()*1.5));
     compat::ngRequireObject(camera)->position={(compat::ngRequireObject(camera)->position.x-view::viewportTargetPosition.x)*factor+view::viewportTargetPosition.x,
         (compat::ngRequireObject(camera)->position.y-view::viewportTargetPosition.y)*factor+view::viewportTargetPosition.y};
 }

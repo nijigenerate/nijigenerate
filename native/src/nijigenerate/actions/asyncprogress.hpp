@@ -28,6 +28,9 @@ class AsyncGroupActionProgress : public std::enable_shared_from_this<AsyncGroupA
 public:
     using PumpHandler = api::mcp::task::MainThreadAction<void>;
     using WorkCountHandler = api::mcp::task::MainThreadAction<std::size_t>;
+    // Source class handles share one observer/popup owner; the object is never copied.
+    AsyncGroupActionProgress(const AsyncGroupActionProgress&) = delete;
+    AsyncGroupActionProgress& operator=(const AsyncGroupActionProgress&) = delete;
     static std::shared_ptr<AsyncGroupActionProgress> create(std::shared_ptr<AsyncGroupAction> action,
         compat::RetainedString title, compat::RetainedString completedMessage = {},
         compat::RetainedString canceledMessage = {}, WorkCountHandler workCount = {}, PumpHandler pump = {});

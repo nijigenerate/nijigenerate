@@ -107,7 +107,7 @@ std::shared_ptr<CommandResult> ShowImportPSDDepthMapDialogCommand::run(std::shar
         compat::RetainedString path = incShowImportDialog(
             {filters.data(), filters.size()}, tr("Import PSD Depth Map...")).retainedString();
         if (!path.empty()) {
-            ngPushWindow(ngCreateWindow<PSDDepthMapWindow>(path));
+            incPushWindow(ngCreateWindow<PSDDepthMapWindow>(path));
             return CommandResult::opCall(true);
         }
         return CommandResult::opCall(false, "Import canceled");
@@ -116,7 +116,7 @@ std::shared_ptr<CommandResult> ShowImportPSDDepthMapDialogCommand::run(std::shar
 std::shared_ptr<CommandResult> OpenPSDDepthMapDialogCommand::run(std::shared_ptr<Context> ctx) {
     [[maybe_unused]] const auto receiverLifetime = weak_from_this().lock();
         if (path.empty()) return CommandResult::opCall(false, "Path not provided");
-        ngPushWindow(ngCreateWindow<PSDDepthMapWindow>(path));
+        incPushWindow(ngCreateWindow<PSDDepthMapWindow>(path));
         return CommandResult::opCall(true);
     }
 
@@ -218,7 +218,7 @@ std::shared_ptr<CommandResult> ShowMergePSDDialogCommand::run(std::shared_ptr<Co
             {filters.data(), filters.size()}, tr("Import...")).retainedString();
         if (!file.isNull()) {
             incPopWelcomeWindow();
-            ngPushWindow(ngCreateWindow<PSDMergeWindow>(file));
+            incPushWindow(ngCreateWindow<PSDMergeWindow>(file));
             return CommandResult::opCall(true);
         }
         return CommandResult::opCall(false, "Merge canceled");
@@ -243,7 +243,7 @@ std::shared_ptr<CommandResult> ShowMergeKRADialogCommand::run(std::shared_ptr<Co
             {filters.data(), filters.size()}, tr("Import...")).retainedString();
         if (!file.isNull()) {
             incPopWelcomeWindow();
-            ngPushWindow(ngCreateWindow<KRAMergeWindow>(file));
+            incPushWindow(ngCreateWindow<KRAMergeWindow>(file));
             return CommandResult::opCall(true);
         }
         return CommandResult::opCall(false, "Merge canceled");
@@ -354,7 +354,7 @@ std::shared_ptr<CommandResult> ShowExportToPNGDialogCommand::run(std::shared_ptr
 
         compat::RetainedString file = incShowSaveDialog(
             {filters.data(), filters.size()}, "", tr("Export...")).retainedString();
-        if (!file.isNull()) { ngPushWindow(ngCreateWindow<ImageExportWindow>(withExtension(file,"png"))); return CommandResult::opCall(true); }
+        if (!file.isNull()) { incPushWindow(ngCreateWindow<ImageExportWindow>(withExtension(file,"png"))); return CommandResult::opCall(true); }
         return CommandResult::opCall(false, "Export canceled");
     }
 
@@ -382,7 +382,7 @@ std::shared_ptr<CommandResult> ShowExportToJpegDialogCommand::run(std::shared_pt
 
         compat::RetainedString file = incShowSaveDialog(
             {filters.data(), filters.size()}, "", tr("Export...")).retainedString();
-        if (!file.isNull()) { ngPushWindow(ngCreateWindow<ImageExportWindow>(withExtension(file,"jpeg"))); return CommandResult::opCall(true); }
+        if (!file.isNull()) { incPushWindow(ngCreateWindow<ImageExportWindow>(withExtension(file,"jpeg"))); return CommandResult::opCall(true); }
         return CommandResult::opCall(false, "Export canceled");
     }
 
@@ -410,7 +410,7 @@ std::shared_ptr<CommandResult> ShowExportToTGADialogCommand::run(std::shared_ptr
 
         compat::RetainedString file = incShowSaveDialog(
             {filters.data(), filters.size()}, "", tr("Export...")).retainedString();
-        if (!file.isNull()) { ngPushWindow(ngCreateWindow<ImageExportWindow>(withExtension(file,"tga"))); return CommandResult::opCall(true); }
+        if (!file.isNull()) { incPushWindow(ngCreateWindow<ImageExportWindow>(withExtension(file,"tga"))); return CommandResult::opCall(true); }
         return CommandResult::opCall(false, "Export canceled");
     }
 
@@ -448,7 +448,7 @@ std::shared_ptr<CommandResult> ShowExportToVideoDialogCommand::run(std::shared_p
 
             
             if (extension(file).empty()) file = withExtension(file,"mp4");
-            ngPushWindow(ngCreateWindow<VideoExportWindow>(file));
+            incPushWindow(ngCreateWindow<VideoExportWindow>(file));
             return CommandResult::opCall(true);
         }
         return CommandResult::opCall(false, "Export canceled");

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <nijigenerate/core/typed_format_enum.hpp>
 #include <compat/object_metadata.hpp>
+#include <nijigenerate/commands/command_table.hpp>
 #include <array>
 
 namespace nijigenerate::commands::puppet::view {
@@ -14,6 +15,7 @@ enum class ViewCommand : std::int32_t {
     ShowStatusForNerds = 4,
     ToggleDifferenceAggregation = 5
 };
+extern thread_local ::nijigenerate::commands::CommandTableStorage<ViewCommand> commands;
 
 }
 

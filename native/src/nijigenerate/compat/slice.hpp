@@ -1,7 +1,9 @@
 #pragma once
 #include "array_range_error.hpp"
+#include "retained_string.hpp"
 #include "throwable.hpp"
 #include "out_of_memory_error.hpp"
+#include "retained_string.hpp"
 #include <compat/source_allocator.hpp>
 #include <compat/object_metadata.hpp>
 

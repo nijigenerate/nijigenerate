@@ -2,6 +2,7 @@
 #include "all_maps.hpp"
 #include "node/dynamic.hpp"
 #include <stdexcept>
+#include <type_traits>
 #include <compat/object_metadata.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/commands/automesh/config.hpp>
@@ -43,7 +44,9 @@
 namespace nijigenerate::commands {
 // One source enum-id to concrete-class relation serves static and dynamic dispatch.
 template<auto Id> struct CommandClassFor;
-template<depth::bone::DepthBoneCommand Id> struct CommandClassFor<Id> {
+template<auto Id>
+    requires std::is_same_v<decltype(Id), depth::bone::DepthBoneCommand>
+struct CommandClassFor<Id> {
     using type = typename depth::bone::DepthBoneCommandType<Id>::Type;
 };
 template<> struct CommandClassFor<CommandScopeCommand::GetCurrentCommandScope> { using type = nijigenerate::commands::GetCurrentCommandScopeCommand; };

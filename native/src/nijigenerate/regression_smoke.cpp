@@ -24,6 +24,7 @@
 #include <nijigenerate/viewport/depth/viewport.hpp>
 #include <nijigenerate/viewport/depth/tools/base.hpp>
 #include <nijigenerate/widgets/modal.hpp>
+#include <nijigenerate/windows/inpexport.hpp>
 #include <nijigenerate/windows/package.hpp>
 #include <nijigenerate/windows/autosave.hpp>
 #include <nijigenerate/windows/settings.hpp>
@@ -610,7 +611,7 @@ void ngSetupRegressionSmokeScenario(Text scenario) {
     else if (value == "windows.welcome-about") {
         incPushWindow(ngCreateWindowDeferred<WelcomeWindow>());
         incPushWindow(ngCreateWindowDeferred<AboutWindow>());
-    } else if (value == "windows.automesh-batch") widgets::modal::incModalAdd(sourceNew<AutoMeshBatchWindow>());
+    } else if (value == "windows.automesh-batch") widgets::modal::ngModalAdd(sourceNew<AutoMeshBatchWindow>());
     else if (value == "windows.settings" || value == "settings.window") incPushWindow(ngCreateWindowDeferred<settings::SettingsWindow>());
     else if (value == "windows.rename") {
         static thread_local Text renameTarget = literal("Regression");
@@ -620,12 +621,12 @@ void ngSetupRegressionSmokeScenario(Text scenario) {
         auto parameter = nicxlive::core::param::Parameter::createSourceDeferred(
             [] { return literal("Regression Smoke").toNullableString(); }, [] { return true; });
         incActivePuppet()->parameters.push_back(parameter);
-        incPushWindow(ngCreateWindowDeferred<ParamEditorWindow>([&] { return parameter; }));
+        incPushWindow(ngCreateWindow<ParamEditorWindow>(parameter));
     } else if (value == "windows.parameter-split") {
         auto parameter = nicxlive::core::param::Parameter::createSourceDeferred(
             [] { return literal("Regression Smoke Split").toNullableString(); }, [] { return true; });
         incActivePuppet()->parameters.push_back(parameter);
-        incPushWindow(ngCreateWindowDeferred<ParamSplitWindow>([] { return std::size_t(0); }, [&] { return parameter; }));
+        incPushWindow(ngCreateWindow<ParamSplitWindow>(std::size_t(0), parameter));
     } else if (value == "windows.autosave")
         incPushWindow(ngCreateWindowDeferred<autosave::RestoreSaveWindow>([] { return literal("regression-smoke.inx"); }));
     else if (value == "render.backend-gl-sdl" || value == "platform.input-window") showPanels({literal("Viewport")});
@@ -643,7 +644,7 @@ void ngSetupRegressionSmokeScenario(Text scenario) {
         incPushWindow(ngCreateWindowDeferred<ImageExportWindow>([] { return literal("regression-smoke.png"); }));
     else if (value.starts_with("project.export-") || value == "render.blend-modes") showPanels({literal("Viewport")});
     else if (value == "automesh.async-shortcut") {
-        ensureVertexMode(); widgets::modal::incModalAdd(sourceNew<AutoMeshBatchWindow>());
+        ensureVertexMode(); widgets::modal::ngModalAdd(sourceNew<AutoMeshBatchWindow>());
     } else if (value == "simplephysics.runtime") {
         incActivePuppet()->enableDrivers = true; showPanels({literal("Viewport")});
     } else if (value.starts_with("depth.") || value == "depthbone.refresh-queue") setupDepthScenario(scenario);

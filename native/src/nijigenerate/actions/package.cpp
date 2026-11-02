@@ -13,6 +13,7 @@
 #include <source_location>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace nijigenerate::actions {
 ClaimAsyncGroupActionHook ngClaimAsyncGroupActionHook{};
@@ -285,8 +286,19 @@ void AsyncGroupAction::retainCompletedResults() {
     if (!recordsCompletionOrder) {
         const auto currentPrimary = actions;
         const auto currentDerived = derivedActions;
-        auto combined = currentPrimary.duplicate();
-        combined.append(currentDerived);
+        // Source concatenation allocates its full detached result once. Empty
+        // operands produce a null descriptor, and neither input is published.
+        ActionSlice<ActionPtr> combined;
+        const auto length = currentPrimary.size() + currentDerived.size();
+        if (length) {
+            combined = allocateActionBacking([&] {
+                return ActionSlice<ActionPtr>(std::vector<ActionPtr>(length));
+            });
+            for (std::size_t i = 0; i < currentPrimary.size(); ++i)
+                combined.data()[i] = currentPrimary.data()[i];
+            for (std::size_t i = 0; i < currentDerived.size(); ++i)
+                combined.data()[currentPrimary.size() + i] = currentDerived.data()[i];
+        }
         completionOrder = std::move(combined);
     }
     replayCompleted = true;

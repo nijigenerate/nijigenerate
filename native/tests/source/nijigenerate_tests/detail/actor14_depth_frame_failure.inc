@@ -50,7 +50,7 @@ void testDepthBoneFrameFailureRecovery() {
                 [] { return NullableString::fromStaticLiteral("frame-failure-depth"); }, [] { return false; });
             ngRequireObject(nijigenerate::project::incActivePuppet())->parameters.push_back(param);
             auto tx = newValueBinding(param, bone, text("transform.t.x"));
-            tx->setValue(Vec2u{1, 0}, 5.0f);
+            tx->setValue(nicxlive::core::param::Vec2u{1, 0}, 5.0f);
             auto owner = std::allocate_shared<AsyncGroupAction>(SourceAllocator<AsyncGroupAction>{});
             ngBeginDepthBoneRefreshActionSink(owner);
             ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, RetainedStringSlice(text("Invalid target regression")), scopeKind);

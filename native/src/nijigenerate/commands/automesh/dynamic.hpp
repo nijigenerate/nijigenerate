@@ -18,13 +18,13 @@ namespace nijigenerate::commands::automesh::dynamic {
 
 // Each processor retains its concrete command family and shared closure ownership.
 namespace detail {
-using Processor = viewport::vertex::automesh::AutoMeshProcessor;
+using Processor = ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor;
 compat::RetainedString applyLabel(std::string_view name);
 std::shared_ptr<CommandResult> runApply(std::shared_ptr<Command> self, std::shared_ptr<Context> context,
     std::shared_ptr<Processor> explicitProcessor, ParentCanceled parentCanceled,
     bool (*matches)(const std::shared_ptr<Processor>&));
 bool canApply(const std::shared_ptr<Context>&);
-template<class PT> using ProcessorCommandInfo = viewport::vertex::automesh::meta::AMProcInfo<PT>;
+template<class PT> using ProcessorCommandInfo = ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>;
 template<class PT> constexpr std::string_view processorName() { return ProcessorCommandInfo<PT>::name; }
 compat::RetainedString applyDescription();
 }
@@ -93,8 +93,8 @@ template<class PT> struct SourceCommandConstructor<automesh::dynamic::ApplyAutoM
             if constexpr (sizeof...(Args) > 2) return false;
             else {
                 static_assert(requires {
-                    viewport::vertex::automesh::meta::AMSourceAttributes<PT>::attributes;
-                    viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
+                    ::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::attributes;
+                    ::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
                 }, "Missing defining Source AMProcInfo alias/attribute provider");
                 static_assert(requires {
                     typename std::integral_constant<std::size_t,
@@ -139,8 +139,8 @@ template<class PT> consteval bool processorRegistrationSupported() {
     if constexpr (!requires { sizeof(PT); }) return false;
     else if constexpr (!std::derived_from<PT, Processor>) return false;
     else if constexpr (!requires {
-        viewport::vertex::automesh::meta::AMSourceAttributes<PT>::attributes;
-        viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
+        ::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::attributes;
+        ::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
     }) return false;
     else return requires {
         // Force the actual metadata producer used by labels and the key.
@@ -160,7 +160,7 @@ consteval bool initializationSupported(compat::TypeSequence<PT...>) {
 // The entry and the real processor operations share the same production domain.
 // This does not implement an arbitrary D semantic-compilation predicate.
 template<class T> requires (std::same_as<T, AutoMeshKey> &&
-    detail::initializationSupported(viewport::vertex::automesh::AutoMeshProcessorTypes{}))
+    detail::initializationSupported(::nijigenerate::viewport::vertex::automesh::AutoMeshProcessorTypes{}))
 void ngInitCommands();
 template<> void ngInitCommands<AutoMeshKey>();
 
@@ -171,7 +171,7 @@ namespace nijigenerate::commands::detail {
 template<> struct InitializerBody<automesh::dynamic::AutoMeshKey> {
     static consteval bool supported() {
         return automesh::dynamic::detail::initializationSupported(
-            viewport::vertex::automesh::AutoMeshProcessorTypes{});
+            ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessorTypes{});
     }
     template<class ActualKey = automesh::dynamic::AutoMeshKey>
         requires (std::same_as<ActualKey, automesh::dynamic::AutoMeshKey> && supported())

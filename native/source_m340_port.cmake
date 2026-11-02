@@ -1,31 +1,29 @@
 # Faithful original regression.d module; no generated cases or execution target.
-if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_core
-        AND TARGET nijigenerate_source_m341 AND TARGET nijigenerate_phobos_socket
-        AND TARGET nijigenerate_phobos_stdio
-        AND TARGET nijigenerate_acp_client AND TARGET nijigenerate_mcp_queue
-        AND TARGET nijigenerate_depthbone_nodes AND TARGET nijigenerate_excamera
-        AND TARGET nijigenerate_transformhandle AND TARGET nijigenerate_model_editor_completion
-        AND TARGET nijigenerate_vertex_editor AND TARGET nijigenerate_vertex_deformable_editor
-        AND TARGET nijigenerate_depth_draw_fitgap
-        AND TARGET nijigenerate_node_editor AND TARGET nijigenerate_vertex_drawable_editor
-        AND TARGET nijigenerate_expart AND TARGET nijigenerate_depth_mesh_editor
-        AND TARGET nijigenerate_depth_renderer
-        AND TARGET nijigenerate_depth_draw_viewport
-        AND TARGET nijigenerate_depth_viewport
-        AND TARGET nijigenerate_dpi
-        AND TARGET nijigenerate_cv AND TARGET nijigenerate_skeleton_path
-        AND TARGET nijigenerate_skeletonize AND TARGET nijigenerate_automesh_processor
-        AND TARGET nijigenerate_window_base AND TARGET nijigenerate_gl_backend_source
-        AND TARGET nijigenerate_depth_draw_gpu AND TARGET nijigenerate_dialogs
-        AND TARGET nijigenerate_io AND TARGET nijigenerate_tooltip AND TARGET nijigenerate_texture_widget
-        AND TARGET nijigenerate_autorig_evidence
-        AND TARGET nijigenerate_inspector_meshgroup AND TARGET nijigenerate_inspector_grid
-        AND TARGET nijigenerate_inspector_drawable AND TARGET nijigenerate_inspector_camera
-        AND TARGET nijigenerate_autorig_native AND TARGET nijigenerate_autosave
-        AND TARGET nijigenerate_mesh_editor_tools AND TARGET nijigenerate_crashdump
-        AND TARGET nijigenerate_crashdump_common
-        AND TARGET nijigenerate_tasks
-        AND TARGET nicxlive::nicxlive AND NOT TARGET nijigenerate_source_m340)
+set(_ng_m340_required_targets
+    nijigenerate_runtime_core nijigenerate_core nijigenerate_source_m341
+    nijigenerate_phobos_socket nijigenerate_phobos_stdio nijigenerate_acp_client
+    nijigenerate_mcp_queue nijigenerate_depthbone_nodes nijigenerate_excamera
+    nijigenerate_transformhandle nijigenerate_model_editor_completion
+    nijigenerate_vertex_editor nijigenerate_vertex_deformable_editor
+    nijigenerate_depth_draw_fitgap nijigenerate_node_editor nijigenerate_vertex_drawable_editor
+    nijigenerate_expart nijigenerate_depth_mesh_editor nijigenerate_depth_renderer
+    nijigenerate_depth_draw_viewport nijigenerate_depth_viewport nijigenerate_dpi
+    nijigenerate_cv nijigenerate_skeleton_path nijigenerate_skeletonize
+    nijigenerate_automesh_processor nijigenerate_window_base nijigenerate_gl_backend_source
+    nijigenerate_depth_draw_gpu nijigenerate_dialogs nijigenerate_io nijigenerate_tooltip
+    nijigenerate_texture_widget nijigenerate_autorig_evidence nijigenerate_inspector_meshgroup
+    nijigenerate_inspector_grid nijigenerate_inspector_drawable nijigenerate_inspector_camera
+    nijigenerate_autorig_native nijigenerate_autosave nijigenerate_mesh_editor_tools
+    nijigenerate_crashdump nijigenerate_crashdump_common nijigenerate_tasks)
+set(_ng_m340_missing_targets)
+foreach(_ng_m340_required_target IN LISTS _ng_m340_required_targets)
+    if(NOT TARGET "${_ng_m340_required_target}")
+        list(APPEND _ng_m340_missing_targets "${_ng_m340_required_target}")
+    endif()
+endforeach()
+if(NOT _ng_m340_missing_targets AND TARGET nicxlive::nicxlive
+        AND NOT TARGET nijigenerate_source_m340
+        )
     add_library(nijigenerate_source_m340 STATIC EXCLUDE_FROM_ALL
         "${CMAKE_CURRENT_LIST_DIR}/tests/source/nijigenerate_tests/regression.cpp")
     target_compile_features(nijigenerate_source_m340 PUBLIC cxx_std_20)
@@ -193,4 +191,6 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_core
     else()
         target_compile_options(nijigenerate_source_m340 PRIVATE -ffp-contract=off -fno-fast-math)
     endif()
+elseif(_ng_m340_missing_targets)
+    message(STATUS "M340 Source target is waiting for: ${_ng_m340_missing_targets}")
 endif()

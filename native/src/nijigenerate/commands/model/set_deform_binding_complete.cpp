@@ -110,7 +110,7 @@ std::shared_ptr<CommandResult> ngPrepareSetDeformBindingContext(std::shared_ptr<
         if (y >= param->axisPointCount(1))
             return CommandResult::opCall(false,
                 compat::RetainedString::fromStaticLiteral("keyPoint is out of range for parameter"));
-        kp = ctx->keyPoint();
+        kp = {ctx->keyPoint().x, ctx->keyPoint().y};
     } else kp = param->findClosestKeypoint();
     return CommandResult::opCall(true);
 }

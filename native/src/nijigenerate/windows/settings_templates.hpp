@@ -6,7 +6,7 @@
 #include <compat/source_allocator.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/commands/all_maps.hpp>
-#include <nijigenerate/commands/detail/map_selection.hpp>
+#include <nijigenerate/commands/detail/cmd_map_adapters.hpp>
 #include <nijigenerate/core/settings.hpp>
 #include <nijigenerate/core/translation.hpp>
 #include <nijigenerate/core/shortcut/persistence.hpp>
@@ -105,12 +105,12 @@ template<class Table> void SettingsWindow::renderCommandTable(Table& table,const
             for (const auto& key : keys) {
                 auto found = table.find(key);
                 std::shared_ptr<commands::Command> command;
-                if constexpr (std::is_pointer_v<decltype(found)>) {
-                    if (!found) continue;
-                    command = *found;
-                } else {
+                if constexpr (requires { found->second; }) {
                     if (found == table.end()) continue;
                     command = found->second;
+                } else {
+                    if (!found) continue;
+                    command = *found;
                 }
                 auto label = compat::ngRequireObject(command)->label();
                 ImGui::TableNextRow(ImGuiTableRowFlags_None,0); ImGui::TableSetColumnIndex(0);

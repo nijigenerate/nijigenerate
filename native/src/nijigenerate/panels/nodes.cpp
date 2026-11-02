@@ -175,7 +175,7 @@ void NodesPanel::onUpdate() {
         ngEndDragDropFake();
         ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(4, 1));
         ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 14);
-        if (input("Node Filter", filter)) {
+        if (ngNodeMenuInput("Node Filter", filter)) {
             filter = io::depthmap_psd::ngPsdDepthLowerString(filter);
             filterResult.clear();
         }

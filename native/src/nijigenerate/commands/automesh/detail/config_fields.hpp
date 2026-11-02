@@ -3,10 +3,10 @@
 #include <nijigenerate/commands/fields.hpp>
 
 namespace nijigenerate::commands::automesh::config::detail {
-template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level,std::size_t Index>
+template<class PT,::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel Level,std::size_t Index>
 constexpr auto configLevelMember() {
     constexpr auto declaration=std::get<Index>(
-        viewport::vertex::automesh::meta::AMReflectionSource<PT>::declarations());
+        ::nijigenerate::viewport::vertex::automesh::meta::AMReflectionSource<PT>::declarations());
     using Type=std::remove_reference_t<decltype(declaration.get(std::declval<PT&>()))>;
     if constexpr (std::is_same_v<Type,float> || std::is_same_v<Type,compat::Slice<float>> ||
             std::is_same_v<Type,compat::RetainedString>) {
@@ -34,9 +34,9 @@ constexpr auto configLevelMember() {
     } else return std::tuple{};
 }
 
-template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level>
+template<class PT,::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel Level>
 constexpr auto configLevelMembers() {
-    using Declarations=decltype(viewport::vertex::automesh::meta::AMReflectionSource<PT>::declarations());
+    using Declarations=decltype(::nijigenerate::viewport::vertex::automesh::meta::AMReflectionSource<PT>::declarations());
     return []<std::size_t... Index>(std::index_sequence<Index...>) {
         return std::tuple_cat(configLevelMember<PT,Level,Index>()...);
     }(std::make_index_sequence<std::tuple_size_v<Declarations>>{});
@@ -44,11 +44,11 @@ constexpr auto configLevelMembers() {
 
 // The accessor remains the real named ExCommand argument field. Its metadata
 // comes from the same defining declaration used by runtime reflection.
-template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level,
+template<class PT,::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel Level,
     std::size_t Index,auto Member> struct ConfigSourceFieldText {
     using Type=typename CommandMember<decltype(Member)>::Type;
     inline static constexpr auto declaration=std::get<Index>(
-        viewport::vertex::automesh::meta::AMReflectionSource<PT>::declarations());
+        ::nijigenerate::viewport::vertex::automesh::meta::AMReflectionSource<PT>::declarations());
     using SourceType=std::remove_reference_t<decltype(declaration.get(std::declval<PT&>()))>;
     static_assert(std::is_same_v<Type,SourceType>);
     static_assert(std::is_same_v<Type,float> || std::is_same_v<Type,compat::Slice<float>> ||
@@ -103,25 +103,27 @@ template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level,
     }();
 };
 
-template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level,std::size_t Index,auto Member>
+template<class PT,::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel Level,std::size_t Index,auto Member>
 using ConfigSourceField=FieldDescriptor<Member,
     ConfigSourceFieldText<PT,Level,Index,Member>::nameLiteral,
     ConfigSourceFieldText<PT,Level,Index,Member>::descriptionLiteral,
     ConfigSourceFieldText<PT,Level,Index,Member>::typeLiteral>;
 
-template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level,auto... Member>
+template<class PT,::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel Level,auto... Member>
 constexpr auto configSourceFields() {
     using Indices=decltype(configLevelMembers<PT,Level>());
     static_assert(std::tuple_size_v<Indices> == sizeof...(Member),
         "The actual argument members must match the generated TW list");
+    using Members=std::tuple<std::integral_constant<decltype(Member),Member>...>;
     return []<std::size_t... Index>(std::index_sequence<Index...>) {
-        return std::tuple{ConfigSourceField<PT,Level,std::tuple_element_t<Index,Indices>::value,Member>{}...};
-    }(std::index_sequence_for<decltype(Member)...>{});
+        return std::tuple{ConfigSourceField<PT,Level,std::tuple_element_t<Index,Indices>::value,
+            std::tuple_element_t<Index,Members>::value>{}...};
+    }(std::make_index_sequence<sizeof...(Member)>{});
 }
 
 template<class PT,std::size_t Index,class Minimum,class Maximum>
 void writeConfigFloat(PT& processor,const float& input,Minimum minimum,Maximum maximum) {
-    using Source=viewport::vertex::automesh::meta::AMReflectionSource<PT>;
+    using Source=::nijigenerate::viewport::vertex::automesh::meta::AMReflectionSource<PT>;
     static constexpr auto declaration=std::get<Index>(Source::declarations());
     static_assert(std::is_same_v<std::remove_reference_t<decltype(declaration.get(processor))>,float>);
     float value=input;
@@ -149,7 +151,7 @@ void writeConfigFloat(PT& processor,const float& input,Minimum minimum,Maximum m
 
 template<class PT,std::size_t Index>
 void writeConfigString(PT& processor,const compat::RetainedString& input) {
-    using Source=viewport::vertex::automesh::meta::AMReflectionSource<PT>;
+    using Source=::nijigenerate::viewport::vertex::automesh::meta::AMReflectionSource<PT>;
     static constexpr auto declaration=std::get<Index>(Source::declarations());
     static_assert(std::is_same_v<std::remove_reference_t<decltype(declaration.get(processor))>,
         compat::RetainedString>);
@@ -195,7 +197,7 @@ void writeConfigString(PT& processor,const compat::RetainedString& input) {
 
 template<class PT,std::size_t Index>
 void writeConfigArray(PT& processor,const compat::Slice<float>& values) {
-    using Source=viewport::vertex::automesh::meta::AMReflectionSource<PT>;
+    using Source=::nijigenerate::viewport::vertex::automesh::meta::AMReflectionSource<PT>;
     static constexpr auto declaration=std::get<Index>(Source::declarations());
     static_assert(std::is_same_v<std::remove_reference_t<decltype(declaration.get(processor))>,
         compat::Slice<float>>);

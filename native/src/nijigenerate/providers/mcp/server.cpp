@@ -1,5 +1,6 @@
 // Port of MCP 1.0.1 server. Copyright 2025 Garret Noble; port/licenses/mcp-stdio.txt.
 #include "server.hpp"
+#include <nijigenerate/compat/exception_message.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <new>
 

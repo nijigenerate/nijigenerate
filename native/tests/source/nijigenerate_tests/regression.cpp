@@ -14,6 +14,7 @@
 #include <nijigenerate/io/depthsample.hpp>
 #include <nijigenerate/commands/depth/map_composition.hpp>
 #include <nijigenerate/autorig/json.hpp>
+#include <nijigenerate/autorig/deterministic/native.hpp>
 #include <nijigenerate/panels/inspector/depthbone.hpp>
 #include <nijigenerate/core/dpi.hpp>
 #include <nijigenerate/compat/phobos_unicode_cursor.hpp>
@@ -22,6 +23,7 @@
 #include <nijigenerate/commands/puppet/view_simple_commands.hpp>
 #include <nijigenerate/commands/view/panel.hpp>
 #include <nijigenerate/viewport/depth/viewport.hpp>
+#include <nijigenerate/viewport/main_viewport.hpp>
 #include <nijigenerate/windows/base.hpp>
 #include <nijigenerate/commands/inspector/drawable_commands.hpp>
 #include <nijigenerate/commands/inspector/composite_commands.hpp>
@@ -3508,7 +3510,7 @@ std::shared_ptr<nicxlive::core::nodes::Part> newMeshPart(nijigenerate::compat::R
         [] { return 1; }, [] { return 1; }, [] { return 4; }, [] { return 4; },
         [] { return false; }, [] { return false; });
     auto part = Part::createDataSourceDeferred([&] { return data; },
-        [&] { return nicxlive::common::SharedArray<std::shared_ptr<Texture>>{texture}; },
+        [&] { return nicxlive::core::common::SharedArray<std::shared_ptr<Texture>>{texture}; },
         [] { return std::uint32_t{0}; }, [] {
             return nijigenerate::compat::ngRequireObject(nijigenerate::project::incActivePuppet())->root;
         });
@@ -3554,7 +3556,7 @@ std::shared_ptr<nicxlive::core::nodes::Part> newAutoMeshAlphaPart(nijigenerate::
         [] { return width; }, [] { return height; }, [] { return 4; }, [] { return 4; },
         [] { return false; }, [] { return false; });
     auto part = Part::createDataSourceDeferred([&] { return data; },
-        [&] { return nicxlive::common::SharedArray<std::shared_ptr<Texture>>{texture}; },
+        [&] { return nicxlive::core::common::SharedArray<std::shared_ptr<Texture>>{texture}; },
         [] { return std::uint32_t{0}; }, [] {
             return nijigenerate::compat::ngRequireObject(nijigenerate::project::incActivePuppet())->root;
         });
@@ -5241,16 +5243,18 @@ void testCommandBaseContracts() {
     check(!rejected->succeeded && !nonRunnable->didRun,
         "the central command dispatcher must reject a command whose current context is not runnable");
     auto depthOperationSchema = ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema::depthOperation);
-    check(depthOperationSchema.sourceIndexValue("type").as_string() == "object" &&
-        depthOperationSchema.sourceIndexValue("properties").sourceIndexValue("type").sourceIndexValue("type").as_string() == "string" &&
-        depthOperationSchema.sourceIndexValue("properties").sourceIndexValue("p0").sourceIndexValue("type").as_string() == "array",
+    check(depthOperationSchema.sourceIndexValue("type").as_string().view() == "object" &&
+        depthOperationSchema.sourceIndexValue("properties").sourceIndexValue("type")
+            .sourceIndexValue("type").as_string().view() == "string" &&
+        depthOperationSchema.sourceIndexValue("properties").sourceIndexValue("p0")
+            .sourceIndexValue("type").as_string().view() == "array",
         "MCP depth-operation arguments must publish an object schema instead of the overlay array schema");
     auto depthOperationsSchema = ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema::depthOperations);
-    check(depthOperationsSchema.sourceIndexValue("type").as_string() == "array" &&
-        depthOperationsSchema.sourceIndexValue("items").sourceIndexValue("type").as_string() == "object",
+    check(depthOperationsSchema.sourceIndexValue("type").as_string().view() == "array" &&
+        depthOperationsSchema.sourceIndexValue("items").sourceIndexValue("type").as_string().view() == "object",
         "MCP depth-operation list arguments must publish an array of depth-operation objects");
     auto overlaySchema = ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema::overlayObjects);
-    check(overlaySchema.sourceIndexValue("type").as_string() == "array" &&
+    check(overlaySchema.sourceIndexValue("type").as_string().view() == "array" &&
         !overlaySchema.sourceIndexValue("items").as_object().if_contains("required"),
         "MCP overlay arguments must admit the documented keyed-object form without requiring uuid");
     ngMcpValidateJsonArgumentForRegression(CommandJsonSchema::overlayObjects,
@@ -5282,12 +5286,12 @@ bool containsBinding(
 std::shared_ptr<nijigenerate::commands::Context> bindingContext(
     std::shared_ptr<nicxlive::core::param::Parameter> param,
     std::shared_ptr<nicxlive::core::param::ParameterBinding> binding,
-    nijigenerate::compat::Vec2u keyPoint) {
+    nicxlive::core::param::Vec2u keyPoint) {
     using nijigenerate::commands::Context;
     auto ctx = std::allocate_shared<Context>(nicxlive::core::d_runtime::SourceAllocator<Context>{});
     ctx->parameters(Context::Parameters{param});
     ctx->bindings(Context::Bindings{binding});
-    ctx->keyPoint(keyPoint);
+    ctx->keyPoint(nijigenerate::compat::Vec2u{keyPoint.x, keyPoint.y});
     return ctx;
 }
 
@@ -5306,7 +5310,7 @@ void testParameterBindingInterpolation() {
     using nicxlive::core::nodes::Node;
     using nijigenerate::ext::ExParameter;
     using nijigenerate::compat::RetainedString;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     const auto check = []<std::size_t N>(bool condition, const char (&message)[N]) {
         require(condition, RetainedString::fromStaticLiteral(message));
     };
@@ -5392,7 +5396,8 @@ void testParameterArmSelectAndKeypointCommands() {
     check(nijigenerate::compat::ngRequireObject(nijigenerate::commands::detail::constructSourceCommand<
         SetParameterKeypointCommand>()->run(ctx))->succeeded,
         "SetParameterKeypointCommand should set a keypoint value");
-    check(second->value == Vec2{-1, 1}, "SetParameterKeypointCommand should update parameter value");
+    check(second->value.x == -1 && second->value.y == 1,
+        "SetParameterKeypointCommand should update parameter value");
     check(!incArmedParameter(), "SetParameterKeypointCommand should not arm the parameter");
     incSetEditMode(EditMode::VertexEdit, false);
     auto armedCtx = std::allocate_shared<Context>(nicxlive::core::d_runtime::SourceAllocator<Context>{});
@@ -5405,7 +5410,8 @@ void testParameterArmSelectAndKeypointCommands() {
     check(incEditMode() == EditMode::ModelEdit, "SetArmedParameterAndKeypointCommand should return to model edit mode");
     check(incArmedParameter() == second, "SetArmedParameterAndKeypointCommand should arm the target parameter");
     check(incArmedParameterIdx() == 1, "SetArmedParameterAndKeypointCommand should resolve the parameter index");
-    check(second->value == Vec2{0, 0}, "SetArmedParameterAndKeypointCommand should update parameter value");
+    check(second->value.x == 0 && second->value.y == 0,
+        "SetArmedParameterAndKeypointCommand should update parameter value");
 }
 
 void testParameterStartingKeyframeCommandUndoRedo() {
@@ -5425,18 +5431,21 @@ void testParameterStartingKeyframeCommandUndoRedo() {
     ctx->parameters(Context::Parameters{param});
     check(nijigenerate::compat::ngRequireObject(nijigenerate::commands::detail::constructSourceCommand<
         SetStartingKeyFrameCommand>()->run(ctx))->succeeded, "SetStartingKeyFrameCommand should succeed");
-    check(param->defaults == Vec2{0.5f, -0.25f}, "SetStartingKeyFrameCommand should copy current value to defaults");
+    check(param->defaults.x == 0.5f && param->defaults.y == -0.25f,
+        "SetStartingKeyFrameCommand should copy current value to defaults");
     incActionUndo();
-    check(param->defaults == Vec2{0, 0}, "undo SetStartingKeyFrameCommand should restore previous defaults");
+    check(param->defaults.x == 0 && param->defaults.y == 0,
+        "undo SetStartingKeyFrameCommand should restore previous defaults");
     incActionRedo();
-    check(param->defaults == Vec2{0.5f, -0.25f}, "redo SetStartingKeyFrameCommand should restore new defaults");
+    check(param->defaults.x == 0.5f && param->defaults.y == -0.25f,
+        "redo SetStartingKeyFrameCommand should restore new defaults");
 }
 
 void testParameterKeyframeCommandUndoRedo() {
     using namespace nijigenerate::commands::binding;
     using namespace nijigenerate::core::actionstack;
     using nijigenerate::compat::RetainedString;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     using nicxlive::core::nodes::Node;
     const auto check = []<std::size_t N>(bool condition, const char (&message)[N]) {
         require(condition, RetainedString::fromStaticLiteral(message));
@@ -5508,7 +5517,7 @@ void testParameterBindingClipboardAndCleanupCommands() {
     using nicxlive::core::param::InterpolateMode;
     using nijigenerate::commands::Context;
     using nijigenerate::compat::RetainedString;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     const auto check = []<std::size_t N>(bool condition, const char (&message)[N]) {
         require(condition, RetainedString::fromStaticLiteral(message));
     };
@@ -5571,7 +5580,7 @@ void testParameterBindingCleanupOnDeleteUndoRedo() {
     using nijigenerate::commands::parameter::paramedit::DeleteParameterCommand;
     using nijigenerate::commands::Context;
     using nijigenerate::compat::RetainedString;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     using nicxlive::core::nodes::Node;
     const auto check = []<std::size_t N>(bool condition, const char (&message)[N]) {
         require(condition, RetainedString::fromStaticLiteral(message));
@@ -5615,7 +5624,7 @@ void testParameterSplitBindingMigrationUndoRedo() {
     using nijigenerate::windows::paramsplit::ngSplitParameterBindings;
     using nicxlive::core::nodes::Node;
     using nijigenerate::compat::RetainedString;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     const auto check = []<std::size_t N>(bool condition, const char (&message)[N]) {
         require(condition, RetainedString::fromStaticLiteral(message));
     };
@@ -6126,6 +6135,7 @@ void testMaskSourceAddUndoRedo() {
 
 void testMaskSourceReorderUndoRedo() {
     using nijigenerate::actions::node::PartMaskListChangeAction;
+    using nicxlive::core::nodes::Drawable;
     using nicxlive::core::nodes::MaskBinding;
     using nicxlive::core::nodes::MaskingMode;
     using nijigenerate::compat::RetainedString;
@@ -6135,9 +6145,9 @@ void testMaskSourceReorderUndoRedo() {
     auto maskA = newPart(RetainedString::fromStaticLiteral("maskA"));
     auto maskB = newPart(RetainedString::fromStaticLiteral("maskB"));
     auto maskC = newPart(RetainedString::fromStaticLiteral("maskC"));
-    target->masks = {MaskBinding{maskA->getUUID(), maskA, MaskingMode::Mask},
-        MaskBinding{maskB->getUUID(), maskB, MaskingMode::Mask},
-        MaskBinding{maskC->getUUID(), maskC, MaskingMode::DodgeMask}};
+    target->masks = {MaskBinding{maskA->getUUID(), std::static_pointer_cast<Drawable>(maskA), MaskingMode::Mask},
+        MaskBinding{maskB->getUUID(), std::static_pointer_cast<Drawable>(maskB), MaskingMode::Mask},
+        MaskBinding{maskC->getUUID(), std::static_pointer_cast<Drawable>(maskC), MaskingMode::DodgeMask}};
     auto oldMasks = target->masks.duplicate();
     auto moving = oldMasks[1];
     auto newMasks = oldMasks.slice(0, 1).duplicate();
@@ -6161,6 +6171,7 @@ void testMaskSourceReorderUndoRedo() {
 
 void testMaskSourceModeUndoRedo() {
     using nijigenerate::actions::node::PartChangeMaskModeAction;
+    using nicxlive::core::nodes::Drawable;
     using nicxlive::core::nodes::MaskingMode;
     using nicxlive::core::nodes::MaskBinding;
     using nijigenerate::compat::RetainedString;
@@ -6171,7 +6182,7 @@ void testMaskSourceModeUndoRedo() {
     resetCase();
     auto target = newPart(RetainedString::fromStaticLiteral("target"));
     auto mask = newPart(RetainedString::fromStaticLiteral("mask"));
-    target->masks = {MaskBinding{mask->getUUID(), mask, MaskingMode::Mask}};
+    target->masks = {MaskBinding{mask->getUUID(), std::static_pointer_cast<Drawable>(mask), MaskingMode::Mask}};
     incActionPush(std::allocate_shared<PartChangeMaskModeAction>(
         nicxlive::core::d_runtime::SourceAllocator<PartChangeMaskModeAction>{}, target, mask, MaskingMode::DodgeMask));
     check(target->masks[0].mode == MaskingMode::DodgeMask, "mask mode change should apply immediately");

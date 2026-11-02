@@ -27,7 +27,7 @@ using Duration = compat::SourceMonoTime::Duration;
 using Clock = http_transport::detail::SourceAuthClock;
 thread_local Duration approvalTimeout{std::chrono::seconds(120)};
 template<class Format, class... Args> void authLog(Format&& format, Args&&... args) {
-#if defined(NIJIGENERATE_MCP_LOG)
+#if defined(MCP_LOG) || defined(NIJIGENERATE_MCP_LOG)
     using namespace core::translation;
     const std::array<TypedFormatArgument, sizeof...(Args)> arguments{
         ngFormatArgument(std::forward<Args>(args))...};

@@ -40,7 +40,7 @@ void copyToClipboard(Nodes nodes) {
     for (auto node : nodes) {
         if (!node || contains(roots, node)) continue;
         bool ancestor = false;
-        for (auto parent = node->parent(); parent; parent = parent->parent())
+        for (auto parent = node->parent.lock(); parent; parent = parent->parent.lock())
             if (contains(nodes, parent)) { ancestor = true; break; }
         if (!ancestor) roots.append(node);
     }
@@ -106,7 +106,7 @@ Nodes ngInsertNodes(Nodes children, compat::RetainedString className, compat::Re
     Nodes parents;
     if (count) parents.resize(count);
     for (std::size_t i = 0; i < count; ++i)
-        parents[i] = compat::ngRequireObject(children[i])->parent();
+        parents[i] = compat::ngRequireObject(children[i])->parent.lock();
     return insertNodesAux(parents, children, className, suffix);
 }
 compat::RetainedString ngGetCommonNodeType(Nodes nodes) {

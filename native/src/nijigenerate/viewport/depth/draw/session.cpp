@@ -205,7 +205,7 @@ compat::Slice<std::uint64_t> DepthDrawSession::dirtyTargetGridIds() const {
     return result;
 }
 void DepthDrawSession::clearTargetPreviewDirty(std::uint64_t gridUuid) { previewDirtyTargets.erase(gridUuid); }
-void DepthDrawSession::clearPreviewDirty() { previewDirtyTargets.reset(); }
+void DepthDrawSession::clearPreviewDirty() { previewDirtyTargets.clear(); }
 bool DepthDrawSession::selectLayer(DepthDrawString id) {
     const auto receiver = weak_from_this().lock();
     if (!layerById(id)) return false;
@@ -438,7 +438,7 @@ void DepthDrawSession::clearSelection() { selectedLayerId.reset(); selectedGridU
 void DepthDrawSession::clear() {
     const auto receiver = weak_from_this().lock();
     layers.clear(); bindings.clear(); sourceIdentity.reset(); documentWidth = 0; documentHeight = 0;
-    clearSelection(); clearPreviewDirty(); previewTargetRevisions.reset(); bumpDiagnosticsRevision();
+    clearSelection(); clearPreviewDirty(); previewTargetRevisions.clear(); bumpDiagnosticsRevision();
 }
 namespace {
 std::string reloadLayerKey(const DepthDrawLayer layer) {

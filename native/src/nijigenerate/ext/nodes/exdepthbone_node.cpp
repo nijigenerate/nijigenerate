@@ -7,14 +7,15 @@
 namespace nijigenerate::ext::nodes {
 using namespace nicxlive::core::serde;
 using nicxlive::core::nodes::SerializeNodeFlags;
+using nicxlive::core::nodes::Node;
 
 ExDepthBone::ExDepthBone(FieldInitializationOnly) : Node() {}
 
-std::shared_ptr<ExDepthBone> ExDepthBone::create(std::shared_ptr<Node> parent) {
+std::shared_ptr<ExDepthBone> ExDepthBone::create(std::shared_ptr<nicxlive::core::nodes::Node> parent) {
     return createSourceDeferred([&] { return parent; });
 }
 
-std::shared_ptr<ExDepthBone> ngCreateDepthBone(std::shared_ptr<Node> parent,
+std::shared_ptr<ExDepthBone> ngCreateDepthBone(std::shared_ptr<nicxlive::core::nodes::Node> parent,
         compat::RetainedString boneId, nicxlive::core::math::Vec3 restHead,
         nicxlive::core::math::Vec3 restTail, float restRoll) {
     auto bone = ExDepthBone::create(parent);

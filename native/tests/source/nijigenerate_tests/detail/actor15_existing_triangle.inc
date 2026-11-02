@@ -15,7 +15,8 @@ void testCoreMathTriangleInvariants() {
     nijigenerate::compat::Slice<Vec2> positions;
     for (auto value : vertices) positions.append(value.position);
     auto bounds = triangle::getBounds(positions);
-    check(bounds == Vec4{0, 0, 10, 10}, "triangle getBounds should floor/ceil vertex bounds");
+    check(bounds.x == 0 && bounds.y == 0 && bounds.z == 10 && bounds.w == 10,
+        "triangle getBounds should floor/ceil vertex bounds");
     // The existing production reader entry is the same triangulateVertices body
     // as its pointer/position ingress, while retaining the original value array.
     auto triResult = triangle::triangulatePositions(vertices.size(),

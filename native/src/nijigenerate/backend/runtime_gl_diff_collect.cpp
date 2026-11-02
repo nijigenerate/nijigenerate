@@ -6,6 +6,7 @@
 #include "runtime_gl_diff_collect_assets.hpp"
 #include "nijigenerate/platform/gl_backend_procedure.hpp"
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <common/shared_array.hpp>
 #include <SDL3/SDL_opengl.h>
 #include <SDL3/SDL_opengl_glext.h>

@@ -39,11 +39,14 @@ template<class T> BrowserText browserValueString(const T& value) {
     else if constexpr (isBrowserEnum<T>) {
         for (const auto& [name, member] : BrowserEnumTraits<T>::members)
             if (member == value) return staticText(name);
-        if constexpr (std::is_enum_v<T>) return format("cast(%s)%s", BrowserEnumTraits<T>::typeName,
+        if constexpr (std::is_enum_v<T>) return ::nijigenerate::windows::command_browser::detail::format(
+            "cast(%s)%s", BrowserEnumTraits<T>::typeName,
             static_cast<std::underlying_type_t<T>>(value));
-        else return format("cast(%s)%s", BrowserEnumTraits<T>::typeName,
+        else return ::nijigenerate::windows::command_browser::detail::format(
+            "cast(%s)%s", BrowserEnumTraits<T>::typeName,
             core::translation::FormatStringEnumTraits<T>::raw(value));
-    } else if constexpr (std::is_arithmetic_v<T>) return format("%s", value);
+    } else if constexpr (std::is_arithmetic_v<T>)
+        return ::nijigenerate::windows::command_browser::detail::format("%s", value);
     else if constexpr (std::same_as<T,core::settings::SettingsJsonValue>)
         return BrowserText(compat::ngJsonStringify(value));
     else if constexpr (requires { value.begin(); value.end(); }) {

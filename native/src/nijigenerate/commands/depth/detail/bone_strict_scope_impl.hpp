@@ -5,6 +5,7 @@
 #include "bone_strict_scope.hpp"
 #include "bone_dirty_providers.hpp"
 #include "bone_input.hpp"
+#include "bone_string_concatenation.hpp"
 #include <nijigenerate/compat/out_of_memory_error.hpp>
 #include <cmath>
 #include <new>
@@ -18,9 +19,9 @@ float strictJsonNumber(core::settings::SettingsJsonValue value, compat::Retained
     if (value.is_int64()) result = static_cast<float>(value.as_int64());
     else if (value.is_uint64()) result = static_cast<float>(value.as_uint64());
     else if (value.is_double()) result = static_cast<float>(value.as_double());
-    else failInput(std::string(name.view()) + " must be a number", 1519);
+    else failInput(concatenateBoneStrings({name.view(), " must be a number"}).view(), 1519);
     if (!std::isfinite(result))
-        failInput(std::string(name.view()) + " must be finite", 1521);
+        failInput(concatenateBoneStrings({name.view(), " must be finite"}).view(), 1521);
     return result;
 } catch (const std::bad_alloc&) {
     throw compat::ngStaticError<compat::OutOfMemoryError>(

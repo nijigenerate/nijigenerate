@@ -45,7 +45,7 @@ struct JsonMemberReference {
     Value& operator*() const { return *value; }
     Value* operator->() const { return value; }
 };
-JsonMemberReference findMember(Object members, std::string_view key) {
+JsonMemberReference findMember(Object& members, std::string_view key) {
     JsonMemberReference result;
     for (auto entry = members.begin(); entry != members.end(); ++entry) {
         auto& member = *entry;

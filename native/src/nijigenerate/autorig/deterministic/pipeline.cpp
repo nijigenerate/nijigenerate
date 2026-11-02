@@ -47,14 +47,14 @@ compat::Slice<AutoRigTaskSpec> ngRigPipelineTasks() {
     result.append(AutoRigTaskSpec{s("compile-domain-layout"), ngAutoRigMessage(s("Compile shared source domains")), {},
         {state, program, model}, {state, program, model}, {}});
     for (auto& entry : result) {
-        if (entry.id == "apply-rig-controls" || entry.id == "validate-depth-inputs" || entry.id == "bake-depth-angles"
-            || entry.id == "apply-shape-corrections" || entry.id == "apply-secondary-physics" || entry.id == "verify-saved-rig")
+        if (entry.id.view() == "apply-rig-controls" || entry.id.view() == "validate-depth-inputs" || entry.id.view() == "bake-depth-angles"
+            || entry.id.view() == "apply-shape-corrections" || entry.id.view() == "apply-secondary-physics" || entry.id.view() == "verify-saved-rig")
             entry.retainFailureOutputs = true;
     }
     for (auto& entry : result) {
-        entry.ownsActionBoundary = entry.id != "compile-rig";
+        entry.ownsActionBoundary = entry.id.view() != "compile-rig";
         entry.outputs.append(port("review", AutoRigValueKind::Json, false));
-        if (entry.id == "apply-rig-controls" || entry.id == "weld-shoulders")
+        if (entry.id.view() == "apply-rig-controls" || entry.id.view() == "weld-shoulders")
             entry.inputs.append(port("review", AutoRigValueKind::Json, false));
     }
     return result;

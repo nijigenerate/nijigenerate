@@ -87,12 +87,19 @@ template<class T> bool parseArgValue(BrowserText raw, T& value) {
             };
             if constexpr (ResourceArrayType<T>::isDynamicArray) {
                 T result;
-                for (auto part : split(raw)) {
+                // Source splitter retains raw and discovers each next token only
+                // after the previous lookup/append, without an eager token array.
+                for (std::size_t start = 0;;) {
+                    const auto end = raw.view().find(',', start);
+                    auto part = raw.slice(start, end == std::string_view::npos ? raw.size() : end);
                     const auto stripped = compat::ngStripUnicode(part.view());
-                    if (stripped.empty()) continue;
-                    std::uint32_t id;
-                    if (!parseInteger(stripped, id)) return false;
-                    if (auto found = lookup(id)) result.append(found);
+                    if (!stripped.empty()) {
+                        std::uint32_t id;
+                        if (!parseInteger(stripped, id)) return false;
+                        if (auto found = lookup(id)) result.append(found);
+                    }
+                    if (end == std::string_view::npos) break;
+                    start = end + 1;
                 }
                 value = result;
                 return true;

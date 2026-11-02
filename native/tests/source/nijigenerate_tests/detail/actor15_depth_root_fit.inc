@@ -15,10 +15,10 @@ void testDepthRigRootFitZToDepth() {
     using nicxlive::core::math::Vec2;
     using nicxlive::core::math::Vec3;
     using nicxlive::core::math::ngVecaFromVectorsSource;
-    using nicxlive::common::SharedArray;
+    using nicxlive::core::common::SharedArray;
     using nicxlive::core::nodes::Deformable;
     using nijigenerate::compat::Slice;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     using nijigenerate::commands::Context;
     using nijigenerate::commands::ngCmd;
     using nijigenerate::commands::CommandIrreversibleEffect;

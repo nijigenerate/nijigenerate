@@ -149,7 +149,7 @@ void IconTreeOutput::drawBinding(Resource res,ImVec2& minimum,ImVec2& maximum,bo
         auto parameter=compat::ngRequireObject(incArmedParameter());
         const auto bindings=parameter->bindings;
         if(std::find_if(bindings.begin(),bindings.end(),[&](auto candidate) {
-            return nicxlive::core::ngResourceObjectEquals(candidate,binding);
+            return candidate.get() == binding.get();
         })!=bindings.end()) active=commands::binding::ngBindingIsSetAt(binding,incParamPoint());
     }
     minimum=ImGui::GetItemRectMin();

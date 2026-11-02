@@ -35,7 +35,7 @@ bool appendDepthBoneGpuSourceData(ext::nodes::ExDepthRigBinding* binding,
         sourceInputs.append(static_cast<float>(std::sin(rotation)));
         sourceInputs.append(static_cast<float>(std::cos(rotation)));
         const auto sourceDataStart = sourceData.size();
-        sourceData.append(sourceInputs.slice(sourceStart, sourceInputs.size()));
+        sourceData.appendRange(sourceInputs.slice(sourceStart, sourceInputs.size()));
         sourceData[sourceDataStart + DepthBoneGpuSourceDepthOffsetIndex] *= worldScale;
         sourceData.append(depthBoneSourceRotationPivotXShift(target, scaledDepths, targetToRoot,
             compat::ngRequireObject(*runtimeBone)->restHead, setting, worldScale));

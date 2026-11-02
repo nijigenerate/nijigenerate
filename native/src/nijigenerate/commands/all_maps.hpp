@@ -77,7 +77,7 @@ template<class F> void ngForEachCommandMap(F&& fn) {
 }
 
 template<class K> std::string_view ngCommandKeyTypeName() {
-    return detail::CommandMapKeyMetadata<K>::typeName;
+    return ::nijigenerate::commands::detail::CommandMapKeyMetadata<K>::typeName;
 }
 
 namespace detail {
@@ -95,8 +95,8 @@ template<class F> std::string ngCommandKeyStringAllocation(F&& operation) {
 
 template<class K> std::string ngCommandKeyName(const K& key) {
     if constexpr (std::is_enum_v<K>) {
-        return detail::ngCommandKeyStringAllocation([&] {
-            for (auto member : detail::CommandMapKeyMetadata<K>::members)
+        return ::nijigenerate::commands::detail::ngCommandKeyStringAllocation([&] {
+            for (auto member : ::nijigenerate::commands::detail::CommandMapKeyMetadata<K>::members)
                 if (member.value == key) return std::string(member.name);
             return "cast(" + std::string(ngCommandKeyTypeName<K>()) + ")" +
                 std::to_string(static_cast<std::underlying_type_t<K>>(key));
@@ -104,10 +104,10 @@ template<class K> std::string ngCommandKeyName(const K& key) {
     } else if constexpr (requires { key.toString(); }) {
         decltype(auto) value = key.toString();
         const auto view = value.view();
-        return detail::ngCommandKeyStringAllocation([&] { return std::string(view); });
+        return ::nijigenerate::commands::detail::ngCommandKeyStringAllocation([&] { return std::string(view); });
     } else {
         const auto id = key.id.view();
-        return detail::ngCommandKeyStringAllocation([&] {
+        return ::nijigenerate::commands::detail::ngCommandKeyStringAllocation([&] {
             return std::string(ngCommandKeyTypeName<K>()) + "(" +
                 core::translation::detail::formatQuotedString(id) + ")";
         });
@@ -134,7 +134,7 @@ template<class K> std::string ngCommandIdFromKey(K key) {
                   std::same_as<K, AutoMeshSetSimpleKey> || std::same_as<K, AutoMeshSetAdvancedKey> ||
                   std::same_as<K, AutoMeshSetPresetKey>) {
         const auto id = key.id.view();
-        return detail::ngCommandKeyStringAllocation([&] {
+        return ::nijigenerate::commands::detail::ngCommandKeyStringAllocation([&] {
             if constexpr (std::same_as<K, AutoMeshGetConfigKey>) return "AutoMesh.GetConfig." + std::string(id);
             else if constexpr (std::same_as<K, AutoMeshSetConfigKey>) return "AutoMesh.SetConfig." + std::string(id);
             else if constexpr (std::same_as<K, AutoMeshSetSimpleKey>) return "AutoMesh.SetSimple." + std::string(id);
@@ -144,7 +144,7 @@ template<class K> std::string ngCommandIdFromKey(K key) {
     } else {
         // User-defined key conversion must not enter the allocation-only catch.
         auto name = ngCommandKeyName(key);
-        return detail::ngCommandKeyStringAllocation([&] {
+        return ::nijigenerate::commands::detail::ngCommandKeyStringAllocation([&] {
             if constexpr (std::same_as<K, node::dynamic::AddNodeKey>) return "Node.Add." + std::move(name);
             else if constexpr (std::same_as<K, node::dynamic::InsertNodeKey>) return "Node.Insert." + std::move(name);
             else if constexpr (std::same_as<K, node::dynamic::ConvertToKey>) return "Node.ConvertTo." + std::move(name);
@@ -165,7 +165,7 @@ template<class K> std::string ngCommandIdFromKey(K key) {
             } else if constexpr (std::same_as<K, inspector::apply_node::InspectorNodeApplyCommand>)
                 return "Inspector.Apply." + std::move(name);
             else if constexpr (std::same_as<K, view::panel::PanelKey>) return "Panel.Toggle." + std::move(name);
-            else if constexpr (std::string_view{detail::CommandMapKeyMetadata<K>::typeName} == "AnimeditCommand")
+            else if constexpr (std::string_view{::nijigenerate::commands::detail::CommandMapKeyMetadata<K>::typeName} == "AnimeditCommand")
                 return "Animation.Add" + std::string(stripPrefix(name, "AddAnimation"));
             else return std::string(ngCommandKeyTypeName<K>()) + "." + std::move(name);
         });

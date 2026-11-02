@@ -7,7 +7,7 @@ void testDepthBoneSkinningLockToRootTerminal() {
     using nijigenerate::commands::ngCmd;
     using nijigenerate::compat::RetainedString;
     using nijigenerate::compat::Slice;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     using nijigenerate::compat::ngRequireObject;
     using nijigenerate::ext::ExParameter;
     using nicxlive::core::nodes::Node;

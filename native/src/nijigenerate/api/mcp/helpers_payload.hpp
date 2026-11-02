@@ -157,7 +157,7 @@ template<class C> void applyPayloadToInstance(std::shared_ptr<C> instance,
                 },value);
             } else if constexpr(std::same_as<typename F::Type,core::settings::SettingsJsonValue>) {
                 if(!instance) compat::ngFailNullAccess(true);
-                F::get(*instance)={};
+                F::get(*instance)=core::settings::SettingsJsonValue{};
             }
         }(),...);
     },commands::CommandFields<S>::descriptors);

@@ -38,6 +38,8 @@
 #include <tuple>
 #include <nijigenerate/platform/automesh_batch_stack.hpp>
 
+namespace automeshModule = ::nijigenerate::viewport::vertex::automesh;
+
 namespace nijigenerate::viewport::vertex {
 using namespace nicxlive::core::nodes;
 using namespace nicxlive::core::math;
@@ -270,7 +272,8 @@ void VertexViewport::drawOptions() {
             const compat::SourceCString icon{compat::RetainedStringSlice(iconText)};
             compat::detail::ngSourceCStringPostconditions(iconText.view(), icon.data());
             if (ngButtonColored(icon.data(), {0, 0},
-                    automesh::ngAutoMeshProcessorObjectEquals(processor, ngActiveAutoMeshProcessor())
+                    automeshModule::ngAutoMeshProcessorObjectEquals(
+                        processor, ngActiveAutoMeshProcessor())
                         ? colorUndefined : gray))
                 ngActiveAutoMeshProcessor(processor);
             ImGui::SameLine(0, 2);

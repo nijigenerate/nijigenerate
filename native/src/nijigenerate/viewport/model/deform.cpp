@@ -89,7 +89,7 @@ void DeformationViewport::update(ImGuiIO* io, std::shared_ptr<math::Camera> came
                     const auto currentParameter = compat::ngRequireObject(parameter);
                     binding = std::dynamic_pointer_cast<DeformationParameterBinding>(
                         currentParameter->getOrAddBinding(deformable,
-                            compat::RetainedString::fromStaticLiteral("deform")));
+                            nicxlive::core::common::NullableString("deform")));
                 }
                 const auto keypoint = [this] {
                     const auto currentParameter = compat::ngRequireObject(parameter);
@@ -188,7 +188,7 @@ void DeformationViewport::syncEditor(ParameterRef value, Vec2u keyPoint, Nodes t
         std::shared_ptr<DeformationParameterBinding> binding;
         if (auto deformable = std::dynamic_pointer_cast<Deformable>(node))
             binding = std::dynamic_pointer_cast<DeformationParameterBinding>(value->getBinding(deformable,
-                compat::RetainedString::fromStaticLiteral("deform")));
+                nicxlive::core::common::NullableString("deform")));
         if (current) {
             if (binding) {
                 // The original local value invokes Deformation's copying

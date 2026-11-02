@@ -1,4 +1,5 @@
 #include "detail/bone_json_apply.hpp"
+#include "detail/bone_string_concatenation.hpp"
 // Integer conversion adaptation: Phobos std.conv, Copyright The D Language
 // Foundation 2007-. BSL-1.0, see port/licenses/phobos-rig-json.txt.
 #include "detail/bone_strict_scope.hpp"
@@ -98,20 +99,7 @@ void applyRuleJson(ext::nodes::ExDepthInfluenceRule& rule, compat::RetainedStrin
             // A malformed key therefore fails before label/value conversion.
             auto& destination = rule.multipliersByBoneUuid;
             const auto uuid = unsignedKey(key);
-            compat::RetainedString name;
-            try {
-                std::string label;
-                label.reserve(prefix.size() + key.size());
-                label.append(prefix);
-                if (!key.empty()) label.append(key);
-                name = compat::RetainedString(std::move(label));
-            } catch (const std::bad_alloc&) {
-                throw compat::ngStaticError<compat::OutOfMemoryError>(
-                    compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-            } catch (const std::length_error&) {
-                throw compat::ngStaticError<compat::OutOfMemoryError>(
-                    compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-            }
+            auto name = concatenateBoneStrings({prefix, key});
             const auto number = strictJsonNumber(member.value(), name);
             destination[uuid] = number;
         }

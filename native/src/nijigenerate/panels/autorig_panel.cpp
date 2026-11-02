@@ -524,14 +524,14 @@ void AutoRigPanel::renderTask(
         ::nijigenerate::autorig::framework::AutoRigWorkflowStep step) {
     using State = ::nijigenerate::autorig::framework::AutoRigTaskState;
     [[maybe_unused]] const auto owner = weak_from_this().lock();
-    const auto taskId = compat::ngRequireObject(run)->stepTaskId(step.id);
+    const auto taskId = compat::ngRequireObject(run)->stepTaskId(step.id.retainedString());
     const auto task = compat::ngRequireObject(compat::ngRequireObject(run)->session())->task(taskId, false);
     const auto state = task.state;
     const auto stepId = cStringCopy(step.id);
     ImGui::PushID(cStringData(stepId));
     const auto spec = compat::ngRequireObject(compat::ngRequireObject(run)->session())->taskSpec(taskId);
     const compat::RetainedStringSlice title = !spec.label.empty()
-        ? core::translation::ngTranslateRetained(spec.label) : step.id;
+        ? core::translation::ngTranslateRetained(spec.label.retainedString()) : step.id;
     // The original Thread carrier is required here; a separate busy flag would
     // not preserve the source's worker-reference lifetime or null semantics.
     ImGui::BeginDisabled(worker != nullptr);
@@ -631,7 +631,7 @@ void AutoRigPanel::renderDefaultInputs(
         const auto labelText = cStringCopy(label);
         ImGui::TextUnformatted(cStringData(labelText));
         if (!port.description.empty()) {
-            const auto text = cStringCopy(translateText(port.description));
+            const auto text = cStringCopy(translateText(port.description.retainedString()));
             ImGui::TextUnformatted(cStringData(text));
         }
         if (context->isConnected(port.id.retainedString())) {
@@ -655,7 +655,7 @@ void AutoRigPanel::renderDefaultInputs(
                     connection.sourceTask.retainedString());
                 const auto pattern = translateText("From %s / %s (attempt %s)");
                 const std::array<core::translation::TypedFormatArgument, 3> arguments{
-                    core::translation::ngFormatArgument(translateText(sourceSpec.label)),
+                    core::translation::ngFormatArgument(translateText(sourceSpec.label.retainedString())),
                     core::translation::ngFormatArgument(connection.sourceOutput),
                     core::translation::ngFormatArgument(source.attempt)};
                 const auto from = cStringCopy(core::translation::ngFormatTyped(pattern.view(), arguments));
@@ -1217,7 +1217,9 @@ bool AutoRigPanel::renderRun(
     [[maybe_unused]] const auto owner = weak_from_this().lock();
     const auto id = cStringCopy(compat::RetainedStringSlice(compat::ngRequireObject(run)->id()));
     ImGui::PushID(id.data());
-    return compat::ngRunWithScopeExit([&] {
+    bool result = false;
+    compat::ngRunWithScopeExit([&] {
+        result = [&] {
         const auto snapshot = run->snapshot(false);
         auto label = ngTranslateRetained(run->displayName());
         std::string labelBytes(label.view());
@@ -1276,7 +1278,9 @@ bool AutoRigPanel::renderRun(
             ImGui::TreePop();
         }
         return false;
+        }();
     }, [] { ImGui::PopID(); });
+    return result;
 }
 
 void AutoRigPanel::renderMaterialRoles(

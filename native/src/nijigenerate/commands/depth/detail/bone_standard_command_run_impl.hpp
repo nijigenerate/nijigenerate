@@ -124,12 +124,12 @@ std::shared_ptr<CommandResult> AddStandardDepthParametersCommand::run(std::share
     bool changed = false;
     auto parameterSpecs = standardDepthParameterSpecs();
     for (auto& spec : parameterSpecs) {
-        auto parameter = findDepthParameterByName(spec.name);
+        auto parameter = detail::findDepthParameterByName(spec.name);
         if (parameter && parameter->isVec2 != spec.isVec2)
             return CommandResult::opCall(false, standardDepthParameterTypeConflictMessage(parameter, spec));
     }
     for (auto spec : parameterSpecs) {
-        auto parameter = findDepthParameterByName(spec.name);
+        auto parameter = detail::findDepthParameterByName(spec.name);
         if (!parameter) {
             auto created = detail::sourceDepthBoneObject<ext::ExParameter>(
                 spec.name.toNullableString(), spec.isVec2);

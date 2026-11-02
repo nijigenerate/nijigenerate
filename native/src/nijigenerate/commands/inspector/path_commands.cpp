@@ -65,7 +65,8 @@ void ngRunPathPropertyCommand(commands::inspector::apply_node::InspectorNodeAppl
     using namespace command_api::inspector::apply_node;
     auto context=std::allocate_shared<command_api::Context>(
         nicxlive::core::d_runtime::SourceAllocator<command_api::Context>{});
-    context->inspectors(command_api::Context::Inspectors{std::move(inspector)});
+    context->inspectors(command_api::Context::Inspectors{
+        std::dynamic_pointer_cast<::nijigenerate::panels::inspector::TypedInspector<Node>>(std::move(inspector))});
     context->nodes(static_cast<command_api::Context::Nodes>(nodes));
     ngRunPathPropertyCommand(id,std::move(context),value);
 }

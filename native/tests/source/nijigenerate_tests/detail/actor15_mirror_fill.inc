@@ -1,7 +1,7 @@
 // Complete existing regression.d13334-13389 only.
 void testParameterKeyframeMirrorFillCommands() {
     using Text = nijigenerate::compat::RetainedString;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     using nicxlive::core::nodes::Node;
     using nijigenerate::ext::ExParameter;
     using nijigenerate::commands::detail::constructSourceCommand;

@@ -43,7 +43,7 @@ ResourceNotifier ResourceRegistry::addDynamicResource(String uri,String name,Str
     compat::phobos_index_sort::sort<112>(order,[&](std::size_t a,std::size_t b) {
         const auto& left=snapshot[a];const auto& right=snapshot[b];
         return left.isDynamic&&right.isDynamic?left.priority>right.priority:left.isDynamic<right.isDynamic;
-    });
+    }, "sort: invalid comparison function.");
     for(std::size_t i=0;i<order.size();++i)resources[i]=snapshot[order[i]];
     const auto callback=notifySubscribers;
     ResourceNotifier notifier=[callback,uri]{if(callback)callback(uri);};

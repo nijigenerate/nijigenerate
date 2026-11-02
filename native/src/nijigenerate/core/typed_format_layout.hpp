@@ -28,8 +28,11 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <nijigenerate/compat/phobos_unicode_exception.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
+#include <array>
 #include <new>
 #include <source_location>
 

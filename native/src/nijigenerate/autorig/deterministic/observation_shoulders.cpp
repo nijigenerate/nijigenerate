@@ -14,10 +14,10 @@ struct SideIdHash {
 Json ngRigPrepareShoulders(Json state, Json program, Context context) {
     core::settings::SettingsJsonArray pairs;
     if (ngRigString(program,compat::RetainedString::fromStaticLiteral("kind"),
-            compat::RetainedString::fromStaticLiteral("humanoid")) != "humanoid") return pairs;
+            compat::RetainedString::fromStaticLiteral("humanoid")).view() != "humanoid") return pairs;
     Json body, bodyContour; std::size_t greatest = 0;
     for (auto material : at(state, "materials").as_array())
-        if (!at(material, "static").as_bool() && at(material, "role").as_string() == "torso") {
+        if (!at(material, "static").as_bool() && at(material, "role").as_string().view() == "torso") {
             auto support = object(material).if_contains("alpha_runs_32"); if (!support) continue;
             std::size_t count = 0; auto runs = support->as_array();
             for (std::size_t i = 1; i < runs.size(); i += 2) count += static_cast<std::size_t>(ngRigUnsigned(runs[i]));
@@ -38,12 +38,12 @@ Json ngRigPrepareShoulders(Json state, Json program, Context context) {
     for (auto carrier : at(program, "carriers").as_array())
         sides[ngRigUnsigned(at(carrier, "part"))] = at(carrier, "side").as_string();
     for (auto material : at(state, "materials").as_array()) {
-        if (at(material, "static").as_bool() || at(material, "role").as_string() != "arm"
+        if (at(material, "static").as_bool() || at(material, "role").as_string().view() != "arm"
             || !object(material).if_contains("alpha_runs_32")) continue;
         auto sideEntry = sides.find(ngRigUnsigned(at(material, "uuid")));
         if (sideEntry == sides.end()) throw compat::ngStaticError<compat::RangeError>(
             compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/observation.d"),228);
-        auto side = sideEntry->second; if (side != "L" && side != "R") continue;
+        auto side = sideEntry->second; if (side.view() != "L" && side.view() != "R") continue;
         const auto originName = contracts::detail::allocateContractStorage([&] {
             return "shoulder." + std::string(side.view());
         });

@@ -11,7 +11,7 @@ template<class PT,std::size_t Kind> inline constexpr auto configEnumNameBytes=[]
     constexpr std::string_view prefix="AutoMeshSet";
     constexpr std::array<std::string_view,3> kinds{"Simple","Advanced","Preset"};
     constexpr auto kind=kinds[Kind];
-    constexpr auto identifier=viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
+    constexpr auto identifier=::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
     std::array<char,prefix.size()+kind.size()+1+identifier.size()+1> result{};
     std::size_t offset=0;
     for (char value:prefix) result[offset++]=value;

@@ -2,6 +2,7 @@
 // Independent Phobos std.format/std.conv exception protocol. BSL-1.0;
 // source formatter notices are retained by typed_format_layout.hpp.
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <nijigenerate/compat/phobos_conv_exception.hpp>
 #include <nijigenerate/compat/phobos_unicode_cursor.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>

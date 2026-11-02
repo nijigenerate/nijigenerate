@@ -71,8 +71,8 @@ void testDepthBoneUpdateVisualizationState() {
     Vec3 gridLabelWorld;
     check(ngBuildDepthBoneUpdateTargetOutline(grid, gridOutline, gridToWorld, gridLabelWorld),
         "DepthBone update visualization should build a GridDeformer outline");
-    check(gridOutline.size() == 8 && nearVec3(gridOutline[0], Vec3{-14, -24, 0}) &&
-        nearVec3(gridOutline[1], Vec3{34, -24, 0}),
+    check(gridOutline.size() == 8 && nearVec3(gridOutline.at(0), Vec3{-14, -24, 0}) &&
+        nearVec3(gridOutline.at(1), Vec3{34, -24, 0}),
         "DepthBone GridDeformer outline should be a padded four-edge rectangle");
     ngDepthBoneUpdatePlanned(root, grid, param, Vec2u{1, 0}, text("depth edited"), 3);
     status = statusFor(grid);

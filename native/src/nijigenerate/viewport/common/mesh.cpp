@@ -340,7 +340,7 @@ std::size_t IncMesh::getTriCount() {
                 }
                 if (repeated) continue;
                 if (isConnectedTo(a, b) && !contains(visited, a) && !contains(visited, b)) {
-                    mutual.append({a, b});
+                    mutual.append(std::array<MeshVertex*, 2>{a, b});
                     ++triangles;
                 }
             }

@@ -15,8 +15,12 @@ if(TARGET nijigenerate_runtime_core)
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/binding/detail/canonical_constructor_programs.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/detail/declared_constructor_arguments.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/binding/detail/registration_diagnostic.hpp")
-    target_link_libraries(nijigenerate_runtime_core PUBLIC
-        nijigenerate_flipconfig nijigenerate_model_editor_completion nijigenerate_transform_complete)
+    foreach(_ng_binding_provider IN ITEMS nijigenerate_flipconfig
+            nijigenerate_model_editor_completion nijigenerate_transform_complete)
+        if(TARGET "${_ng_binding_provider}")
+            target_link_libraries(nijigenerate_runtime_core PUBLIC "${_ng_binding_provider}")
+        endif()
+    endforeach()
     if(NOT TARGET nijigenerate_binding_commands)
         add_library(nijigenerate_binding_commands INTERFACE)
         target_include_directories(nijigenerate_binding_commands INTERFACE "${CMAKE_CURRENT_LIST_DIR}/src")

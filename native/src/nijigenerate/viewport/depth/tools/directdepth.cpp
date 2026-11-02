@@ -4,7 +4,10 @@
 #include "directdepth.hpp"
 #include "operation.hpp"
 #include "../viewport.hpp"
+#include "../mesheditor/editor.hpp"
+#include "../mesheditor/node.hpp"
 #include <nijigenerate/core/input.hpp>
+#include <nijigenerate/core/actionstack.hpp>
 #include <nijigenerate/core/dbg.hpp>
 #include <nijigenerate/core/translation.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>

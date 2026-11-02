@@ -172,7 +172,7 @@ String ACPClient::sanitizeJsonPayload(String value) { return detail::sanitizeJso
 String ACPClient::escapeJsonString(String value) { return detail::escapeJsonString(value); }
 bool ACPClient::tryDecodeEscapedJsonString(String payload, JsonValue& result) {
     const auto keepAlive=shared_from_this();
-    result = {};
+    result = nullptr;
     if (payload.empty()) return false;
     auto candidate = payload;
     const auto value = payload.view();
@@ -402,7 +402,7 @@ void ACPClient::newSession() {
 }
 void ACPClient::initializeAsync() {
     const auto keepAlive=shared_from_this();
-    initPending_ = true; initResult_ = {}; initError_ = {};
+    initPending_ = true; initResult_ = nullptr; initError_ = {};
     const auto params=buildInitParams();
     const auto id=JsonValue(std::uint64_t(nextId_++));
     send(Request(protocol::ACP_METHOD_INITIALIZE,params,id).toJSON());

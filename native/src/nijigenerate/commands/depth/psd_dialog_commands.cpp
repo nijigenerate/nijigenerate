@@ -17,12 +17,12 @@
 #include <utility>
 
 namespace nijigenerate::commands::depth::psd_dialog {
-#define NG_PSD_DIALOG_COMMAND_PREPARE(Type) \
-    void Type::prepareSourceClassInfo() { \
+#define NG_PSD_DIALOG_COMMAND_PREPARE(CommandType) \
+    void CommandType::prepareSourceClassInfo() { \
         using SourceBase = typename detail::ValueCommandSourceBase< \
-            typename ::nijigenerate::commands::CommandTraits<Type>::BaseClasses>::Type; \
+            typename ::nijigenerate::commands::CommandTraits<CommandType>::BaseClasses>::Type; \
         SourceBase::prepareSourceClassInfo(); \
-        ::nijigenerate::commands::detail::prepareCommandResultClass<Type>(); \
+        ::nijigenerate::commands::detail::prepareCommandResultClass<CommandType>(); \
     }
 NG_PSD_DIALOG_COMMAND_PREPARE(InspectPsdDepthDialogCommand)
 NG_PSD_DIALOG_COMMAND_PREPARE(GetPsdDepthDialogPartDataCommand)

@@ -3,6 +3,7 @@
 #include "settings_file.hpp"
 #include <nijigenerate/compat/phobos_file_exists.hpp>
 #include <nijigenerate/compat/phobos_file_exception.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <nijigenerate/compat/scope_exit.hpp>
 #include <algorithm>
 #include <cstdint>

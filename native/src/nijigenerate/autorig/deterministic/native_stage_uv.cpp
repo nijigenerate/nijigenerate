@@ -26,9 +26,9 @@ Json registerSourceUV(Json state, Task task) {
                 [&] { const auto origin=part->getMesh().origin; return origin.x==0&&origin.y==0; }(),
                 "UV registration needs a resolved Part frame",709);
             current = textureMapping(part);
-            oldScale = Point2{transform.scale.x, transform.scale.y};
-            oldTranslation = Point2{transform.translation.x, transform.translation.y};
-            rotation = transform.rotation.z;
+            oldScale = Point2{part->localTransform.scale.x, part->localTransform.scale.y};
+            oldTranslation = Point2{part->localTransform.translation.x, part->localTransform.translation.y};
+            rotation = part->localTransform.rotation.z;
         });
         auto operation = geometry::ngRigSourceUVRegistration(material.sourceIndexValue("source_mapping"), current);
         const auto scale = ngRigNumbers(operation.sourceIndexValue("scale")), shift = ngRigNumbers(operation.sourceIndexValue("shift"));

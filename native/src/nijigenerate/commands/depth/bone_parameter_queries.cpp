@@ -1,4 +1,5 @@
 #include "detail/bone_dirty_providers.hpp"
+#include "detail/bone_string_concatenation.hpp"
 #include <nijigenerate/compat/out_of_memory_error.hpp>
 #include <charconv>
 #include <new>
@@ -18,13 +19,13 @@ bool isLiveDepthRigRoot(std::shared_ptr<ExDepthRigRoot> root) {
 }
 
 compat::RetainedStringSlice keypointKey(compat::Vec2u keypoint) {
-    // Two full uint32 decimal representations and exactly one colon.
-    char bytes[21];
-    auto xEnd = std::to_chars(bytes, bytes + 10, keypoint.x).ptr;
-    *xEnd++ = ':';
-    auto end = std::to_chars(xEnd, bytes + sizeof(bytes), keypoint.y).ptr;
     try {
-        return compat::RetainedString(std::string(bytes, end));
+        char bytes[10];
+        const auto xEnd = std::to_chars(bytes, bytes + sizeof(bytes), keypoint.x).ptr;
+        const auto x = compat::RetainedString(std::string(bytes, xEnd));
+        const auto yEnd = std::to_chars(bytes, bytes + sizeof(bytes), keypoint.y).ptr;
+        const auto y = compat::RetainedString(std::string(bytes, yEnd));
+        return concatenateBoneStrings({x.view(), ":", y.view()});
     } catch (const std::bad_alloc&) {
         throw compat::ngStaticError<compat::OutOfMemoryError>(
             compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);

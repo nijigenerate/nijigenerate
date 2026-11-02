@@ -78,8 +78,10 @@ void skeletonizeImage(T image) {
                 row = detail::addIndex(row, 1)) {
             for (std::int32_t column = 1; static_cast<std::uint64_t>(column) < width - 1;
                     column = detail::addIndex(column, 1)) {
-                if (image(row, column)) result.append({static_cast<std::uint32_t>(column),
-                                                      static_cast<std::uint32_t>(row)});
+                if (image(row, column)) {
+                    const Vec2u point{static_cast<std::uint32_t>(column), static_cast<std::uint32_t>(row)};
+                    result.append(point);
+                }
             }
         }
         return result;
@@ -97,8 +99,9 @@ void skeletonizeImage(T image) {
                     const auto nextColumn = detail::addIndex(column, dx);
                     if (nextRow < 1 || nextRow >= height - 1
                         || nextColumn < 1 || nextColumn >= width - 1) continue;
-                    sorted.append({static_cast<std::uint32_t>(nextColumn),
-                                   static_cast<std::uint32_t>(nextRow)});
+                    const Vec2u next{static_cast<std::uint32_t>(nextColumn),
+                        static_cast<std::uint32_t>(nextRow)};
+                    sorted.append(next);
                 }
             }
         }

@@ -28,6 +28,9 @@ using Point2 = contracts::Point2;
 using controls_detail::Frame;
 using controls_detail::readControlMap;
 template<class T> using Slice = compat::Slice<T>;
+template<std::size_t N> compat::RetainedStringSlice literal(const char (&value)[N]) {
+    return compat::RetainedString::fromStaticLiteral(value);
+}
 struct IdHash {
     std::size_t operator()(std::uint64_t value) const noexcept {
         constexpr auto shift = sizeof(std::size_t) < sizeof(value) ? sizeof(std::size_t) * 8 : 0;
@@ -192,7 +195,7 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         if (!operations.empty()) mechanisms.append(record({{"name", Json(name)}, {"axisX", numbers(xs)},
             {"axisY", numbers(ys)}, {"operations", Json(operations)}}));
     };
-    if (contracts::ngRigString(state, "kind", "humanoid").view() == "local") {
+    if (contracts::ngRigString(state, literal("kind"), literal("humanoid")).view() == "local") {
         Slice<Point2> support;
         for (const auto target : targets)
             support.append(contracts::ngRigPoints(read(readControlMap(materialById,
@@ -221,7 +224,7 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         auto eye = readControlMap(eyes, side, 300);
         auto aperture = controls_detail::profile(white, eye);
         auto upper = supports("upper", side), lowerSupport = supports("lower", side);
-        auto upperContact = aperture.upper.dup(), lowerContact = aperture.lower.dup();
+        auto upperContact = aperture.upper.duplicate(), lowerContact = aperture.lower.duplicate();
         std::uint64_t whiteOwner = 0;
         for (const auto target : targets) if (read(target, "side").as_string().view() == side &&
                 feature(readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 305)) == "sclera") {
@@ -318,12 +321,12 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         Slice<Point2> base;
         for (const auto target : targets) {
             auto material = readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 401);
-            if (contracts::ngRigString(material, "feature", "").view() == "mouth")
+            if (contracts::ngRigString(material, literal("feature"), literal("")).view() == "mouth")
                 base.append(contracts::ngRigPoints(read(material, "cloud")));
         }
         if (base.empty()) for (const auto target : targets) {
             auto material = readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 405);
-            if (contracts::ngRigString(material, "feature", "").view() == "mouth_outline")
+            if (contracts::ngRigString(material, literal("feature"), literal("")).view() == "mouth_outline")
                 base.append(contracts::ngRigPoints(read(material, "cloud")));
         }
         if (base.empty()) base = mouth;
@@ -357,20 +360,21 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
     Array drawOrder, overlappingBackings;
     IdMap<double> desiredZ;
     for (const auto target : targets) desiredZ[contracts::ngRigUnsigned(read(target, "part"))] =
-        contracts::ngRigNumber(contracts::ngRigGet(target, "absolute_zsort", Json(0.)));
+        contracts::ngRigNumber(contracts::ngRigGet(target, literal("absolute_zsort"), Json(0.)));
     for (const auto target : targets) {
         const auto faceId = contracts::ngRigUnsigned(read(target, "part"));
         auto face = readControlMap(materialById, faceId, 447);
-        if (contracts::ngRigString(face, "role", "").view() != "face") continue;
-        auto compositeScope = contracts::ngRigGet(target, "composite_scope", Json(Array{}));
+        if (contracts::ngRigString(face, literal("role"), literal("")).view() != "face") continue;
+        auto compositeScope = contracts::ngRigGet(target, literal("composite_scope"), Json(Array{}));
         Slice<std::uint64_t> supported;
         double highest = -std::numeric_limits<double>::infinity();
         for (const auto candidate : targets) {
             auto material = readControlMap(materialById, contracts::ngRigUnsigned(read(candidate, "part")), 453);
-            if (feature(material).empty() || contracts::ngRigGet(candidate, "composite_scope", Json(Array{})) != compositeScope) continue;
+            if (feature(material).empty() ||
+                    contracts::ngRigGet(candidate, literal("composite_scope"), Json(Array{})) != compositeScope) continue;
             const auto* strong = material.sourceObjectRef().if_contains("draw_order_cloud");
             if (strong == nullptr) continue;
-            if (observation::ngRigAlphaCoverage(face, contracts::ngRigPoints(*strong), "alpha_runs_128", nullptr) > .5) {
+            if (observation::ngRigAlphaCoverage(face, contracts::ngRigPoints(*strong), literal("alpha_runs_128"), nullptr) > .5) {
                 supported.append(contracts::ngRigUnsigned(read(candidate, "part")));
                 highest = std::max(highest, readControlMap(desiredZ, contracts::ngRigUnsigned(read(candidate, "part")), 458));
             }
@@ -379,8 +383,8 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         const double next = std::max(readControlMap(desiredZ, faceId, 462), highest + .25);
         const auto change = [&](Json node, double value, const char* reason) {
             const auto id = contracts::ngRigUnsigned(read(node, "part"));
-            const double original = contracts::ngRigNumber(contracts::ngRigGet(node, "absolute_zsort", Json(0.)));
-            const double relative = contracts::ngRigNumber(contracts::ngRigGet(node, "relative_zsort", Json(0.)));
+            const double original = contracts::ngRigNumber(contracts::ngRigGet(node, literal("absolute_zsort"), Json(0.)));
+            const double relative = contracts::ngRigNumber(contracts::ngRigGet(node, literal("relative_zsort"), Json(0.)));
             drawOrder.append(record({{"part", read(node, "part")}, {"absolute_zsort", Json(value)},
                 {"relative_zsort", Json(value - original + relative)}, {"reason", Json(reason)}}));
             desiredZ[id] = value;
@@ -390,9 +394,10 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         if (faceCloud == nullptr) continue;
         for (const auto candidate : targets) {
             auto ear = readControlMap(materialById, contracts::ngRigUnsigned(read(candidate, "part")), 475);
-            if (contracts::ngRigString(ear, "role", "").view() != "ear" ||
-                    contracts::ngRigGet(candidate, "composite_scope", Json(Array{})) != compositeScope) continue;
-            const double coverage = observation::ngRigAlphaCoverage(ear, contracts::ngRigPoints(*faceCloud), "alpha_runs_128", nullptr);
+            if (contracts::ngRigString(ear, literal("role"), literal("")).view() != "ear" ||
+                    contracts::ngRigGet(candidate, literal("composite_scope"), Json(Array{})) != compositeScope) continue;
+            const double coverage = observation::ngRigAlphaCoverage(ear, contracts::ngRigPoints(*faceCloud),
+                literal("alpha_runs_128"), nullptr);
             if (coverage <= .5) continue;
             overlappingBackings.append(record({{"ear", read(candidate, "part")}, {"face", read(target, "part")},
                 {"face_alpha_coverage", Json(coverage)}}));

@@ -225,7 +225,7 @@ void ngDrawGridDepthBoneSources(std::shared_ptr<Node> target,std::shared_ptr<Par
                 if(ngButtonColored("\ue668"))ngRunGridDepthBoneCommand(Id::ApplyDepthBoneDeform,context(target,armed),root,target);
                 ngTooltip(compat::RetainedStringSlice(translateText("Apply Depth Bone Deform")));
             }
-            auto* binding=root->getOrCreateBinding(target,kind);
+            auto binding=root->getOrCreateBinding(target,kind);
             int maximum=static_cast<int>(binding->influenceRule.maxInfluences);
             float radius=binding->influenceRule.radiusScale,minimum=binding->influenceRule.minimumRadius;
             bool changed=false;ImGui::Spacing();

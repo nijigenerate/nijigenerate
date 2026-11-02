@@ -24,6 +24,14 @@ compat::RetainedString finishedDigest(contracts::detail::Sha256& hash) {
     for(auto b:digest){result[offset++]=hex[b>>4];result[offset++]=hex[b&15];}
     return retainNativeText(std::move(result));
 }
+Json serializedBinding(const std::shared_ptr<nicxlive::core::param::ParameterBinding>& binding) {
+    auto writer=createNativeObject<nicxlive::core::serde::TypedJsonWriter>();
+    (void)binding->serializeSelf(*writer);
+    writer->flush();
+    const auto& encoded=writer->str();
+    return autorig::json::ngParseAutoRigJson(
+        compat::RetainedString::retainedView(writer,encoded.data(),encoded.size()));
+}
 }
 Json reviewModel(Task task) {
     core::settings::SettingsJsonArray items;
@@ -87,7 +95,7 @@ Json reviewModel(Task task) {
                         auto cells=offsets.toArray();hash.put(rawBytes<nicxlive::core::math::Vec2>({cells.data(),cells.size()}));
                     }
                     digest=finishedDigest(hash);
-                }else digest=ngRigDigest(serializedJson(binding)).retainedString();
+                }else digest=ngRigDigest(serializedBinding(binding)).retainedString();
                 const auto targetId=compat::ngRequireObject(binding->getTarget().getResource())->getUUID();
                 const auto targetName=compat::ngRequireObject(binding->getTarget().getResource())->getName();
                 auto entry=objectEvidence({{stringLiteralEvidence("target"),targetId},{stringLiteralEvidence("target_name"),targetName},

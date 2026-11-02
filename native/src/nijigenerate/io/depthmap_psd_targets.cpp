@@ -13,6 +13,7 @@
 #include <cmath>
 #include <span>
 #include <string>
+#include <utility>
 namespace nijigenerate::io::depthmap_psd {
 namespace detail {
 using namespace nicxlive::core::nodes;
@@ -132,13 +133,18 @@ void attachPartCoverage(DepthLayerImage& image, PartRef part, CoverageSeen& seen
     if (!texture || texture->width() <= 0 || texture->height() <= 0) return;
     const auto channels = texture->channels();
     if (channels <= 0) return;
-    const auto data = texture->getTextureData(true);
+    auto data = texture->getSourceTextureData(true);
     const auto expected = std::size_t(texture->width()) * std::size_t(texture->height()) * std::size_t(channels);
-    if (!data || data->size() < expected) return;
+    if (data.size() < expected) return;
     CoverageSource source;
     source.width = texture->width(); source.height = texture->height(); source.channels = channels;
     source.opacity = clamp01(part->opacity);
-    source.data = compat::Slice<std::uint8_t>::retainedView(data, data->data(), data->size());
+    // Preserve the actual source descriptor, including sliced external owners.
+    // An ownerless SharedArray can only name its explicitly process-static domain.
+    auto dataOwner = data.retentionOwner();
+    source.data = dataOwner.use_count() != 0
+        ? compat::Slice<std::uint8_t>::retainedView(std::move(dataOwner), data.data(), data.size())
+        : compat::Slice<std::uint8_t>::fromStaticBuffer(data.data(), data.size());
     source.worldToLocal = ext::nodes::excamera_detail::inverse(part->transform().matrix());
     source.localToDocumentWorld = part->transform().matrix();
     const auto mesh = part->nicxlive::core::nodes::Drawable::getMesh();

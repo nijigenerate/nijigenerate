@@ -136,7 +136,7 @@ template<class Worker> void directoryEntries(std::string_view folder, Worker wor
     }
 #endif
 }
-std::string format(std::string_view pattern, std::string_view value) {
+std::string formatImportText(std::string_view pattern, std::string_view value) {
     const auto argument = core::translation::ngFormatArgument(value);
     return core::translation::ngFormatTyped(pattern, std::span(&argument, 1));
 }
@@ -244,7 +244,7 @@ void incImportFolder(compat::RetainedStringSlice folder) {
                 const auto bytes = failures[i].view();
                 if (!bytes.empty()) allocateImportPathMemory([&] { joined.append(bytes); });
             }
-            return format(pattern.view(), joined);
+            return formatImportText(pattern.view(), joined);
         }, false);
     }
     compat::ngRequireObject(puppet)->rescanNodes();
@@ -263,7 +263,7 @@ void incImportINP(compat::RetainedStringSlice file) {
     try {
         puppet = io::project_reader::ngLoadProjectPuppet<ext::ExPuppet>(file);
         // Original code formats first, then translates the resulting message.
-        auto formatted = format("%s was imported...", file.view());
+        auto formatted = formatImportText("%s was imported...", file.view());
         const auto untranslated = allocateImportPathMemory([&] {
             return compat::RetainedString(std::move(formatted));
         });

@@ -83,9 +83,9 @@ NodeMoveAction::NodeMoveAction(Nodes values, NodeRef to, std::size_t offset)
             core::translation::ngFormatArgument(detail::requireActionObject(to)->getName())};
         auto formatted = core::translation::ngFormatTyped(pattern.view(), args);
         const auto message = detail::nodeActionStringAllocation([&] {
-            return detail::nodeActionStringAllocation([&] {
-        return formatted.empty() ? compat::RetainedString{} : compat::RetainedString(std::move(formatted));
-    });
+            // Source enforce/bailOut idups the completed non-null format result.
+            return formatted.empty() ? compat::RetainedString{} :
+                compat::RetainedString(std::string_view(formatted));
         });
         throw compat::ThrowableException(message,
             compat::RetainedString::fromStaticLiteral("source/nijigenerate/actions/node.d"), 120);

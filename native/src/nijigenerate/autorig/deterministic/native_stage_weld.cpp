@@ -12,16 +12,17 @@ namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
 using namespace review;
 Json weldShoulders(Json state, Task task) {
+    const auto weldKind = compat::RetainedString::fromStaticLiteral("weld");
     auto pairs = get(state, "shoulder_pairs", core::settings::SettingsJsonArray{}).sourceArrayValue().duplicate();
     core::settings::SettingsJsonArray operations;
     auto settings = reviewSettings(task);
     for (auto pair : pairs) operations.append(objectEvidence({
-        {stringLiteralEvidence("id"), core::settings::SettingsString(ngRigReviewOperationId("weld", pair))},
-        {stringLiteralEvidence("enabled"), ngRigReviewEnabled(settings, ngRigReviewOperationId("weld", pair))},
+        {stringLiteralEvidence("id"), core::settings::SettingsString(ngRigReviewOperationId(weldKind, pair))},
+        {stringLiteralEvidence("enabled"), ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair))},
         {stringLiteralEvidence("plan"), ngRigReviewCompact(pair)}}));
     task->previewJson("review-operations", operations);
     for (auto& pair : pairs) {
-        if (!ngRigReviewEnabled(settings, ngRigReviewOperationId("weld", pair))) {
+        if (!ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair))) {
             assignNative(pair, "status", "disabled_by_user"); continue;
         }
         if (!indexNative(pair, "matching").as_bool()) { assignNative(pair, "status", "not_matching"); continue; }
@@ -59,7 +60,7 @@ Json weldShoulders(Json state, Task task) {
     }
     // Finish every shared mesh edit before predicting or creating any link.
     for (auto& pair : pairs) {
-        if (!ngRigReviewEnabled(settings, ngRigReviewOperationId("weld", pair)) || !indexNative(pair, "matching").as_bool()) continue;
+        if (!ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair)) || !indexNative(pair, "matching").as_bool()) continue;
         ngRigCheckpoint(task);
         compat::Slice<Point2> sourcePoints, targetPoints;
         Json beforeSource, beforeTarget;

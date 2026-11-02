@@ -1471,7 +1471,8 @@ nicxlive::core::d_runtime::SourceTypeSpellingNames valueCommandSourceSpellings(s
 }
 
 template<class List> struct ValueCommandSourceBase;
-template<class First, class... Rest> struct ValueCommandSourceBase<CommandTypeList<First, Rest...>> {
+template<class First, class... Rest>
+struct ValueCommandSourceBase<::nijigenerate::commands::CommandTypeList<First, Rest...>> {
     using Type = First;
 };
 

@@ -274,6 +274,7 @@ void DepthAttachedPointOperation::drag(DepthOperationHandle handle,DepthEditorHa
     case DepthOperationHandle::P0Angle:case DepthOperationHandle::P1Angle:return;
     }
     throw compat::ngStaticError<compat::SwitchError>(
+        compat::RetainedString::fromStaticLiteral("No appropriate switch clause found"),
         compat::RetainedString::fromStaticLiteral("source/nijigenerate/viewport/depth/tools/operation.d"), 129);
 }
 
@@ -303,6 +304,7 @@ void DepthRingOperation::drag(DepthOperationHandle handle,DepthEditorHandle edit
     case DepthOperationHandle::None:case DepthOperationHandle::RadiusX:case DepthOperationHandle::RadiusY:return;
     }
     throw compat::ngStaticError<compat::SwitchError>(
+        compat::RetainedString::fromStaticLiteral("No appropriate switch clause found"),
         compat::RetainedString::fromStaticLiteral("source/nijigenerate/viewport/depth/tools/operation.d"), 230);
 }
 
@@ -351,6 +353,7 @@ void DepthPlaneOperation::drag(DepthOperationHandle handle,DepthEditorHandle,
     case DepthOperationHandle::P0Angle:case DepthOperationHandle::P1Angle:return;
     }
     throw compat::ngStaticError<compat::SwitchError>(
+        compat::RetainedString::fromStaticLiteral("No appropriate switch clause found"),
         compat::RetainedString::fromStaticLiteral("source/nijigenerate/viewport/depth/tools/operation.d"), 336);
 }
 

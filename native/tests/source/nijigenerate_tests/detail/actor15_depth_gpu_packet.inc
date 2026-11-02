@@ -58,7 +58,7 @@ void testDepthBoneGpuOffsetPacketConstruction() {
     param->value = {1, 0};
     nijigenerate::project::incActivePuppet()->parameters.push_back(param);
     auto tx = newValueBinding(param, bone, text("transform.t.x"));
-    tx->setValue(Vec2u{1, 0}, 5.0f);
+    tx->setValue({1, 0}, 5.0f);
     DepthBoneGpuOffsetPacket packet;
     nijigenerate::compat::RetainedStringSlice error;
     // Retain the actual array cell for each original &root.bindings[index]

@@ -8,6 +8,7 @@
 #include <functional>
 #include <common/object_key_policy.hpp>
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/compat/array_range_error.hpp>
 #include <string>
 #include <nijigenerate/compat/out_of_memory_error.hpp>

@@ -14,7 +14,9 @@ if(TARGET nijigenerate_runtime_core AND TARGET nicxlive::nicxlive)
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/model/set_deform_binding_commands.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/detail/declared_constructor_arguments.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/model/detail/model_command_map.hpp")
-    target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_model_editor_completion)
+    if(TARGET nijigenerate_model_editor_completion)
+        target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_model_editor_completion)
+    endif()
     if(MSVC)
         set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/model/detail/parameter_keypoint.cpp"
             APPEND PROPERTY COMPILE_OPTIONS /fp:strict)

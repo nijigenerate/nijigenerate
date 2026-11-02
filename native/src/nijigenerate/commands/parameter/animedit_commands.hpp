@@ -118,8 +118,8 @@ NG_ANIMEDIT_CONSTRUCTOR(PasteAnimationKeyFrameCommand)
 namespace nijigenerate::commands::parameter::animedit {
 namespace detail {
 struct InitializationBinding {
-    using map_type = decltype(commands);
-    static map_type& get() { return commands; }
+    using map_type = decltype(::nijigenerate::commands::parameter::animedit::commands);
+    static map_type& get() { return ::nijigenerate::commands::parameter::animedit::commands; }
 };
 using Initialization = ::nijigenerate::commands::detail::CommandRegistrationSequence<
     ::nijigenerate::commands::detail::OptionalCommandRegistration<AnimeditCommand::AddAnimationKeyFrame, AddAnimationKeyFrameCommand>,

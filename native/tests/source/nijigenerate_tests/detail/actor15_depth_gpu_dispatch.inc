@@ -12,7 +12,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
     using nicxlive::core::math::Vec3;
     using nicxlive::core::math::Vec2Array;
     using nicxlive::core::math::ngVecaFromVectorsSource;
-    using nicxlive::common::SharedArray;
+    using nicxlive::core::common::SharedArray;
     using nicxlive::core::nodes::Node;
     using nicxlive::core::nodes::Deformable;
     using nicxlive::core::param::ParameterBinding;
@@ -107,7 +107,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         auto tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU all keypoints regression")),
             DepthBoneDirtyScope::AllKeypoints);
         auto detectedStatuses = ngDepthBoneUpdateStatuses(nijigenerate::project::incActivePuppet(), true);
@@ -138,7 +138,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
                 param->getBinding(gpuTarget, NullableString::fromStaticLiteral("deform")));
             const bool hasBinding = targetBinding != nullptr;
             require(hasBinding, formatted("GPU all-keypoints refresh should create a deform binding for target %s", i));
-            auto targetOffsets = targetBinding->getValue(Vec2u{1, 0}).vertexOffsets;
+            auto targetOffsets = targetBinding->getValue({1, 0}).vertexOffsets;
             const bool countMatches = targetOffsets.size() == gpuTarget->vertices.size();
             require(countMatches, formatted("GPU all-keypoints refresh should write one offset per vertex for target %s", i));
             for (auto offset : targetOffsets) {
@@ -199,7 +199,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
             auto bindings = nijigenerate::actions::parameter::Bindings{tx};
             return std::tuple{name, parameter, bindings, 1, 0};
         });
-        tx->setValue(Vec2u{1, 0}, 7.0f);
+        tx->setValue({1, 0}, 7.0f);
         transformAction->updateNewState();
         check(ngHasPendingDepthBoneRefresh(), "a transform binding action must enqueue its DepthBone keypoint");
         auto submitCountBeforeTransform = fakeDepthBoneGpuSubmitCount;
@@ -219,7 +219,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
             auto bindings = nijigenerate::actions::parameter::Bindings{targetTranslation};
             return std::tuple{name, parameter, bindings, 1, 0};
         });
-        targetTranslation->setValue(Vec2u{1, 0}, 3.0f);
+        targetTranslation->setValue({1, 0}, 3.0f);
         targetTransformAction->updateNewState();
         check(ngHasPendingDepthBoneRefresh(),
             "setting a BoneSource GridDeformer transform must enqueue its DepthBone hierarchy");
@@ -285,7 +285,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
             auto bindings = nijigenerate::actions::parameter::Bindings{deformBinding};
             return std::tuple{name, parameter, bindings, 1, 0};
         });
-        deformBinding->update(Vec2u{1, 0}, ngVecaFromVectorsSource(SharedArray<Vec2>{
+        deformBinding->update({1, 0}, ngVecaFromVectorsSource(SharedArray<Vec2>{
             Vec2{1, 0}, Vec2{1, 0}, Vec2{1, 0}, Vec2{1, 0}}));
         ancestorDeformAction->updateNewState();
         check(ngHasPendingDepthBoneRefresh(),
@@ -324,14 +324,14 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         fakeDepthBoneGpuPollCount = 0;
         fakeDepthBoneGpuNotReadyPolls = 4;
         fakeDepthBoneGpuLastBones = {};
-        tx->setValue(Vec2u{1, 0}, 6.0f);
+        tx->setValue({1, 0}, 6.0f);
         ngNotifyDepthBoneBindingValueChanged(tx, Vec2u{1, 0});
         ngFlushDepthBoneDirty();
         const bool initialSubmitted = fakeDepthBoneGpuSubmitCount == 1;
         require(initialSubmitted, formatted(
             "DepthBone transform refresh should submit the initial keypoint pose; submitted=%s", fakeDepthBoneGpuSubmitCount));
         auto initialDepthBonePose = fakeDepthBoneGpuLastBones.duplicate();
-        tx->setValue(Vec2u{1, 0}, 12.0f);
+        tx->setValue({1, 0}, 12.0f);
         ngNotifyDepthBoneBindingValueChanged(tx, Vec2u{1, 0});
         ngFlushDepthBoneDirty();
         DepthBoneGpuOffsetPacket latestDepthBonePacket;
@@ -360,14 +360,14 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         deformBinding = std::dynamic_pointer_cast<DeformationParameterBinding>(
             param->getBinding(target, NullableString::fromStaticLiteral("deform")));
         check(deformBinding != nullptr, "GPU apply command should keep a deform binding");
-        offsets = deformBinding->getValue(Vec2u{1, 0}).vertexOffsets;
+        offsets = deformBinding->getValue({1, 0}).vertexOffsets;
         for (auto offset : offsets)
             check(nearVec2(offset, Vec2{2, -1}), "GPU apply command should store fake GPU readback offsets");
         history::incActionUndo();
         history::incActionRedo();
         deformBinding = std::dynamic_pointer_cast<DeformationParameterBinding>(
             param->getBinding(target, NullableString::fromStaticLiteral("deform")));
-        check(deformBinding && deformBinding->getValue(Vec2u{1, 0}).vertexOffsets.size() == target->vertices.size(),
+        check(deformBinding && deformBinding->getValue({1, 0}).vertexOffsets.size() == target->vertices.size(),
             "GPU apply command undo/redo should preserve binding shape");
         namespace paths = nijigenerate::compat::phobos;
         const std::array fixtureSegments{text("out"), text("regression-temp"),
@@ -392,7 +392,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         auto loadedBinding = std::dynamic_pointer_cast<DeformationParameterBinding>(
             loadedParam->getBinding(loadedTarget, NullableString::fromStaticLiteral("deform")));
         check(loadedBinding != nullptr, "GPU writeback fixture should persist deform binding");
-        auto loadedOffsets = loadedBinding->getValue(Vec2u{1, 0}).vertexOffsets;
+        auto loadedOffsets = loadedBinding->getValue({1, 0}).vertexOffsets;
         check(loadedOffsets.size() == loadedTarget->vertices.size(), "GPU writeback fixture should persist offset count");
         resetCase();
         fakeDepthBoneGpuNextJobId = 1;
@@ -427,7 +427,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU queued stale owner regression")),
             DepthBoneDirtyScope::Keypoint);
         auto oldRootName = root->getName();
@@ -489,7 +489,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU stale regression")), DepthBoneDirtyScope::Keypoint);
         ngFlushDepthBoneDirty();
         target->rebuffer(ngVecaFromVectorsSource(SharedArray<Vec2>{
@@ -498,12 +498,12 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         deformBinding = std::dynamic_pointer_cast<DeformationParameterBinding>(
             param->getBinding(target, NullableString::fromStaticLiteral("deform")));
         check(deformBinding != nullptr, "GPU stale job should requeue and complete against the current target");
-        offsets = deformBinding->getValue(Vec2u{1, 0}).vertexOffsets;
+        offsets = deformBinding->getValue({1, 0}).vertexOffsets;
         check(offsets.size() == target->vertices.size(),
             "GPU stale requeue should write offsets for the current target vertex count");
         deformBinding2 = std::dynamic_pointer_cast<DeformationParameterBinding>(
             param->getBinding(target2, NullableString::fromStaticLiteral("deform")));
-        check(deformBinding2 && deformBinding2->getValue(Vec2u{1, 0}).vertexOffsets.size() == target2->vertices.size(),
+        check(deformBinding2 && deformBinding2->getValue({1, 0}).vertexOffsets.size() == target2->vertices.size(),
             "GPU stale requeue must regenerate and retain every target in the original hierarchy batch");
         check(fakeDepthBoneGpuSubmitCount == 4, "a stale two-target batch should resubmit both targets exactly once");
         resetCase();
@@ -533,7 +533,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU detached target regression")),
             DepthBoneDirtyScope::Keypoint);
         ngFlushDepthBoneDirty();
@@ -575,7 +575,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         fakeDepthBoneGpuMutatingTarget = target;
         fakeDepthBoneGpuMutateDepthOnReady = true;
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU stale retry limit regression")),
@@ -624,7 +624,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         auto scaleBeforePendingTransform = nijigenerate::viewport::depth::common::targetview::ngDepthDisplayScaleForTargetsInNodeSpace(
             root, Slice<std::shared_ptr<Deformable>>{target, scaleDriverTarget});
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU writeback transform regression")),
@@ -643,7 +643,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         deformBinding = std::dynamic_pointer_cast<DeformationParameterBinding>(
             param->getBinding(target, NullableString::fromStaticLiteral("deform")));
         check(deformBinding != nullptr, "GPU writeback should complete after a pending target transform change");
-        offsets = deformBinding->getValue(Vec2u{1, 0}).vertexOffsets;
+        offsets = deformBinding->getValue({1, 0}).vertexOffsets;
         check(offsets.size() == target->vertices.size(),
             "GPU writeback transform change should still write offsets for the current target vertex count");
         auto transformCtx = std::allocate_shared<Context>(SourceAllocator<Context>{});
@@ -728,7 +728,8 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         fakeDepthBoneGpuPollCount = 0;
         fakeDepthBoneGpuNotReadyPolls = 1;
         auto forceCursor = param->findClosestKeypoint();
-        ngMarkDepthBoneDirty(root, param, forceCursor, TextSlice(text("Force Depth Bone Refresh regression")),
+        ngMarkDepthBoneDirty(root, param, Vec2u{forceCursor.x, forceCursor.y},
+            TextSlice(text("Force Depth Bone Refresh regression")),
             DepthBoneDirtyScope::AllKeypoints);
         ngFlushDepthBoneDirty();
         scaleDriverTarget->localTransform.scale = Vec2{50, 50};
@@ -765,7 +766,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param = new2DParameter(text("DepthGpuSubmitFailureParam"));
         param->value = Vec2{1, 1};
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{2, 2}, 5.0f);
+        tx->setValue({2, 2}, 5.0f);
         auto submitFailureOwner = std::allocate_shared<nijigenerate::actions::AsyncGroupAction>(
             SourceAllocator<nijigenerate::actions::AsyncGroupAction>{});
         ngBeginDepthBoneRefreshActionSink(submitFailureOwner);
@@ -821,7 +822,7 @@ void testDepthBoneGpuAllKeypointsDispatch() {
         param->value = Vec2{1, 0};
         nijigenerate::project::incActivePuppet()->parameters.push_back(param);
         tx = newValueBinding(param, bone, text("transform.t.x"));
-        tx->setValue(Vec2u{1, 0}, 5.0f);
+        tx->setValue({1, 0}, 5.0f);
         ngMarkDepthBoneDirty(root, param, Vec2u{1, 0}, TextSlice(text("GPU packet failure regression")),
             DepthBoneDirtyScope::AllKeypoints);
         bool packetFailureThrown = false;

@@ -6,6 +6,7 @@
 #include "../mesheditor/node.hpp"
 #include "../mesheditor/editor.hpp"
 #include <nijigenerate/commands/depth/editor_commands.hpp>
+#include <nijigenerate/commands/context.hpp>
 #include <nijigenerate/core/input.hpp>
 #include <nijigenerate/core/translation.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>

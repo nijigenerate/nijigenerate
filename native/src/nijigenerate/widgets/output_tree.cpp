@@ -45,7 +45,7 @@ bool bindingActive(Resource res) {
     auto param=compat::ngRequireObject(incArmedParameter());
     const auto bindings=param->bindings;
     return std::find_if(bindings.begin(),bindings.end(),[&](auto candidate) {
-        return nicxlive::core::ngResourceObjectEquals(candidate,binding);
+        return candidate.get() == binding.get();
     })!=bindings.end() &&
         commands::binding::ngBindingIsSetAt(binding,incParamPoint());
 }

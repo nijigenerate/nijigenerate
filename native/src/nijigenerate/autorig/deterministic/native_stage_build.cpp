@@ -13,6 +13,7 @@
 #include <nodes/grid_deformer.hpp>
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
+using JsonArray = core::settings::SettingsJsonArray;
 using namespace commands::node::node;
 using namespace commands::depth::bone;
 using namespace commands::inspector::apply_node;

@@ -302,7 +302,7 @@ template<class To, class From> constexpr bool acceptsCommandValue() {
     using Target = std::remove_cvref_t<To>;
     using Source = std::remove_cvref_t<From>;
     // Source type identity is independent of the later assignment expression.
-    if constexpr (std::same_as<std::remove_reference_t<To>, std::remove_reference_t<From>>) return true;
+    if constexpr (std::same_as<std::remove_cvref_t<To>, std::remove_cvref_t<From>>) return true;
     else if constexpr (requires { sizeof(SourceCommandImplicitConversion<To, From>); }) {
         if constexpr (requires { SourceCommandImplicitConversion<To, From>::convert(std::declval<From>()); }) {
             using Actual = decltype(SourceCommandImplicitConversion<To, From>::convert(std::declval<From>()));

@@ -13,7 +13,7 @@ void testI18nVisibleUiStringsAreWrapped() {
         auto sourcePrefix = text("source/nijigenerate/");
         auto sourcePrefixIndex = countUntilSourceString(rel, sourcePrefix);
         if (sourcePrefixIndex >= 0) rel = rel.subslice(static_cast<std::size_t>(sourcePrefixIndex) + sourcePrefix.size(), rel.size());
-        auto content = paths::ngReadUtf8Text(entry.name());
+        auto content = paths::ngReadUtf8Text(entry.name().retainedString());
         bool inBlockComment = false;
         const auto lines = splitSourceLines(content);
         for (std::size_t lineNo = 0; lineNo < lines.size(); ++lineNo) {
@@ -48,7 +48,7 @@ void testInspectorFormatStringsDoNotEscapeNumericFormats() {
     nijigenerate::compat::Slice<Text> failures;
     for (auto entry : paths::ngDirEntries(root, paths::SpanMode::depth)) {
         if (!entry.isFile() || !entry.name().view().ends_with(".d")) continue;
-        auto content = paths::ngReadUtf8Text(entry.name());
+        auto content = paths::ngReadUtf8Text(entry.name().retainedString());
         const auto lines = splitSourceLines(content);
         for (std::size_t lineNo = 0; lineNo < lines.size(); ++lineNo) {
             auto line = lines[lineNo];

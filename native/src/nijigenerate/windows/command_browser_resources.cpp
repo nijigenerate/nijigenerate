@@ -35,7 +35,7 @@ BindingRef findBindingByCommandBrowserId(std::uint32_t id) {
 }
 }
 namespace {
-template<class... T> std::string format(std::string_view pattern,T&&... args) {
+template<class... T> std::string formatCommandBrowserLabel(std::string_view pattern,T&&... args) {
     std::array<core::translation::TypedFormatArgument,sizeof...(T)> values{
         core::translation::ngFormatArgument(std::forward<T>(args))...};
     return core::translation::ngFormatTyped(pattern,values);
@@ -50,7 +50,7 @@ void renderNodeTree(NodeRef node, NodeRef& chosen, bool (*accepts)(NodeRef)) {
     const auto icon = incTypeIdToIcon(node->typeId());
     const auto name = node->getName();
     const auto uuid = node->getUUID();
-    const auto label = detail::retainBrowserText(format("%s %s##node_%s",icon,name,uuid));
+    const auto label = detail::retainBrowserText(formatCommandBrowserLabel("%s %s##node_%s",icon,name,uuid));
     if (ImGui::TreeNodeEx(detail::sourceCString(label).data(),flags)) {
         if (selectable && ImGui::IsItemClicked()) chosen = node;
         if (!(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
@@ -70,7 +70,7 @@ void renderParameterTree(PuppetRef puppet, ParameterRef& chosen) {
         const auto icon = incTypeIdToIcon("Parameter");
         const auto name = compat::ngRequireObject(param)->getName();
         const auto uuid = compat::ngRequireObject(param)->getUUID();
-        const auto label = detail::retainBrowserText(format("%s %s##param_%s",icon,name,uuid));
+        const auto label = detail::retainBrowserText(formatCommandBrowserLabel("%s %s##param_%s",icon,name,uuid));
         if (ImGui::TreeNodeEx(detail::sourceCString(label).data(),flags)) {
             if (ImGui::IsItemClicked()) chosen = param;
             if (!(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen)) ImGui::TreePop();
@@ -85,14 +85,14 @@ void renderBindingTree(PuppetRef puppet, BindingRef& chosen) {
         const auto icon = incTypeIdToIcon("Parameter");
         const auto name = compat::ngRequireObject(param)->getName();
         const auto uuid = compat::ngRequireObject(param)->getUUID();
-        const auto label = detail::retainBrowserText(format("%s %s##param_binding_%s",icon,name,uuid));
+        const auto label = detail::retainBrowserText(formatCommandBrowserLabel("%s %s##param_binding_%s",icon,name,uuid));
         if (ImGui::TreeNodeEx(detail::sourceCString(label).data(),ImGuiTreeNodeFlags_DefaultOpen)) {
             const auto bindings = compat::ngRequireObject(param)->bindings;
             for (auto binding : bindings) {
                 auto id = detail::ensureCommandBrowserBindingId(binding);
                 const auto icon = incTypeIdToIcon("Binding");
                 const auto name = compat::ngRequireObject(binding)->getNameDescriptor();
-                const auto bindingLabel = detail::retainBrowserText(format("%s %s##binding_%s",icon,name,id));
+                const auto bindingLabel = detail::retainBrowserText(formatCommandBrowserLabel("%s %s##binding_%s",icon,name,id));
                 if (ImGui::TreeNodeEx(detail::sourceCString(bindingLabel).data(),
                     ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen))
                     if (ImGui::IsItemClicked()) chosen = binding;

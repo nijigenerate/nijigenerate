@@ -117,7 +117,7 @@ void DepthDrawViewport::planeDocumentBounds(
     maxPoint = {NAN, NAN};
     auto layer = drawSession == nullptr ? nullptr : compat::ngRequireObject(drawSession)->layerById(plane.layerId);
     if (layer != nullptr) {
-        ngDepthDrawLayerDocumentBounds(*layer, minPoint, maxPoint);
+        coordinate::ngDepthDrawLayerDocumentBounds(*layer, minPoint, maxPoint);
         return;
     }
     minPoint = rectMin(plane.bounds);
@@ -203,7 +203,7 @@ void DepthDrawViewport::addCoveragePoints(
         point.alpha = static_cast<float>(alphaByte) / 255.0f;
         const auto pointRenderer = compat::ngRequireObject(renderer);
         const auto modelPoint = documentToModelPoint(documentPoint);
-        const auto camera = compat::ngRequireObject(viewSession)->camera;
+        auto& camera = compat::ngRequireObject(viewSession)->camera;
         point.renderPoint = pointRenderer->buildPoint(
             modelPoint, representativeDepth, depthDisplayScale, camera, 3.0f);
         geometry.coveragePoints.append(point);
@@ -242,7 +242,7 @@ DepthDrawViewportRenderGeometry DepthDrawViewport::collectRenderGeometry() {
             const auto vertex = vertices[point.vertexIndex];
             const auto pointDepth = point.depth;
             const auto pointScale = target->depthDisplayScale();
-            const auto camera = compat::ngRequireObject(viewSession)->camera;
+            auto& camera = compat::ngRequireObject(viewSession)->camera;
             auto renderPoint = pointRenderer->buildPoint(
                 vertex, pointDepth, pointScale, camera, point.missing ? 6.0f : 5.0f);
             if (point.missing) {

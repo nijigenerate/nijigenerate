@@ -1,5 +1,6 @@
 #pragma once
 #include "select.hpp"
+#include <nijigenerate/actions/package.hpp>
 #include <nijigenerate/core/translation.hpp>
 #include <nijigenerate/core/typed_format_enum.hpp>
 #include <array>

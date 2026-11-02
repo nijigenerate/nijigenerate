@@ -48,13 +48,19 @@ void testDepthBoneActionsUndoRedo() {
     bone->restRoll = newRoll;
     actions::incActionPush(std::allocate_shared<DepthBoneRestChangeAction>(SourceAllocator<DepthBoneRestChangeAction>{},
         bone, oldHead, oldTail, oldRoll, newHead, newTail, newRoll));
-    check(bone->restHead == newHead && bone->restTail == newTail && near(bone->restRoll, newRoll),
+    check(bone->restHead.x == newHead.x && bone->restHead.y == newHead.y && bone->restHead.z == newHead.z &&
+        bone->restTail.x == newTail.x && bone->restTail.y == newTail.y && bone->restTail.z == newTail.z &&
+        near(bone->restRoll, newRoll),
         "depth bone rest change should apply");
     actions::incActionUndo();
-    check(bone->restHead == oldHead && bone->restTail == oldTail && near(bone->restRoll, oldRoll),
+    check(bone->restHead.x == oldHead.x && bone->restHead.y == oldHead.y && bone->restHead.z == oldHead.z &&
+        bone->restTail.x == oldTail.x && bone->restTail.y == oldTail.y && bone->restTail.z == oldTail.z &&
+        near(bone->restRoll, oldRoll),
         "depth bone rest undo should restore old values");
     actions::incActionRedo();
-    check(bone->restHead == newHead && bone->restTail == newTail && near(bone->restRoll, newRoll),
+    check(bone->restHead.x == newHead.x && bone->restHead.y == newHead.y && bone->restHead.z == newHead.z &&
+        bone->restTail.x == newTail.x && bone->restTail.y == newTail.y && bone->restTail.z == newTail.z &&
+        near(bone->restRoll, newRoll),
         "depth bone rest redo should restore new values");
     auto constraintAction = ngCreateDepthBoneConstraintAction(bone);
     bone->constraintType = text("hinge");
@@ -178,7 +184,8 @@ void testDepthBoneStandardSkeletonTemplate() {
         const bool present = bone != nullptr;
         auto presentMessage = concatenateSourceStrings({text("standard DepthBone skeleton should include "), boneId});
         require(present, presentMessage);
-        const bool nonzero = bone->restHead != bone->restTail;
+        const bool nonzero = bone->restHead.x != bone->restTail.x || bone->restHead.y != bone->restTail.y ||
+            bone->restHead.z != bone->restTail.z;
         auto nonzeroMessage = concatenateSourceStrings({text("standard DepthBone should have non-zero rest segment: "), boneId});
         require(nonzero, nonzeroMessage);
     }

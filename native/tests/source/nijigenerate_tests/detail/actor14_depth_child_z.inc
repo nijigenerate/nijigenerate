@@ -17,7 +17,7 @@ nicxlive::core::math::Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
     using nicxlive::core::math::Vec2Array;
     using nicxlive::core::math::Vec3;
     using nijigenerate::ext::ExParameter;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     resetCase();
     auto root = ExDepthRigRoot::createSourceDeferred([] {
         return ngRequireObject(nijigenerate::project::incActivePuppet())->root;

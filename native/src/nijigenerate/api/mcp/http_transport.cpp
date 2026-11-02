@@ -1,3 +1,7 @@
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 // URI decoding derives from Phobos std.uri (Walter Bright).
 // Copyright The D Language Foundation 2000 - 2009. Boost Software License 1.0.
 // Form decoding follows vibe.textfilter.urlencode (Jan Krueger, Soenke Ludwig).
@@ -18,6 +22,7 @@
 #include <nijigenerate/compat/json_stringify.hpp>
 #include <nijigenerate/compat/default_random.hpp>
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/out_of_memory_error.hpp>
 #include <nijigenerate/compat/uri_exception.hpp>
 #include <nijigenerate/compat/assert_error.hpp>
 #include <nijigenerate/compat/array_range_error.hpp>
@@ -38,8 +43,11 @@
 #include <boost/asio/cancellation_signal.hpp>
 #include <atomic>
 #include <functional>
+#include <new>
 #include <optional>
 #include <source_location>
+#include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -81,6 +89,17 @@ struct StringEqual {
 template<class V> using StringMap = nicxlive::core::common::ResourceKeyMap<String, V,
     StringHash, StringEqual>;
 using Form = StringMap<String>;
+compat::RetainedString comparisonMessage(compat::RetainedString className) {
+    try {
+        std::string message = "need opCmp for class ";
+        message += className.view();
+        return compat::RetainedString(std::move(message));
+    } catch (const std::bad_alloc&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(std::source_location::current());
+    } catch (const std::length_error&) {
+        throw compat::ngStaticError<compat::OutOfMemoryError>(std::source_location::current());
+    }
+}
 template<std::size_t N> String literal(const char (&value)[N]) {
     return compat::RetainedString::fromStaticLiteral(value);
 }
@@ -814,7 +833,7 @@ struct HttpTransport::Impl {
                 state->abandoned = true;
                 state->cancelRead.emit(asio::cancellation_type::total);
             }
-            if (!state->timerFired) { Error ignored; timer->cancel(ignored); }
+            if (!state->timerFired) { Error ignored; timer->cancel(); }
         };
         bool available = false;
         connection->withReadSocketReference([&] { compat::ngRunWithScopeExit([&] {
@@ -991,7 +1010,7 @@ struct HttpTransport::Impl {
         timer->async_wait(runtime->scheduler().trackNativeCompletion(
             [this, timer, state, lifetime = owner.shared_from_this()](Error error) {
             if (error || state->stopped) return;
-            detail::SourceYieldLock callbackLock(runtime->scheduler(), literal("vibe/core/core.d"), 1663);
+            detail::SourceYieldLock callbackLock(runtime->scheduler(), literal("vibe/core/core.d").retainedString(), 1663);
             auto next = timer->expiry();
             const auto firedAt = std::chrono::steady_clock::now();
             do next += std::chrono::milliseconds(100);
@@ -1038,9 +1057,9 @@ bool HttpTransport::opEquals(std::shared_ptr<HttpTransport> other) {
 int HttpTransport::opCmp(std::shared_ptr<HttpTransport>) {
     const auto keepAlive = weak_from_this().lock();
     prepareSourceClassInfo();
-    std::string message = "need opCmp for class ";
-    message += nicxlive::core::d_runtime::ngObjectClassName(typeid(*this)).view();
-    throw compat::ThrowableException(compat::RetainedString(std::move(message)),
+    const auto className = nicxlive::core::d_runtime::ngObjectClassName(typeid(*this));
+    const auto message = comparisonMessage(className);
+    throw compat::ThrowableException(message,
         compat::RetainedString::fromStaticLiteral("object.d"), 195);
 }
 bool ngHttpTransportObjectEquals(std::shared_ptr<HttpTransport> left, std::shared_ptr<HttpTransport> right) {
@@ -1068,7 +1087,7 @@ void HttpTransport::run() {
     compat::ngRunWithScopeExit([&] {
         detail::httpLog("[MCP/HTTP] run(): binding on %s:%s", impl_->host, impl_->port);
         impl_->runtime = detail::SourceHTTPEventRuntime::current();
-        impl_->listener = impl_->runtime->listen(impl_->host, impl_->port,
+        impl_->listener = impl_->runtime->listen(impl_->host.retainedString(), impl_->port,
             [receiver = this, lifetime = keepAlive](std::shared_ptr<Connection> connection) {
                 (void)lifetime;
                 receiver->impl_->dispatch(std::move(connection));
@@ -1133,9 +1152,9 @@ bool ExtMCPServer::opEquals(std::shared_ptr<ExtMCPServer> other) {
 int ExtMCPServer::opCmp(std::shared_ptr<ExtMCPServer>) {
     const auto keepAlive = weak_from_this().lock();
     prepareSourceClassInfo();
-    std::string message = "need opCmp for class ";
-    message += nicxlive::core::d_runtime::ngObjectClassName(typeid(*this)).view();
-    throw compat::ThrowableException(compat::RetainedString(std::move(message)),
+    const auto className = nicxlive::core::d_runtime::ngObjectClassName(typeid(*this));
+    const auto message = comparisonMessage(className);
+    throw compat::ThrowableException(message,
         compat::RetainedString::fromStaticLiteral("object.d"), 195);
 }
 bool ngExtMCPServerObjectEquals(std::shared_ptr<ExtMCPServer> left, std::shared_ptr<ExtMCPServer> right) {

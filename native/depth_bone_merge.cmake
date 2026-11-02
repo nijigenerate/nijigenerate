@@ -5,4 +5,5 @@ endif()
 target_sources(nijigenerate_runtime_core PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/depth/bone.hpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/depth/bone.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/depth/detail/bone_debug_log.hpp")
+    "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/depth/detail/bone_debug_log.hpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/depth/detail/bone_string_concatenation.hpp")

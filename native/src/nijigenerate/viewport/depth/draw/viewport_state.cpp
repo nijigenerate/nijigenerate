@@ -171,7 +171,7 @@ bool DepthDrawViewport::selectLayerPlaneAtDocumentPoint(Vec2 point) {
 DepthDrawViewport::Vec2 DepthDrawViewport::depthViewPointToDocumentPoint(Vec2 point, float representativeDepth) {
     const auto receiver = weak_from_this().lock();
     const auto displayDepth = -representativeDepth * selectedDepthDisplayScale();
-    const auto camera = compat::ngRequireObject(viewSession)->camera;
+    auto& camera = compat::ngRequireObject(viewSession)->camera;
     const auto modelPoint = unprojectDepthPoint(point, displayDepth, camera);
     return {modelPoint.x + static_cast<float>(documentWidth) * .5f,
         modelPoint.y + static_cast<float>(documentHeight) * .5f};

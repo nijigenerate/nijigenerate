@@ -33,7 +33,7 @@ template<class Axis> std::ptrdiff_t findIndex(Axis axis, float value) {
         return std::bit_cast<std::ptrdiff_t>(i);
     return -1;
 }
-template<class Axis> std::int32_t find(Axis axis, float value) {
+template<class Axis> std::int32_t findAxis(Axis axis, float value) {
     return std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(findIndex(axis, value)));
 }
 template<class Axis> void sortAxis(Axis axis) {
@@ -173,15 +173,15 @@ bool GridTool::onDragStart(Vec2 mouse, EditorRef editor) {
         if (foundY) {
             dragOrigin.y = y;
             if (!foundX) currentAction = GridActionID::TranslateX;
-            else { dragTargetXIndex = find(compat::ngRequireObject(mesh)->axes[1], compat::ngRequireObject(vertex)->position.x); if (dragTargetXIndex < 0) currentAction = GridActionID::End; }
+            else { dragTargetXIndex = findAxis(compat::ngRequireObject(mesh)->axes[1], compat::ngRequireObject(vertex)->position.x); if (dragTargetXIndex < 0) currentAction = GridActionID::End; }
         }
         if (foundX) {
             dragOrigin.x = x;
             if (!foundY) currentAction = GridActionID::TranslateY;
-            else { dragTargetYIndex = find(compat::ngRequireObject(mesh)->axes[0], compat::ngRequireObject(vertex)->position.y); if (dragTargetYIndex < 0) currentAction = GridActionID::End; }
+            else { dragTargetYIndex = findAxis(compat::ngRequireObject(mesh)->axes[0], compat::ngRequireObject(vertex)->position.y); if (dragTargetYIndex < 0) currentAction = GridActionID::End; }
         }
-        if (!foundX) { dragTargetXIndex = find(compat::ngRequireObject(mesh)->axes[1], compat::ngRequireObject(vertex)->position.x); if (dragTargetXIndex < 0) currentAction = GridActionID::End; }
-        if (!foundY) { dragTargetYIndex = find(compat::ngRequireObject(mesh)->axes[0], compat::ngRequireObject(vertex)->position.y); if (dragTargetYIndex < 0) currentAction = GridActionID::End; }
+        if (!foundX) { dragTargetXIndex = findAxis(compat::ngRequireObject(mesh)->axes[1], compat::ngRequireObject(vertex)->position.x); if (dragTargetXIndex < 0) currentAction = GridActionID::End; }
+        if (!foundY) { dragTargetYIndex = findAxis(compat::ngRequireObject(mesh)->axes[0], compat::ngRequireObject(vertex)->position.y); if (dragTargetYIndex < 0) currentAction = GridActionID::End; }
         return true;
     }
     if (compat::ngRequireObject(mesh)->axes.size() < 2 || compat::ngRequireObject(mesh)->vertices.empty()) {
@@ -224,13 +224,13 @@ bool GridTool::onDragUpdate(Vec2 mouse, EditorRef editor) {
         const auto line=currentAction==GridActionID::TranslateFree?317u:306u;
         auto& axis=sourceAt(compat::ngRequireObject(mesh)->axes,0,line);
         sourceAt(axis,static_cast<std::size_t>(dragTargetYIndex),line)=mouse.y;
-        sortAxis(axis); dragTargetYIndex=find(axis,mouse.y);
+        sortAxis(axis); dragTargetYIndex=findAxis(axis,mouse.y);
     }
     if (x) {
         const auto line=currentAction==GridActionID::TranslateFree?321u:295u;
         auto& axis=sourceAt(compat::ngRequireObject(mesh)->axes,1,line);
         sourceAt(axis,static_cast<std::size_t>(dragTargetXIndex),line)=mouse.x;
-        sortAxis(axis); dragTargetXIndex=find(axis,mouse.x);
+        sortAxis(axis); dragTargetXIndex=findAxis(axis,mouse.x);
     }
     if (x || y) {
         MeshData data; data.gridAxes = compat::ngRequireObject(mesh)->axes; data.regenerateGrid(); compat::ngRequireObject(mesh)->copyFromMeshData(data);

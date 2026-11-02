@@ -140,7 +140,14 @@ Json ngRigCompilePhysicsOperations(Json& structure,PhysicsAssets assets,PhysicsM
             }
             targets.append(target);
             for(std::size_t i=0;i<values.size();++i){Slice<double> flat;Slice<Point2> quantized;
-                for(auto v:values[i]){maximum=dmax(maximum,norm(v)*scale);Point2 q{std::rint(v[0]*scale*1e6)/1e6,std::rint(v[1]*scale*1e6)/1e6};quantized.append(q);flat.append(q[0]);flat.append(q[1]);}
+                for(auto v:values[i]){
+                    maximum=dmax(maximum,norm(v)*scale);
+                    Point2 q{std::rint(v[0]*scale*1e6)/1e6,std::rint(v[1]*scale*1e6)/1e6};
+                    quantized.append(q);
+                    // Retain the copied point while the authored q[] range is appended.
+                    flat.appendRange(Slice<double>::retainedView(quantized.retentionOwner(),
+                        quantized[quantized.size()-1].data(),Point2::size()));
+                }
                 enforce(ngRigPhysicsNoInversion(mesh.vertices,mesh.indices,quantized),
                     "Quantized physics key inverts a face",626);
                 operations.append(object({

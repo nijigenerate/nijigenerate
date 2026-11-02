@@ -104,8 +104,8 @@ void incBindingList(ParameterRef param) {
                 const auto icon=utils::incTypeIdToIcon(node->typeId());
                 const auto nodeName=node->getName();
                 name=detail::allocateParameterStorage([&] {
-                    return nicxlive::core::common::NullableString(compat::RetainedString(
-                        std::string(icon)+" "+std::string(nodeName.view())));
+                    return compat::RetainedString(
+                        std::string(icon)+" "+std::string(nodeName.view())).toNullableString();
                 });
             } else name=compat::ngRequireObject(boundResource)->getName();
             const auto uuid=compat::ngRequireObject(boundResource)->getUUID();
@@ -134,8 +134,7 @@ void incBindingList(ParameterRef param) {
                             core::translation::ngFormatArgument(label),core::translation::ngFormatArgument(value->getValue({b::cParamPoint.x,b::cParamPoint.y}))};
                         auto formatted=core::translation::ngFormatTyped("%s (%.02f)",args);
                         label=detail::allocateParameterStorage([&] {
-                            return nicxlive::core::common::NullableString(
-                                compat::RetainedString(std::move(formatted)));
+                            return compat::RetainedString(std::move(formatted)).toNullableString();
                         });
                     }
                     // Keep the separately evaluated D string descriptor alive through the UI call.

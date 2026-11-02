@@ -15,7 +15,7 @@
 
 namespace nijigenerate::commands::automesh::config::detail {
 namespace description_detail {
-namespace meta=viewport::vertex::automesh::meta;
+namespace meta=::nijigenerate::viewport::vertex::automesh::meta;
 
 template<class T> inline constexpr bool isEnumAttribute=false;
 template<> inline constexpr bool isEnumAttribute<meta::AMEnum> = true;
@@ -129,7 +129,7 @@ template<class PT,meta::AutoMeshLevel Level> inline constexpr auto descriptionBy
 }();
 } // namespace description_detail
 
-template<class PT,viewport::vertex::automesh::meta::AutoMeshLevel Level>
+template<class PT,::nijigenerate::viewport::vertex::automesh::meta::AutoMeshLevel Level>
 constexpr std::string_view configSetDescription() {
     const auto& bytes=description_detail::descriptionBytes<PT,Level>;
     return {bytes.data(),bytes.size()-1};

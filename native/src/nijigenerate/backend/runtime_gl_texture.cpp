@@ -2,6 +2,7 @@
 #include "runtime_gl_texture.hpp"
 #include "nijigenerate/platform/gl_backend_procedure.hpp"
 #include <nijigenerate/compat/throwable.hpp>
+#include <nijigenerate/compat/retained_string.hpp>
 #include <SDL3/SDL_opengl.h>
 #include <SDL3/SDL_opengl_glext.h>
 #include <limits>

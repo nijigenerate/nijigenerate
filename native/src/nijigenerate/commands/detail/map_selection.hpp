@@ -56,8 +56,19 @@ template<class Binding> consteval auto commandMapAliasOrigin() {
     else return nullptr;
 }
 
+template<class Binding, class = void> struct SourceCommandMapKey {
+    static_assert(ngRequireSourceAssociativeArray<commandMapAliasOrigin<Binding>()>(),
+        "Missing defining Source alias diagnostic origin for non-associative array");
+};
+
+template<class Binding> struct SourceCommandMapKey<Binding, std::void_t<
+    typename AssociativeMapKey<std::remove_cvref_t<typename Binding::map_type>>::type>> {
+    using type = typename AssociativeMapKey<
+        std::remove_cvref_t<typename Binding::map_type>>::type;
+};
+
 template<class Binding>
-using KeyTypeOfCommandMapBinding = KeyTypeOfAA<typename Binding::map_type, commandMapAliasOrigin<Binding>()>;
+using KeyTypeOfCommandMapBinding = typename SourceCommandMapKey<Binding>::type;
 
 template<class Key, auto KeyOrigin, class... Bindings> struct SelectMapBindingWithOrigin;
 

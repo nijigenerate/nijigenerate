@@ -3,6 +3,7 @@
 #include <nijigenerate/compat/slice.hpp>
 #include <nijigenerate/compat/const_slice.hpp>
 #include <nijigenerate/core/tasks.hpp>
+#include "distancetransform.hpp"
 #include "pixel_operations.hpp"
 #include <nijigenerate/core/typed_format.hpp>
 #include <math/types.hpp>
@@ -230,10 +231,13 @@ void findContours(const T image, Contours& contours, compat::Slice<ContourHierar
     // D out parameters are reset before the first shape access.
     contours = {};
     hierarchy = {};
-    const auto height = std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(
-        detail::sourceShapeAt(image.shape(), 0, 351)));
-    const auto width = std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(
-        detail::sourceShapeAt(image.shape(), 1, 352)));
+    // Use the existing Source signed cast producer, including floating dimensions.
+    const auto height = distancetransform::DistanceDimensionOperations<std::remove_cvref_t<decltype(
+        detail::sourceShapeAt(image.shape(), 0, 351))>>::castInt(
+            detail::sourceShapeAt(image.shape(), 0, 351));
+    const auto width = distancetransform::DistanceDimensionOperations<std::remove_cvref_t<decltype(
+        detail::sourceShapeAt(image.shape(), 1, 352))>>::castInt(
+            detail::sourceShapeAt(image.shape(), 1, 352));
     Labels labels;
     labels.resize(static_cast<std::size_t>(height));
     for (auto& row : labels) row.resize(static_cast<std::size_t>(width));

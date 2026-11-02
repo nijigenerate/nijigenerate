@@ -15,4 +15,7 @@ bool fakeDepthBoneSourceDepthSubmit(
 bool fakeDepthBoneTransformPoll(std::uint32_t jobId,
     nijigenerate::commands::depth::bone_gpu_async::NgDepthBoneGpuAsyncResult& result,
     nijigenerate::compat::RetainedStringSlice& error);
+bool fakeDepthBoneTransformSubmit(
+    nijigenerate::commands::depth::bone_gpu_async::DepthBoneGpuDispatchPacket& packet,
+    std::uint32_t& jobId, nijigenerate::compat::RetainedStringSlice& error);
 }

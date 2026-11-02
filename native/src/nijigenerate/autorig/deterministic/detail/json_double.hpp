@@ -70,8 +70,8 @@ inline std::string jsonFiniteDouble(double value) {
         case FE_TOWARDZERO: break;
         default: delta = 0.5 * powerMinus22(); break;
         }
-        volatile double small = 0.0001;
-        return magnitude < small - delta;
+        volatile double smallMagnitude = 0.0001;
+        return magnitude < smallMagnitude - delta;
     };
     const bool exponential = magnitude >= ten18 - largeDelta || smallBranch();
     if (exact.digits == "0") return allocateContractStorage([&] {

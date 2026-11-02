@@ -143,7 +143,8 @@ core::settings::SettingsJsonValue ngRigCompileFixedFootCorrections(core::setting
     using core::settings::SettingsJsonObject;
     using core::settings::SettingsJsonValue;
     SettingsJsonArray operations;
-    if (contracts::ngRigString(state, "kind", "humanoid").view() != "humanoid") {
+    if (contracts::ngRigString(state, compat::RetainedString::fromStaticLiteral("kind"),
+            compat::RetainedString::fromStaticLiteral("humanoid")).view() != "humanoid") {
         SettingsJsonObject report;
         report["operations"] = SettingsJsonValue(operations);
         return SettingsJsonValue(report);

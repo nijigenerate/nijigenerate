@@ -64,7 +64,8 @@ double square(double value) { return value * value; }
 
 Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<framework::AutoRigTaskContext> context) {
     Array operations, observations;
-    if (contracts::ngRigString(state, "kind", "humanoid").view() != "humanoid")
+    if (contracts::ngRigString(state, compat::RetainedString::fromStaticLiteral("kind"),
+            compat::RetainedString::fromStaticLiteral("humanoid")).view() != "humanoid")
         return record({{"applicable", Json(false)}, {"operations", Json(operations)}});
     const auto keys = read(state, "native_head_keys").as_array();
     enforce(contracts::ngRigDigest(Json(keys)).view() == read(state, "depth_angle_program_sha256").as_string().view(),
@@ -89,7 +90,8 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
     Slice<Frame> eyes;
     Frame mouthFrame;
     bool hasMouth = false;
-    auto geometry = contracts::ngRigGet(state, "control_geometry", read(state, "controls"));
+    auto geometry = contracts::ngRigGet(state, compat::RetainedString::fromStaticLiteral("control_geometry"),
+        read(state, "controls"));
     for (const auto mechanism : read(geometry, "mechanisms").as_array()) {
         const auto name = read(mechanism, "name").as_string();
         if (name.view().ends_with("::Blink")) {
@@ -162,7 +164,8 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
     const auto facial = registered::ngRigFacialLandmarks(state);
     for (const auto& [name, anchor] : facial) anchors.append(anchor);
     for (const auto& [id, material] : materials) {
-        const auto feature = contracts::ngRigString(material, "feature", "");
+        const auto feature = contracts::ngRigString(material, compat::RetainedString::fromStaticLiteral("feature"),
+            compat::RetainedString::fromStaticLiteral(""));
         if (!targets.contains(id)) continue;
         const auto kind = feature.view();
         if (kind == "brow" || kind == "corner" || kind == "fold" || kind == "iris" || kind == "lower" ||

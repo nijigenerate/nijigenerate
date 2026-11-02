@@ -519,7 +519,7 @@ void incAnimationChange(compat::RetainedStringSlice name) {
     }
     {
         const auto player = compat::ngRequireObject(incAnimationPlayer);
-        incAnimationCurrent = player->createOrGet(name);
+        incAnimationCurrent = player->createOrGet(name.retainedString());
     }
     const auto emittingProject = compat::ngRequireObject(activeProject);
     emittingProject->AnimationChanged.emit(incAnimationCurrent);

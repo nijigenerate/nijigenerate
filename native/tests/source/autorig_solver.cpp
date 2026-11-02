@@ -123,7 +123,7 @@ void ngMain(compat::Slice<Text> args) {
             if (get(material, "static").as_bool()) continue;
             ++active;
             SOURCE_ASSERT(!get(material, "role").as_string().empty() &&
-                material.sourceObjectNoRef().contains(core::settings::SettingsString("owner")), 57);
+                material.sourceObjectNoRef().if_contains("owner") != nullptr, 57);
             if (get(material, "semantic_source").as_string().view() == "alpha_proximal_support_candidate")
                 ++automatic;
         }

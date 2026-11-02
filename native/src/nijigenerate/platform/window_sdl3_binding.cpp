@@ -1,5 +1,6 @@
 #include "nijigenerate/platform/window_sdl3_binding.hpp"
 #include "nijigenerate/platform/generated/window_sdl3_binding.hpp"
+#include "nijigenerate/compat/retained_string.hpp"
 #include "nijigenerate/compat/throwable.hpp"
 #include <SDL3/SDL_version.h>
 

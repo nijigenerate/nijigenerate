@@ -3,6 +3,7 @@
 #include <nijigenerate/core/actionstack.hpp>
 #include <nijigenerate/core/math/mesh.hpp>
 #include <nijigenerate/core/math/homogeneous.hpp>
+#include <nijigenerate/core/selector/tokenizer.hpp>
 #include <nijigenerate/ext/nodes/excamera_math.hpp>
 #include <nijigenerate/core/dbg.hpp>
 #include <nijigenerate/compat/phobos_index_sort.hpp>
@@ -149,7 +150,7 @@ void IncMeshEditorOneFor<T, mode>::applyToTarget() {
         }, "Failed to sort range of type Tuple!(ulong, \"index\", MeshVertex*, \"value\")[]");
         // Keep the source enumerate(...).assocArray evaluation even though its
         // result is not subsequently consumed by this original.
-        core::selector::SelectorMap<std::size_t, std::size_t> indexMap;
+        ::nijigenerate::core::selector::SelectorMap<std::size_t, std::size_t> indexMap;
         for (std::size_t i = 0; i < sorted.size(); ++i) indexMap[i] = sorted[i];
         VertexPointers reordered;
         for (auto index : sorted) reordered.append(original[index]);
@@ -474,7 +475,8 @@ void IncMeshEditorOneFor<T, mode>::draw(CameraRef camera) {
                     compat::Slice<std::ptrdiff_t> indices;
                     for (std::size_t i = 0; i < welded.indices.size(); ++i)
                         if (welded.indices[i] != std::ptrdiff_t(-1)) indices.append(static_cast<std::ptrdiff_t>(i));
-                    if (!indices.empty()) markers.append({indices, {0, 0.7f, 0.7f, 1}});
+                    if (!indices.empty()) markers.append(common::mesh::Marker{indices,
+                        Vec4{0, 0.7f, 0.7f, 1}});
                 }
             }
         }

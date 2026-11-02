@@ -22,7 +22,7 @@ void testPlatformWindowsConsoleWritesAreGuarded() {
             if (module == rel) { allowed = true; break; }
         }
         if (allowed) continue;
-        auto content = paths::ngReadUtf8Text(entry.name());
+        auto content = paths::ngReadUtf8Text(entry.name().retainedString());
         std::int32_t depth = 0;
         Slice<std::int32_t> guardedDepths;
         bool inBlockComment = false;
@@ -79,7 +79,7 @@ void testPlatformStartupShutdownModuleConstructors() {
     for (auto entry : paths::ngDirEntries(root, paths::SpanMode::depth)) {
         if (!entry.isFile() || !entry.name().view().ends_with(".d")) continue;
         auto rel = normalizeRegressionSourcePath(entry.name().retainedString(), root);
-        const auto lines = splitSourceLines(paths::ngReadUtf8Text(entry.name()));
+        const auto lines = splitSourceLines(paths::ngReadUtf8Text(entry.name().retainedString()));
         for (std::size_t lineNo = 0; lineNo < lines.size(); ++lineNo) {
             auto line = lines[lineNo];
             const auto strippedView = stripRegressionLeft(line.view());

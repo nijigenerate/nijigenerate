@@ -6,6 +6,7 @@
 #include "nijigenerate/core/selector/tokenizer.hpp"
 #include "nijigenerate/io/depthmap_psd_values.hpp"
 #include "nijigenerate/viewport/depth/draw/gpu.hpp"
+#include "nijigenerate/viewport/depth/draw/session.hpp"
 #include "nijigenerate/core/settings_value.hpp"
 #include <common/resource_key_map.hpp>
 #include <nijigenerate/compat/phobos_string_hash.hpp>
@@ -74,8 +75,8 @@ struct PsdDepthGpuGridComposeWork {
     io::depthmap_psd::PsdDepthGridResult sourceGrid;
     compat::Slice<float> oldDepths;
     detail::DepthMapStringMap<compat::RetainedString> layerIdToPath;
-    compat::Slice<viewport::depth::draw::DepthDrawLayer> previewLayers;
-    viewport::depth::draw::DepthDrawGpuTargetComposeJob job;
+    compat::Slice<::nijigenerate::viewport::depth::draw::DepthDrawLayer> previewLayers;
+    ::nijigenerate::viewport::depth::draw::DepthDrawGpuTargetComposeJob job;
     bool completed{};
 };
 struct PsdDepthGpuComposeWork {

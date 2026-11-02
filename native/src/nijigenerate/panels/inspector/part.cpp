@@ -16,6 +16,7 @@
 #include <compat/source_allocator.hpp>
 #include <new>
 #include <source_location>
+#include <span>
 #include <stdexcept>
 namespace nijigenerate::panels::inspector::part {
 namespace {
@@ -74,10 +75,10 @@ void applyTextureToSlot(std::shared_ptr<Part> part, TextureUsage usage, String f
             // The source deliberately enumerates the tail slice with index 0,
             // then reads slots[i], not slots[i + 1]. Keep that authored quirk.
             const auto tail = [&] {
-                const auto slots = compat::ngRequireObject(part)->textures;
+                auto& slots = compat::ngRequireObject(part)->textures;
                 if (slots.empty()) throw compat::ngStaticError<compat::ArraySliceError>(1, slots.size(), slots.size(),
                     compat::RetainedString::fromStaticLiteral("source/nijigenerate/panels/inspector/part.d"), 68);
-                return slots.slice(1, slots.size());
+                return std::span(slots).subspan(1);
             }();
             for (std::size_t i = 0; i < tail.size(); ++i) {
                 [[maybe_unused]] const auto ignored = tail[i];
@@ -181,13 +182,13 @@ nicxlive::core::common::SharedArray<std::ptrdiff_t> incRegisterWeldedPoints(std:
         for(std::size_t i=0;i<sourceVertices.size();++i) {
             const auto vertex=sourceVertices.at(i);
             auto position=core::math::ngTransformHomogeneousPoint(compat::ngRequireObject(node)->transform().matrix(),{vertex.x,vertex.y,0});
-            source.append({position.x,position.y});
+            source.append(nicxlive::core::math::Vec2{position.x,position.y});
         }
         auto targetVertices=compat::ngRequireObject(counter)->getVertices();
         for(std::size_t i=0;i<targetVertices.size();++i) {
             const auto vertex=targetVertices.at(i);
             auto position=core::math::ngTransformHomogeneousPoint(compat::ngRequireObject(counter)->transform().matrix(),{vertex.x,vertex.y,0});
-            target.append({position.x,position.y});
+            target.append(nicxlive::core::math::Vec2{position.x,position.y});
         }
         auto indices=core::math::welding::ngMatchWeldingVertices(
             {source.data(),source.size()},{target.data(),target.size()});

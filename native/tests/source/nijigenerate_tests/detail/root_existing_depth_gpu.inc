@@ -3,11 +3,17 @@
 #include "uint_associative_array.hpp"
 #include <nijigenerate/commands/depth/bone_constants.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
+#include <nijigenerate/core/typed_format.hpp>
 #include <nijigenerate/ext/nodes/exgriddeformer_node.hpp>
+#include <nijigenerate/platform/detail/path_allocation.hpp>
+#include <math/mat4.hpp>
 #include <common/shared_array.hpp>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <span>
 
 namespace nijigenerate_tests::regression::detail {
 extern thread_local std::uint32_t fakeDepthBoneGpuNextJobId;
@@ -28,6 +34,131 @@ extern thread_local std::shared_ptr<nijigenerate::ext::nodes::ExGridDeformer> fa
 extern thread_local std::uint32_t fakeDepthBoneTransformNextJobId;
 extern thread_local UIntAssociativeArray<
     nijigenerate::commands::depth::bone_gpu_async::NgDepthBoneGpuAsyncResult> fakeDepthBoneTransformResults;
+extern thread_local std::uint32_t fakeDepthBoneTransformSubmitCount;
+extern thread_local std::uint32_t fakeDepthBoneTransformNonIdentitySourceCount;
+extern thread_local nicxlive::core::common::SharedArray<float> fakeDepthBoneTransformLastZOffsets;
+extern thread_local nicxlive::core::common::SharedArray<nicxlive::core::math::Vec3>
+    fakeDepthBoneTransformLastDeformedPoints;
+nicxlive::core::math::Mat4 emulateDepthBoneShaderMat4FromRowMajorPacket(
+    std::span<const float> values);
+
+bool fakeDepthBoneTransformSubmit(
+    nijigenerate::commands::depth::bone_gpu_async::DepthBoneGpuDispatchPacket& packet,
+    std::uint32_t& jobId, nijigenerate::compat::RetainedStringSlice& error) {
+    using namespace nijigenerate::commands::depth::bone;
+    using nijigenerate::commands::depth::bone_gpu_async::DepthBoneGpuDispatchPacket;
+    using nijigenerate::commands::depth::bone_gpu_async::NgDepthBoneGpuAsyncResult;
+    using nijigenerate::compat::RetainedString;
+    using nijigenerate::core::translation::TypedFormatArgument;
+    using nijigenerate::core::translation::ngFormatArgument;
+    using nijigenerate::core::translation::ngFormatTyped;
+    using nicxlive::core::math::Vec3;
+    using nicxlive::core::math::Vec4;
+    jobId = 0;
+    error = {};
+    if (packet.sourceCount != 1 || packet.boneCount == 0 ||
+        packet.sources.size() < DepthBoneGpuSourceStride || packet.depths.size() != packet.vertices.size()) {
+        error = RetainedString::fromStaticLiteral(
+            "depth-driven transform fixture requires one valid source and one depth per vertex");
+        return false;
+    }
+
+    const auto boneIndex = static_cast<std::uint32_t>(packet.sources[0]);
+    const auto fullMatrixOffset = static_cast<std::size_t>(boneIndex) * DepthBoneGpuBoneStride + 8;
+    const auto noYawMatrixOffset = static_cast<std::size_t>(DepthBoneGpuSourceNoYawSkinMatrixIndex);
+    if (fullMatrixOffset + 16 > packet.bones.size() ||
+        noYawMatrixOffset + 16 > packet.sources.size()) {
+        error = RetainedString::fromStaticLiteral("depth-driven transform fixture matrix is out of bounds");
+        return false;
+    }
+    const auto fullSkinMatrix = emulateDepthBoneShaderMat4FromRowMajorPacket(
+        std::span<const float>(packet.bones.data() + fullMatrixOffset, 16));
+    const auto noYawSkinMatrix = emulateDepthBoneShaderMat4FromRowMajorPacket(
+        std::span<const float>(packet.sources.data() + noYawMatrixOffset, 16));
+    const auto depthScale = packet.sources[5];
+    const auto depthOffset = packet.sources[6];
+    const auto sinRotation = packet.sources[DepthBoneGpuSourceSinRotationIndex];
+    const auto cosRotation = packet.sources[DepthBoneGpuSourceCosRotationIndex];
+    const auto rotationPivotXShift = packet.sources[DepthBoneGpuSourceRotationPivotXShiftIndex];
+    const auto poseYaw = packet.sources[DepthBoneGpuSourcePoseYawIndex];
+    for (std::size_t i = fullMatrixOffset; i < fullMatrixOffset + 16; ++i) {
+        if (!std::isfinite(packet.bones[i])) {
+            error = RetainedString::fromStaticLiteral(
+                "depth-driven transform fixture full skin matrix contains a non-finite value");
+            return false;
+        }
+    }
+    for (std::size_t i = noYawMatrixOffset; i < noYawMatrixOffset + 16; ++i) {
+        if (!std::isfinite(packet.sources[i])) {
+            error = RetainedString::fromStaticLiteral(
+                "depth-driven transform fixture no-yaw skin matrix contains a non-finite value");
+            return false;
+        }
+    }
+    if (depthScale != 1.0f || depthOffset != 0.0f) ++fakeDepthBoneTransformNonIdentitySourceCount;
+
+    NgDepthBoneGpuAsyncResult result;
+    result.ready = true;
+    result.xs.resize(packet.vertices.size(), std::numeric_limits<float>::quiet_NaN());
+    result.ys.resize(packet.vertices.size(), std::numeric_limits<float>::quiet_NaN());
+    fakeDepthBoneTransformLastZOffsets.resize(packet.vertices.size());
+    fakeDepthBoneTransformLastDeformedPoints.resize(packet.vertices.size());
+    for (std::size_t i = 0; i < packet.vertices.size(); ++i) {
+        const auto vertex = packet.vertices[i].toVector();
+        const auto sourceDepth = packet.depths[i] * depthScale + depthOffset;
+        const Vec4 sourceLocal{vertex.x, vertex.y, sourceDepth, 1.0f};
+        const auto sourceInRoot = packet.targetToRoot * sourceLocal;
+        Vec4 deformedInRoot;
+        if (poseYaw == 0.0f || rotationPivotXShift == 0.0f ||
+            (sinRotation == 0.0f && cosRotation == 1.0f)) {
+            deformedInRoot = fullSkinMatrix * sourceInRoot;
+        } else {
+            const auto rotationInRoot = sourceInRoot + Vec4{rotationPivotXShift, 0.0f, 0.0f, 0.0f};
+            const auto baseDeformed = noYawSkinMatrix * sourceInRoot;
+            const auto rotationWithYaw = fullSkinMatrix * rotationInRoot;
+            const auto rotationWithoutYaw = noYawSkinMatrix * rotationInRoot;
+            deformedInRoot = baseDeformed + rotationWithYaw - rotationWithoutYaw;
+        }
+        if (!std::isfinite(deformedInRoot.x) || !std::isfinite(deformedInRoot.y) ||
+            !std::isfinite(deformedInRoot.z) || !std::isfinite(deformedInRoot.w)) {
+            const std::array<TypedFormatArgument, 5> arguments{
+                ngFormatArgument(i), ngFormatArgument(sourceDepth), ngFormatArgument(poseYaw),
+                ngFormatArgument(sinRotation), ngFormatArgument(cosRotation)};
+            auto rendered = ngFormatTyped(
+                "depth-driven transform fixture produced a non-finite deformed point at vertex %s: depth=%s yaw=%s sinR=%s cosR=%s",
+                arguments);
+            error = nijigenerate::platform::detail::ngPathAllocation([&] {
+                return RetainedString(std::move(rendered));
+            });
+            return false;
+        }
+        const auto restLocal = packet.rootToTarget * sourceInRoot;
+        const auto deformedLocal = packet.rootToTarget * deformedInRoot;
+        result.xs[i] = deformedLocal.x - restLocal.x;
+        result.ys[i] = deformedLocal.y - restLocal.y;
+        fakeDepthBoneTransformLastZOffsets[i] = deformedLocal.z - restLocal.z;
+        fakeDepthBoneTransformLastDeformedPoints[i] = Vec3{deformedLocal.x, deformedLocal.y, deformedLocal.z};
+        if (!std::isfinite(result.xs[i]) || !std::isfinite(result.ys[i])) {
+            const std::array<TypedFormatArgument, 5> arguments{
+                ngFormatArgument(i), ngFormatArgument(static_cast<float>(restLocal.x)),
+                ngFormatArgument(static_cast<float>(restLocal.y)),
+                ngFormatArgument(static_cast<float>(deformedLocal.x)),
+                ngFormatArgument(static_cast<float>(deformedLocal.y))};
+            auto rendered = ngFormatTyped(
+                "depth-driven transform fixture produced a non-finite output offset at vertex %s: rest=(%s,%s) deformed=(%s,%s)",
+                arguments);
+            error = nijigenerate::platform::detail::ngPathAllocation([&] {
+                return RetainedString(std::move(rendered));
+            });
+            return false;
+        }
+    }
+
+    jobId = fakeDepthBoneTransformNextJobId++;
+    fakeDepthBoneTransformResults.insertOrAssign(jobId, result);
+    ++fakeDepthBoneTransformSubmitCount;
+    return true;
+}
 
 bool fakeDepthBoneGpuSubmit(
     nijigenerate::commands::depth::bone_gpu_async::DepthBoneGpuDispatchPacket& packet,

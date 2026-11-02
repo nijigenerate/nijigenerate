@@ -39,14 +39,9 @@ public:
                 auto key = detail::FirstPassReader(slice(start, cursor_, 41)).parseRoot().as_string();
                 whitespace();
                 ++cursor_;
-                auto& object = value.as_object();
-                // Default parseJSON never produces ordered objects; this is the
-                // actual surviving AA entry, not an object-ref getter repair.
-                auto* member = object.if_contains(key.view());
-                if (!member) throw core::settings::SettingsJsonError(
-                    compat::RetainedString("Key not found: " + std::string(key.view())),
-                    compat::RetainedString::fromStaticLiteral("std/json.d"), 806);
-                restore(*member);
+                core::settings::SettingsJsonObject retainedObject;
+                auto& member = value.sourceIndexReference(key.view(), retainedObject);
+                restore(member);
                 whitespace();
                 if (at(cursor_, 45) == ',') { ++cursor_; whitespace(); }
                 else break;

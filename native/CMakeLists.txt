@@ -34,6 +34,9 @@ add_library(nijigenerate_core STATIC
     src/nijigenerate/io/psdbudget.cpp
     src/nijigenerate/io/pngheader.cpp)
 target_include_directories(nijigenerate_core PUBLIC src)
+target_sources(nijigenerate_core PUBLIC FILE_SET unicode_strip_headers TYPE HEADERS
+    BASE_DIRS "${CMAKE_CURRENT_LIST_DIR}/src"
+    FILES "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/compat/unicode_strip.hpp")
 
 target_sources(nijigenerate_core PUBLIC FILE_SET native_arithmetic_fault_headers TYPE HEADERS
     BASE_DIRS "${CMAKE_CURRENT_LIST_DIR}/src"
@@ -415,6 +418,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/expath.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/depthbone_nodes.cmake")
 
 if(NIJIGENERATE_RUNTIME_PROBE)
+    find_package(OpenGL REQUIRED)
     include("${CMAKE_CURRENT_SOURCE_DIR}/ownership_graph.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/depth_grid.cmake")
     if(BUILD_TESTING)

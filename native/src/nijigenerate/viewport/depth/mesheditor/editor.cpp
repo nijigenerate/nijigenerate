@@ -269,7 +269,7 @@ DepthMeshEditor::ViewRef DepthMeshEditor::targetViewFor(EditorRef editor) {
 }
 compat::Slice<DepthMeshEditor::GridRef> DepthMeshEditor::getTargets() {
     [[maybe_unused]] const auto keepAlive = weak_from_this().lock();
-    const auto keys = editors.keys();
+    auto keys = editors.keys();
     return compat::Slice<GridRef>::retainedView(keys.retentionOwner(), keys.data(), keys.size());
 }
 DepthMeshEditor::EditorRef DepthMeshEditor::getEditorFor(GridRef grid) {
@@ -279,7 +279,7 @@ DepthMeshEditor::EditorRef DepthMeshEditor::getEditorFor(GridRef grid) {
 }
 compat::Slice<DepthMeshEditor::EditorRef> DepthMeshEditor::getEditors() {
     [[maybe_unused]] const auto keepAlive = weak_from_this().lock();
-    const auto values = editors.values();
+    auto values = editors.values();
     return compat::Slice<EditorRef>::retainedView(values.retentionOwner(), values.data(), values.size());
 }
 void DepthMeshEditor::resetFromTargets() {

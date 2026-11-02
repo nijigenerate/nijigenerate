@@ -33,7 +33,7 @@ void testPsdDepthDialogCommandsUndoRedo() {
         return Text::fromStaticLiteral("psd-depth-dialog-command-regression.png");
     });
     auto normalScope = currentCommandScope(ctx)->result;
-    check(objectMember(normalScope.sourceIndexValue("scope"), "id", 4633).sourceStringValue().view() == "normal" &&
+    check(objectMember(normalScope.sourceIndexValue("scope"), "id", 4633).as_string().view() == "normal" &&
         normalScope.sourceIndexValue("scopeStack").sourceArrayValue().size() == 1 &&
         objectMember(normalScope.sourceIndexValue("lifecycle"), "finish", 4635).sourceArrayValue().empty() &&
         objectMember(normalScope.sourceIndexValue("lifecycle"), "cancel", 4636).sourceArrayValue().empty(),
@@ -62,15 +62,15 @@ void testPsdDepthDialogCommandsUndoRedo() {
             "command lists must not expose commands outside the active PSD depth dialog context");
     }
     auto dialogScope = currentCommandScope(ctx)->result;
-    check(objectMember(dialogScope.sourceIndexValue("scope"), "id", 4666).sourceStringValue().view() == "psd-depth-dialog" &&
+    check(objectMember(dialogScope.sourceIndexValue("scope"), "id", 4666).as_string().view() == "psd-depth-dialog" &&
         dialogScope.sourceIndexValue("scopeStack").sourceArrayValue().size() == 2 &&
         objectMember(dialogScope.sourceIndexValue("lifecycle"), "finish", 4668).sourceArrayValue().size() == 1 &&
         objectMember(objectMember(dialogScope.sourceIndexValue("lifecycle"), "finish", 4669).sourceArrayValue()[0],
-            "tool", 4669).sourceStringValue().view() == "PsdDepthDialogCommand_ApplyPsdDepthDialog" &&
+            "tool", 4669).as_string().view() == "PsdDepthDialogCommand_ApplyPsdDepthDialog" &&
         isTrue(objectMember(objectMember(dialogScope.sourceIndexValue("lifecycle"), "finish", 4671).sourceArrayValue()[0], "available", 4671)) &&
         objectMember(dialogScope.sourceIndexValue("lifecycle"), "cancel", 4672).sourceArrayValue().size() == 1 &&
         objectMember(objectMember(dialogScope.sourceIndexValue("lifecycle"), "cancel", 4673).sourceArrayValue()[0],
-            "tool", 4673).sourceStringValue().view() == "PsdDepthDialogCommand_CancelPsdDepthDialog" &&
+            "tool", 4673).as_string().view() == "PsdDepthDialogCommand_CancelPsdDepthDialog" &&
         isTrue(objectMember(objectMember(dialogScope.sourceIndexValue("lifecycle"), "cancel", 4675).sourceArrayValue()[0], "available", 4675)),
         "PSD dialog scope query must report its Apply and Cancel transition commands");
     check(scopeCommandListContains(dialogScope.sourceIndexValue("availableCommands").sourceArrayValue(),
@@ -149,6 +149,6 @@ void testPsdDepthDialogCommandsUndoRedo() {
     if (found == edits::commands.end()) throw nijigenerate::compat::ngStaticError<nijigenerate::compat::RangeError>(
         text("source/nijigenerate_tests/regression.d"), 4770);
     check(ngCommandAllowedInCurrentContext(found->second), "closing the PSD depth dialog must restore the normal command set");
-    check(objectMember(currentCommandScope(ctx)->result.sourceIndexValue("scope"), "id", 4772).sourceStringValue().view() == "normal",
+    check(objectMember(currentCommandScope(ctx)->result.sourceIndexValue("scope"), "id", 4772).as_string().view() == "normal",
         "scope query must return to normal after the dialog closes");
 }

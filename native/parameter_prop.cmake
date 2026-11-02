@@ -1,7 +1,6 @@
 if(TARGET nijigenerate_runtime_core)
     target_sources(nijigenerate_runtime_core PRIVATE
-        "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/parameter/prop.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/parameter/axis_provider.cpp")
+        "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/parameter/prop.cpp")
     target_sources(nijigenerate_runtime_core PUBLIC FILE_SET parameter_prop_headers TYPE HEADERS
         BASE_DIRS "${CMAKE_CURRENT_LIST_DIR}/src"
         FILES "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/parameter/prop.hpp"

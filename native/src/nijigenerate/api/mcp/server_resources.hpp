@@ -11,8 +11,7 @@ using Binding = nicxlive::core::param::ParameterBinding;
 template<class Value> void assignResourceMember(core::settings::SettingsJsonObject& object,
         String key, Value&& value) {
     Json entry(std::forward<Value>(value)());
-    const auto destination = object.sourceAssignment(core::settings::SettingsString(key));
-    *destination.value = std::move(entry);
+    object[core::settings::SettingsString(key)] = std::move(entry);
 }
 String ngDecodeMcpResourceComponent(String);
 String bindingResourceUri(std::shared_ptr<Parameter>, std::shared_ptr<Binding>);

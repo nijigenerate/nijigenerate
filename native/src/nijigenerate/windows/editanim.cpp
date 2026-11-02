@@ -41,7 +41,7 @@ RetainedString retainFormatted(std::string value) {
 template<std::size_t N> RetainedString text(const char (&literal)[N]) {
     return ngTranslateRetained(RetainedString::fromStaticLiteral(literal));
 }
-template<class... Args> std::string format(std::string_view text, const Args&... args) {
+template<class... Args> std::string formatText(std::string_view text, const Args&... args) {
     using namespace core::translation;
     const std::array<TypedFormatArgument, sizeof...(Args)> values{ngFormatArgument(args)...};
     return ngFormatTyped(text, values);
@@ -72,7 +72,7 @@ void EditAnimationWindow::apply() {
             (!isNew && originalName.view() != name.view() && key.view() == name.view())) {
             const auto title = ngTranslateCString("Invalid Name");
             const auto pattern = text("%s is already taken! Please chose another animation name.");
-            error("ERR_NAME_TAKEN", title, retainFormatted(format(pattern.view(), name)));
+            error("ERR_NAME_TAKEN", title, retainFormatted(formatText(pattern.view(), name)));
             return;
         }
     }
@@ -95,7 +95,8 @@ void EditAnimationWindow::onUpdate() {
     auto available = ngAvailableSpace();
     ImGui::Indent(16);
     available = ngAvailableSpace();
-    if (ngInputText("NAME", available.x - 16, name, ImGuiInputTextFlags_EnterReturnsTrue)) apply();
+    if (ngInputText(compat::RetainedStringSlice(RetainedString::fromStaticLiteral("NAME")),
+            available.x - 16, name, ImGuiInputTextFlags_EnterReturnsTrue)) apply();
     ImGui::Unindent(16);
     ngBeginCategory(ngTranslateCString("Options").data(), IncCategoryFlags::NoCollapse);
     ngCheckbox(ngTranslateCString("Additive").data(), &newAnim.additive);
@@ -123,7 +124,7 @@ void EditAnimationWindow::onUpdate() {
     const float seconds = static_cast<float>(compat::ngFloatToInt32(time));
     const float milliseconds = static_cast<float>(compat::ngFloatToInt32((time - seconds) * 1000));
     ngText(compat::RetainedStringSlice(retainFormatted(
-        format(text("%ss %sms").view(), seconds, milliseconds))));
+        formatText(text("%ss %sms").view(), seconds, milliseconds))));
     ngEndCategory();
     auto button = isNew ? text("Create") : text("Save");
     auto measured = ngMeasureString(compat::RetainedStringSlice(button)).x;
@@ -153,7 +154,7 @@ void EditAnimationWindow::initialize() {
     newAnim.leadIn = 0; newAnim.leadOut = 0; newAnim.length = 100; setupFPS();
 }
 void EditAnimationWindow::initialize(nicxlive::core::Animation animation, RetainedString input) {
-    base::Window::initialize(retainFormatted(format(text("Edit %s...").view(), input)));
+    base::Window::initialize(retainFormatted(formatText(text("Edit %s...").view(), input)));
     isNew = false;
     originalName = input.empty() ? RetainedString{}
         : allocateString([&] { return RetainedString(input.view()); });

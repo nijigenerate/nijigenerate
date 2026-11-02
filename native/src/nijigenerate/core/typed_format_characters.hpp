@@ -1,6 +1,7 @@
 #pragma once
 
 #include "typed_format_quote.hpp"
+#include <nijigenerate/compat/retained_string.hpp>
 #include <span>
 
 namespace nijigenerate::core::translation::detail {

@@ -1,4 +1,5 @@
 #include "detail/bone_job_workers.hpp"
+#include "detail/bone_string_concatenation.hpp"
 #include "detail/bone_runtime.hpp"
 #include "detail/bone_hash.hpp"
 #include "bone_packet_build.hpp"
@@ -118,17 +119,8 @@ bool isDepthBoneGpuRefreshJobCurrent(DepthBoneGpuRefreshJob& job, compat::Retain
     if (!ngBuildDepthBoneGpuOffsetPacket(job.packet.root, &bindings[static_cast<std::size_t>(bindingIndex)],
             target, job.packet.parameter, job.packet.keypoint, currentPacket, buildError,
             job.packet.writePreview, job.packet.writeBinding)) {
-        try {
-            reason = compat::RetainedString(
-                std::string("depth rig packet could not be rebuilt while GPU job was pending: ")
-                + std::string(buildError.view()));
-        } catch (const std::bad_alloc&) {
-            throw compat::ngStaticError<compat::OutOfMemoryError>(
-                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-        } catch (const std::length_error&) {
-            throw compat::ngStaticError<compat::OutOfMemoryError>(
-                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-        }
+        reason = concatenateBoneStrings({
+            "depth rig packet could not be rebuilt while GPU job was pending: ", buildError.view()});
         return false;
     }
     if (currentPacket.boneCount != job.packet.boneCount

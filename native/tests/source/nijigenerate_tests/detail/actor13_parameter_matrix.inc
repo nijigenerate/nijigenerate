@@ -35,10 +35,10 @@ std::size_t runCompositeMatrixParameterPresets(nijigenerate::compat::RetainedStr
             auto param = result->created[0];
             auto node = Node::createSourceDeferred([] { return ngRequireObject(nijigenerate::project::incActivePuppet())->root; });
             auto binding = newValueBinding(param, node, text("transform.t.x"), true);
-            const auto key = is2D ? nijigenerate::compat::Vec2u{
+            const auto key = is2D ? nicxlive::core::param::Vec2u{
                 static_cast<std::uint32_t>(param->axisPoints[0].size() - 1),
                 static_cast<std::uint32_t>(param->axisPoints[1].size() - 1)}
-                : nijigenerate::compat::Vec2u{static_cast<std::uint32_t>(param->axisPoints[0].size() - 1), 0};
+                : nicxlive::core::param::Vec2u{static_cast<std::uint32_t>(param->axisPoints[0].size() - 1), 0};
             ngRequireObject(binding)->setValue(key, 9.0f);
             ctx->parameters(Context::Parameters{param});
             check(ngRequireObject(constructSourceCommand<SetParameterNameCommand>(text("MatrixParam"))->run(ctx))->succeeded,

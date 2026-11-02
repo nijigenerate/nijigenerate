@@ -125,8 +125,10 @@ struct ACPAgentState : std::enable_shared_from_this<ACPAgentState> {
     void handleMessage(JsonValue message) {
         try {
             auto request = Request::fromJSON(std::move(message));
-            if (!request.isNotification()) activeTransport()->sendMessage(handleRequest(std::move(request)));
-            else handleNotification(std::move(request));
+            if (!request.isNotification()) {
+                auto response = handleRequest(request);
+                activeTransport()->sendMessage(response);
+            } else handleNotification(std::move(request));
         } catch (const compat::ThrowableException& error) {
             activeTransport()->sendMessage(Response::makeError({}, -32600, error.msg).toJSON());
         }
@@ -434,11 +436,12 @@ void ACPAgent::start() {
 }
 void ACPAgent::sendStatus(types::StatusNotification notification) {
     const auto lifetime = weak_from_this().lock();
+    const auto params = object({{"title", stringValue(notification.title)},
+        {"message", stringValue(notification.message)},
+        {"level", JsonValue(static_cast<std::int32_t>(notification.level))}});
     transport_->sendMessage(object({{"jsonrpc", stringValue(protocol::JSONRPC_VERSION)},
         {"method", stringValue(protocol::ACP_METHOD_STATUS)},
-        {"params", object({{"title", stringValue(notification.title)},
-            {"message", stringValue(notification.message)},
-            {"level", JsonValue(static_cast<std::int32_t>(notification.level))}})}}));
+        {"params", params}}));
 }
 void ACPAgent::sendSessionUpdate(String sessionId, JsonValue update) {
     const auto lifetime = weak_from_this().lock();

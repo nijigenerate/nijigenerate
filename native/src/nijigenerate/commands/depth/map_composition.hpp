@@ -4,11 +4,11 @@
 namespace nijigenerate::commands::depth::map {
 io::depthimage::DepthImageConvolution ngPsdDepthConvolutionToDepthImage(
     io::depthmap_psd::PsdDepthConvolution convolution);
-std::shared_ptr<viewport::depth::draw::DepthDrawSession> ngPsdDepthComposedSourceToDepthDrawSession(
+std::shared_ptr<::nijigenerate::viewport::depth::draw::DepthDrawSession> ngPsdDepthComposedSourceToDepthDrawSession(
     io::depthmap_psd::PsdDepthComposedSource source);
-std::shared_ptr<viewport::depth::draw::DepthDrawSession> ngPsdDepthImportResultToDepthDrawSession(
+std::shared_ptr<::nijigenerate::viewport::depth::draw::DepthDrawSession> ngPsdDepthImportResultToDepthDrawSession(
     io::depthmap_psd::PsdDepthImportResult imported);
-viewport::depth::draw::DepthDrawPngExportResult ngExportPsdDepthComposedSourcePng(
+::nijigenerate::viewport::depth::draw::DepthDrawPngExportResult ngExportPsdDepthComposedSourcePng(
     io::depthmap_psd::PsdDepthComposedSource source, compat::RetainedString outputDir,
     compat::RetainedString manifestPath);
 namespace detail {

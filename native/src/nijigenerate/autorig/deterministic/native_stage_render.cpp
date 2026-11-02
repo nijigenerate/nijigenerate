@@ -13,6 +13,7 @@
 #include <nijigenerate/compat/assert_error.hpp>
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
+using JsonArray = core::settings::SettingsJsonArray;
 namespace {
 // The source uses the padded char-array overload of Phobos Base64.
 compat::Slice<std::uint8_t> decode64(std::string_view source) {
@@ -145,7 +146,6 @@ Json renderValidation(Json state,Task task) {
                         assignNative(pose,"parameter","Face::Yaw-Pitch");assignNative(pose,"value",array({xs[x],ys[y]}));poses.append(pose);
                     }
                     auto capture=[&](framework::Text name,std::span<const double> vx,std::span<const double> vy,JsonArray& captures) {
-                        const auto stem=nativeCaptureStem(name.view());
                         for(std::size_t x=0;x<vx.size();++x)for(std::size_t y=0;y<vy.size();++y) {
                             ngRigCheckpoint(task);
                             task->runOnMainThread([&] {
@@ -154,6 +154,7 @@ Json renderValidation(Json state,Task task) {
                                 parameterByName(puppet,name)->value={static_cast<float>(vx[x]),static_cast<float>(vy[y])};
                                 puppet->update();
                             });
+                            const auto stem=nativeCaptureStem(name.view());
                             auto pose=renderFrame(task,nativeText({stem.view(),"-x-",nativeNumber(x).view(),"-y-",nativeNumber(y).view()}),camera);
                             assignNative(pose,"parameter",core::settings::SettingsString(name));assignNative(pose,"value",array({vx[x],vy[y]}));captures.append(pose);
                         }
@@ -163,8 +164,9 @@ Json renderValidation(Json state,Task task) {
                     capture("Face::Roll",xs,zero,poses);
                     if(state.sourceObjectRef().if_contains("controls"))
                         for(auto mechanism:indexNative(indexNative(state,"controls"),"mechanisms").sourceArrayValue()) {
+                            const auto name=nativeString(indexNative(mechanism,"name"));
                             auto ax=ngRigNumbers(indexNative(mechanism,"axisX")),ay=ngRigNumbers(indexNative(mechanism,"axisY"));
-                            capture(nativeString(indexNative(mechanism,"name")),{ax.data(),ax.size()},{ay.data(),ay.size()},controlPoses);
+                            capture(name,{ax.data(),ax.size()},{ay.data(),ay.size()},controlPoses);
                         }
                 },reset);
             }

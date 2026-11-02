@@ -28,6 +28,7 @@
 #include <tuple>
 #include <utility>
 #include <limits>
+#include <vector>
 
 namespace nijigenerate::actions::parameter {
 namespace runtime = nicxlive::core::param;
@@ -550,12 +551,29 @@ private:
     void insertGroup() {
         if (detail::indexOf(compat::ngRequireObject(puppet)->groups, group) >= 0) return;
         const auto at = std::min(index, compat::ngRequireObject(puppet)->groups.size());
+        const auto destination = compat::ngRequireObject(puppet);
+        const auto before = destination->groups.slice(0, at);
+        const auto middle = group;
+        const auto after = destination->groups.slice(at, destination->groups.size());
         compat::Slice<GroupRef> result;
-        for (std::size_t i = 0; i < at; ++i) result.append(compat::ngRequireObject(puppet)->groups[i]);
-        result.append(group);
-        for (auto i = at; i < compat::ngRequireObject(puppet)->groups.size(); ++i)
-            result.append(compat::ngRequireObject(puppet)->groups[i]);
-        compat::ngRequireObject(puppet)->groups = result;
+        const auto length = before.size() + 1 + after.size();
+        try {
+            result = compat::Slice<GroupRef>(std::vector<GroupRef>(length));
+        } catch (const compat::OutOfMemoryError&) {
+            throw compat::ngStaticError<compat::OutOfMemoryError>(
+                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+        } catch (const std::bad_alloc&) {
+            throw compat::ngStaticError<compat::OutOfMemoryError>(
+                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+        } catch (const std::length_error&) {
+            throw compat::ngStaticError<compat::OutOfMemoryError>(
+                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+        }
+        for (std::size_t i = 0; i < before.size(); ++i) result.data()[i] = before.data()[i];
+        result.data()[before.size()] = middle;
+        for (std::size_t i = 0; i < after.size(); ++i)
+            result.data()[before.size() + 1 + i] = after.data()[i];
+        destination->groups = result;
         const auto source = children;
         for (const auto& child : source) compat::ngRequireObject(child)->setParent(group);
     }

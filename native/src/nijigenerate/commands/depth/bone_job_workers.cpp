@@ -1,4 +1,5 @@
 #include "detail/bone_job_workers.hpp"
+#include "detail/bone_string_concatenation.hpp"
 #include "detail/bone_input.hpp"
 #include "detail/bone_action_scope.hpp"
 #include "detail/bone_dirty_providers.hpp"
@@ -44,19 +45,11 @@ template<class Record> void removeWorkerJobAt(compat::Slice<Record>& jobs, std::
         jobs = {};
         return;
     }
-    try {
-        std::vector<Record> values;
-        values.reserve(before.size() + after.size());
-        for (auto value : before) values.push_back(value);
-        for (auto value : after) values.push_back(value);
-        jobs = compat::Slice<Record>(std::move(values));
-    } catch (const std::bad_alloc&) {
-        throw compat::ngStaticError<compat::OutOfMemoryError>(
-            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-    } catch (const std::length_error&) {
-        throw compat::ngStaticError<compat::OutOfMemoryError>(
-            compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 1142);
-    }
+    std::vector<Record> values;
+    allocateBoneConcatenation([&] { values.reserve(before.size() + after.size()); });
+    for (auto value : before) values.push_back(value);
+    for (auto value : after) values.push_back(value);
+    jobs = allocateBoneConcatenation([&] { return compat::Slice<Record>(std::move(values)); });
 }
 
 [[noreturn]] void reportAsyncFailure(std::string_view pattern, compat::RetainedStringSlice error,

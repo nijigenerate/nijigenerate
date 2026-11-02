@@ -16,8 +16,22 @@ set(_ng_editor_providers
     nijigenerate_animation_list_panel
     nijigenerate_armed_parameter_panel
     nijigenerate_vertex_viewport
+    nijigenerate_settings
+    nijigenerate_parameter_base
+    nijigenerate_command_scope_json
+    nijigenerate_vertex_define_commands
+    nijigenerate_palette_state
+    nijigenerate_window_finalize
+    nijigenerate_window_theme_settings
     SDL3::SDL3
     nicxlive::nicxlive)
+if(WIN32)
+    list(APPEND _ng_editor_providers nijigenerate_window_open_win32)
+elseif(APPLE)
+    list(APPEND _ng_editor_providers nijigenerate_window_open_macos)
+elseif(UNIX)
+    list(APPEND _ng_editor_providers nijigenerate_window_open_linux)
+endif()
 foreach(_ng_editor_provider IN LISTS _ng_editor_providers)
     if(NOT TARGET "${_ng_editor_provider}")
         message(FATAL_ERROR

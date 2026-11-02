@@ -7,6 +7,7 @@
 #include <nijigenerate/compat/switch_error.hpp>
 #include <nijigenerate/compat/phobos_stdio.hpp>
 #include <common/object_key_policy.hpp>
+#include <boost/system/system_error.hpp>
 #include <cstdlib>
 #include <bit>
 #include <charconv>
@@ -829,7 +830,12 @@ void RequestTask::sleep(std::chrono::milliseconds duration) {
     });
 }
 void RequestTask::cancelTimer() {
-    if (timer_) { Error ignored; timer_->cancel(ignored); }
+    if (!timer_) return;
+    try {
+        timer_->cancel();
+    } catch (const boost::system::system_error&) {
+        // The source ignores timer cancellation errors.
+    }
 }
 void RequestTask::disposeAfterLoopExit() {
     if (disposing_) return;

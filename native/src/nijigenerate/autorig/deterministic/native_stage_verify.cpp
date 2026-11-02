@@ -31,6 +31,21 @@ using Points = compat::Slice<contracts::Point2>;
 core::settings::SettingsString exceptionMessage(const compat::ThrowableException& error) {
     return core::settings::SettingsString(error.msg);
 }
+bool influenceRulesEqual(const ext::nodes::ExDepthInfluenceRule& left,
+        const ext::nodes::ExDepthInfluenceRule& right) {
+    if (left.maxInfluences != right.maxInfluences || left.radiusScale != right.radiusScale ||
+            left.minimumRadius != right.minimumRadius || left.falloff != right.falloff)
+        return false;
+    const auto& leftMultipliers = left.multipliersByBoneUuid;
+    const auto& rightMultipliers = right.multipliersByBoneUuid;
+    if (leftMultipliers.size() != rightMultipliers.size()) return false;
+    if (leftMultipliers.entries().identity() == rightMultipliers.entries().identity()) return true;
+    for (const auto& [bone, multiplier] : leftMultipliers.entries()) {
+        const auto other = rightMultipliers.find(bone);
+        if (!other || multiplier != *other) return false;
+    }
+    return true;
+}
 }
 
 Json verifyRig(Json state, Json program, Task task) {
@@ -57,7 +72,7 @@ Json verifyRig(Json state, Json program, Task task) {
                 auto surface = readNativeArray(root->bindings,static_cast<std::size_t>(surfaceIndex),1628);
                 enforceNative(inner.sourceBoneUuids.size() == surface.sourceBoneUuids.size() &&
                     std::equal(inner.sourceBoneUuids.begin(), inner.sourceBoneUuids.end(), surface.sourceBoneUuids.begin()) &&
-                    inner.influenceRule == surface.influenceRule,"Saved imported group grid differs from its semantic surface influence",1629);
+                    influenceRulesEqual(inner.influenceRule, surface.influenceRule),"Saved imported group grid differs from its semantic surface influence",1629);
             }
             auto originIds = field(state, "material_origins");
             for (auto definition : field(program, "hierarchy", "groups").sourceArrayValue()) {

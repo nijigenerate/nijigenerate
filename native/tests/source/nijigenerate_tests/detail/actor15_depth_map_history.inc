@@ -18,7 +18,7 @@ void testDepthMapCommandsUndoRedo() {
     using nijigenerate::viewport::depth::tools::operation::DepthAttachedPointOperation;
     using nicxlive::core::math::Vec2;
     using nicxlive::core::math::ngVecaFromVectorsSource;
-    using nicxlive::common::SharedArray;
+    using nicxlive::core::common::SharedArray;
     using nicxlive::core::d_runtime::SourceAllocator;
     namespace history = nijigenerate::core::actionstack;
     const auto text = []<std::size_t N>(const char (&value)[N]) { return Text::fromStaticLiteral(value); };

@@ -1,4 +1,5 @@
 #include "detail/evidence.hpp"
+#include <common/unicode_lowercase.hpp>
 namespace nijigenerate::autorig::deterministic::evidence {
 using namespace detail;
 namespace {
@@ -14,7 +15,7 @@ std::string detail::nameTokens(compat::RetainedStringSlice name) {
     while(!name.empty()&&(name.view()[0]=='*'||name.view()[0]=='#'||name.view()[0]==' '))name=name.slice(1,name.size());
     auto lower=io::imageexport::detail::lowerExtension(name);std::string result;
     // std.regex's \s is unicode.White_Space, not the C locale's whitespace class.
-    core::i18n::detail::LocaleCaseCursor cursor{lower.view()};
+    nicxlive::core::common::unicode::ReplacementUtf8Cursor cursor{lower.view()};
     while(!cursor.empty()) {
         const auto start=cursor.offset;auto c=cursor.take();bool white=(c>=9&&c<=13)||c==32||c==0x85||c==0xa0||c==0x1680||
             (c>=0x2000&&c<=0x200a)||c==0x2028||c==0x2029||c==0x202f||c==0x205f||c==0x3000;

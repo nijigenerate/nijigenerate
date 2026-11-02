@@ -26,18 +26,18 @@ inline nijigenerate::compat::RetainedString replaceSourcePathSeparators(
     auto match = subject.view().find('\\');
     if (match == std::string_view::npos) return subject;
     nicxlive::core::common::SharedArray<char> output;
-    const auto put = [&](std::string_view bytes) {
-        output.appendRange(std::span<const char>(bytes.data(), bytes.size()));
+    const auto put = [&](nijigenerate::compat::RetainedString bytes) {
+        output.appendRange(bytes);
     };
-    put(subject.view().substr(0, match));
-    put("/");
-    auto remainder = subject.view().substr(match + 1);
+    put(subject.subslice(0, match));
+    put(nijigenerate::compat::RetainedString::fromStaticLiteral("/"));
+    auto remainder = subject.subslice(match + 1, subject.size());
     for (;;) {
-        match = remainder.find('\\');
+        match = remainder.view().find('\\');
         if (match == std::string_view::npos) { put(remainder); break; }
-        put(remainder.substr(0, match));
-        put("/");
-        remainder.remove_prefix(match + 1);
+        put(remainder.subslice(0, match));
+        put(nijigenerate::compat::RetainedString::fromStaticLiteral("/"));
+        remainder = remainder.subslice(match + 1, remainder.size());
     }
     return nijigenerate::compat::RetainedString::retainedView(
         output.retentionOwner(), output.data(), output.size());

@@ -80,7 +80,7 @@ compat::Slice<bool> cheekSupport(compat::Slice<contracts::Point2> world,
         allowed.append(side * (q[0] - profile.midline(q[1])) > 0 &&
             q[1] >= profile.temple && q[1] <= profile.y[profile.y.size() - 1]);
     }
-    const auto near = allowed.dup();
+    const auto near = allowed.duplicate();
     for (const auto triangle : triangles.as_array()) {
         auto indices = contracts::ngRigNumbers(triangle);
         bool outside = false;

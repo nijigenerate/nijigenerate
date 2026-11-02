@@ -10,7 +10,7 @@ void testDepthBonePreviewApplyCommands() {
     using nijigenerate::core::settings::SettingsJsonValue;
     using nijigenerate::compat::RetainedString;
     using nijigenerate::compat::Slice;
-    using nijigenerate::compat::Vec2u;
+    using nicxlive::core::param::Vec2u;
     using nijigenerate::compat::ngRequireObject;
     using nijigenerate::compat::ngJsonStringify;
     using nijigenerate::ext::ExParameter;

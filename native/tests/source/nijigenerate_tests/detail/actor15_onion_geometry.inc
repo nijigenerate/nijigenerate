@@ -23,7 +23,7 @@ void testOnionSliceCaptureGeometry() {
             auto area = nicxlive::core::Rect{worldMin.x * zoom, worldMin.y * zoom,
                 (worldMax.x - worldMin.x) * zoom, (worldMax.y - worldMin.y) * zoom};
             auto vertices = nicxlive::core::math::ngVecaFromVectorsSource(
-                nicxlive::common::SharedArray<Vec2>{Vec2{area.x, area.y}, Vec2{area.x, area.y + area.h},
+                nicxlive::core::common::SharedArray<Vec2>{Vec2{area.x, area.y}, Vec2{area.x, area.y + area.h},
                     Vec2{area.x + area.w, area.y}, Vec2{area.x + area.w, area.y + area.h}});
             auto originalVertices = vertices.dup();
             auto geometry = OnionSliceGeometry(vertices, captureCamera, capturedRender, Mat4::identity());

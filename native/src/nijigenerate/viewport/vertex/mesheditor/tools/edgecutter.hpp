@@ -17,8 +17,8 @@ namespace nijigenerate::viewport::vertex::mesheditor::tools::edgecutter {
 namespace toolbase = common::mesheditor::tools::base;
 namespace detail {
 // Only the actual passive Node-handle key-array copy uses this boundary.
-template<class Operation> auto allocateEdgeKeys(Operation&& operation) {
-    try { return std::forward<Operation>(operation)(); }
+template<class Operation> auto allocateEdgeKeys(Operation operation) -> decltype(operation()) {
+    try { return operation(); }
     catch (const std::bad_alloc&) {
         throw compat::ngStaticError<compat::OutOfMemoryError>(std::source_location::current());
     } catch (const std::length_error&) {

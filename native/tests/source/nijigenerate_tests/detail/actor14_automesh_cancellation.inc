@@ -1,6 +1,7 @@
 // Existing regression.d1655-1700; include inside regression::detail after helpers.
 void testAutoMeshParentCancellation() {
     using nijigenerate::compat::RetainedString;
+    using nijigenerate::compat::SharedDelegate;
     using nijigenerate::compat::ngRequireObject;
     using nijigenerate::viewport::vertex::automesh::grid::GridAutoMeshProcessor;
     using nijigenerate::viewport::common::mesh::IncMesh;
@@ -29,7 +30,7 @@ void testAutoMeshParentCancellation() {
     context->puppet(nijigenerate::project::incActivePuppet());
     context->nodes(Context::Nodes{part});
     auto command = constructSourceCommand<ApplyAutoMeshPT<GridAutoMeshProcessor>>(processor,
-        [processor] { return processor->calls.load(std::memory_order_seq_cst) > 0; });
+        SharedDelegate<bool()>{[processor] { return processor->calls.load(std::memory_order_seq_cst) > 0; }});
     auto pending = command->run(context);
     // Native lowering of the original delegate's shared captured local frame.
     struct CapturedFrame {

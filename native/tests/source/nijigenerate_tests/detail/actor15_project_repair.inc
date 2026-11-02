@@ -23,12 +23,12 @@ void testProjectTextureMaintenanceCommands() {
     texture->setData(pixels.duplicate());
     MeshData data;
     data.vertices = nicxlive::core::math::ngVecaFromVectorsSource(
-        nicxlive::common::SharedArray<Vec2>{Vec2{0, 0}, Vec2{1, 0}, Vec2{0, 1}});
+        nicxlive::core::common::SharedArray<Vec2>{Vec2{0, 0}, Vec2{1, 0}, Vec2{0, 1}});
     data.uvs = nicxlive::core::math::ngVecaFromVectorsSource(
-        nicxlive::common::SharedArray<Vec2>{Vec2{0, 0}, Vec2{1, 0}, Vec2{0, 1}});
+        nicxlive::core::common::SharedArray<Vec2>{Vec2{0, 0}, Vec2{1, 0}, Vec2{0, 1}});
     data.indices = {0, 1, 2};
     auto part = Part::createDataSourceDeferred([&] { return data; },
-        [&] { return nicxlive::common::SharedArray<std::shared_ptr<Texture>>{texture}; },
+        [&] { return nicxlive::core::common::SharedArray<std::shared_ptr<Texture>>{texture}; },
         [] { return std::uint32_t{0}; }, [] { return nijigenerate::project::incActivePuppet()->root; });
     part->setName(nicxlive::core::common::NullableString::fromStaticLiteral("texture-maintenance-part"));
     nijigenerate::project::incActivePuppet()->populateTextureSlots();

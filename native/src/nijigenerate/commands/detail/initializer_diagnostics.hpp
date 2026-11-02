@@ -38,7 +38,7 @@ struct AutoMeshInitBreakdown<Key, compat::TypeSequence<Processor...>> {
     template<std::size_t Index, class PT> static consteval bool inspect() {
         if constexpr (!requires { sizeof(automesh::dynamic::ApplyAutoMeshPT<PT>); }) {
             // Preserve the actual metadata dependency of the source diagnostic.
-            constexpr auto id = viewport::vertex::automesh::meta::AMProcInfo<PT>::id;
+            constexpr auto id = ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>::id;
             return autoMeshProcessorWarning<Index, PT, InitializerDiagnosticText<id.size()>{id}>();
         } else return true;
     }
@@ -58,7 +58,7 @@ template<class Key, bool GuardEnabled> consteval bool diagnoseAutoMeshInitialize
     if constexpr (!dynamicInitializerSupported<Key>()) {
         if constexpr (GuardEnabled) {
             static_assert(AutoMeshInitBreakdown<Key,
-                viewport::vertex::automesh::AutoMeshProcessorTypes>::inspectAll());
+                ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessorTypes>::inspectAll());
             static_assert(dynamicInitializerSupported<Key>(),
                 "[CT][Guard] AutoMeshKey initializer not visible");
         } else return autoMeshInitializerWarning<Key>();

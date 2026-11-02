@@ -15,12 +15,12 @@ template<class Key, class PT> consteval bool processorRegistrationSupported() {
         typename ConfigCommandTypes<PT>::Simple;
         typename ConfigCommandTypes<PT>::Advanced;
         typename ConfigCommandTypes<PT>::Preset;
-        viewport::vertex::automesh::meta::AMSourceAttributes<PT>::attributes;
-        viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier;
+        { ::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::attributes };
+        { ::nijigenerate::viewport::vertex::automesh::meta::AMSourceAttributes<PT>::identifier };
     }) return false;
     else {
         using Types = ConfigCommandTypes<PT>;
-        using Info = viewport::vertex::automesh::meta::AMProcInfo<PT>;
+        using Info = ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>;
         if constexpr (!requires {
             typename std::integral_constant<std::size_t, Info::id.size()>;
         }) return false;
@@ -68,14 +68,15 @@ template<class Key> consteval bool initializationSupported() {
                 compat::RetainedString, compat::RetainedString>()
             && ngRuntimeCommandRegistrationSupported<AutoMeshSetValuesCommand, Map, Key,
                 compat::RetainedString, compat::RetainedString, compat::RetainedString>();
-    } else return processorInitializationSupported<Key>(viewport::vertex::automesh::AutoMeshProcessorTypes{});
+    } else return processorInitializationSupported<Key>(
+        ::nijigenerate::viewport::vertex::automesh::AutoMeshProcessorTypes{});
 }
 
 template<class Key, class PT, std::size_t Index>
     requires(processorRegistrationSupported<Key, PT>())
 void registerProcessor() {
     using Types = ConfigCommandTypes<PT>;
-    using Info = viewport::vertex::automesh::meta::AMProcInfo<PT>;
+    using Info = ::nijigenerate::viewport::vertex::automesh::meta::AMProcInfo<PT>;
     if constexpr (std::same_as<Key, AutoMeshTypedCommand>) {
         // Original _genTypedEnumMembers emits Simple, Advanced, Preset per PT.
         auto simple = ngCreateRegisteredCommand<typename Types::Simple>();

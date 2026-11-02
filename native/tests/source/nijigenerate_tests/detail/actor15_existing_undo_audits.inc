@@ -11,7 +11,7 @@ void testUndoDirectMutationAudit() {
         for (auto entry : paths::ngDirEntries(paths::ngBuildPath(segments), paths::SpanMode::depth)) {
             if (!entry.isFile() || !entry.name().view().ends_with(".d")) continue;
             auto rel = normalizeRegressionSourcePath(entry.name().retainedString(), root);
-            auto lines = splitSourceLines(paths::ngReadUtf8Text(entry.name()));
+            auto lines = splitSourceLines(paths::ngReadUtf8Text(entry.name().retainedString()));
             for (std::size_t i = 0; i < lines.size(); ++i) {
                 auto line = lines[i];
                 if (!containsDirectMutationNeedle(line.view())) continue;
@@ -46,7 +46,7 @@ void testUndoCommandActionsAudit() {
     for (auto entry : paths::ngDirEntries(root, paths::SpanMode::depth)) {
         if (!entry.isFile() || !entry.name().view().ends_with(".d")) continue;
         auto rel = normalizeRegressionSourcePath(entry.name().retainedString(), regressionSourceRoot(text("")));
-        auto content = paths::ngReadUtf8Text(entry.name());
+        auto content = paths::ngReadUtf8Text(entry.name().retainedString());
         auto moduleHasUndoPath = commandModuleHasUndoPath(content.view());
         const auto lines = splitSourceLines(content);
         for (std::size_t lineNo = 0; lineNo < lines.size(); ++lineNo) {

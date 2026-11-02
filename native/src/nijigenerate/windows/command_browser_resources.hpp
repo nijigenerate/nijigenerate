@@ -7,6 +7,9 @@
 #include <nijigenerate/compat/array_access.hpp>
 #include <nijigenerate/compat/source_c_string.hpp>
 #include <bit>
+#include <new>
+#include <stdexcept>
+#include <vector>
 
 namespace nijigenerate::windows::command_browser {
 namespace detail {
@@ -70,9 +73,28 @@ template<class T> bool renderResourcePicker(BrowserText id, compat::Slice<T>& se
         if (widgets::ngButtonColored("\356\244\256", ImVec2(24,24))) {
             const auto before = compat::ngArraySlice(selected, 0, i);
             const auto after = compat::ngArraySlice(selected, i + 1, selected.size());
+            // Source concatenation constructs a detached result before replacing
+            // selected. Keep both input descriptors through the complete copy.
             compat::Slice<T> next;
-            next.append(before);
-            next.append(after);
+            const auto length = before.size() + after.size();
+            if (length) {
+                try {
+                    next = compat::Slice<T>(std::vector<T>(length));
+                } catch (const compat::OutOfMemoryError&) {
+                    throw compat::ngStaticError<compat::OutOfMemoryError>(
+                        compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+                } catch (const std::bad_alloc&) {
+                    throw compat::ngStaticError<compat::OutOfMemoryError>(
+                        compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+                } catch (const std::length_error&) {
+                    throw compat::ngStaticError<compat::OutOfMemoryError>(
+                        compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+                }
+            }
+            for (std::size_t index = 0; index < before.size(); ++index)
+                next.data()[index] = before.data()[index];
+            for (std::size_t index = 0; index < after.size(); ++index)
+                next.data()[before.size() + index] = after.data()[index];
             selected = next; changed = true; ImGui::PopID(); continue;
         }
         ImGui::PopID(); ++i;

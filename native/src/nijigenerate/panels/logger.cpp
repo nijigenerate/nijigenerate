@@ -15,3 +15,4 @@ void LoggerPanel::onUpdate() {}
 void ngInitializeLoggerPanelModule() {
     ngInitializePanelModule<LoggerPanel>();
 }
+}

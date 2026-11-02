@@ -7,8 +7,11 @@
 #include <initializer_list>
 #include <limits>
 #include <span>
+#include <new>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace nijigenerate::autorig::deterministic::neck {
 namespace {
@@ -159,9 +162,28 @@ SettingsJsonValue ngRigInferNeckBase(compat::Slice<Point2> face, compat::Slice<P
     double width = upperWidth - lowerWidth;
     enforce(width > 0, "Degenerate head width", 114);
     auto body = !torso.empty() ? torso : garments;
+    const auto neckInput = neck;
+    const auto bodyInput = body;
     Slice<Point2> support;
-    for (auto p : neck) support.append(p);
-    for (auto p : body) support.append(p);
+    const auto supportLength = neckInput.size() + bodyInput.size();
+    if (supportLength) {
+        Slice<Point2> combined;
+        try {
+            combined = Slice<Point2>(std::vector<Point2>(supportLength));
+        } catch (const compat::OutOfMemoryError&) {
+            throw compat::ngStaticError<compat::OutOfMemoryError>(
+                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+        } catch (const std::bad_alloc&) {
+            throw compat::ngStaticError<compat::OutOfMemoryError>(
+                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+        } catch (const std::length_error&) {
+            throw compat::ngStaticError<compat::OutOfMemoryError>(
+                compat::RetainedString::fromStaticLiteral("rt/lifetime.d"), 877);
+        }
+        for (std::size_t i = 0; i < neckInput.size(); ++i) combined[i] = neckInput[i];
+        for (std::size_t i = 0; i < bodyInput.size(); ++i) combined[neckInput.size() + i] = bodyInput[i];
+        support = std::move(combined);
+    }
     enforce(!support.empty(), "Neck inference needs neck or body support", 117);
     auto frame = object({{"origin", numbers(origin)}, {"tangent", numbers(tangent)},
         {"normal", numbers(Point2(-down[0], -down[1]))}});

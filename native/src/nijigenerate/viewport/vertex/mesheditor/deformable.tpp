@@ -94,9 +94,7 @@ void IncMeshEditorOneFor<T, mode>::importMesh(MeshData& data) {
     vertices.resize(0);
     const auto points = data.vertices.toArray();
     core::math::mesh::MeshVertexArray imported;
-    imported.resize(points.size());
-    for (std::size_t i = 0; i < points.size(); ++i)
-        imported.set(i, core::math::mesh::ngCreateMeshVertex(points[i]));
+    for (const auto point : points) imported.append(core::math::mesh::ngCreateMeshVertex(point));
     // Commit the original single array-append descriptor only after the entire
     // RHS is materialized and the genuine pointer-array append has succeeded.
     auto combined = vertices;
@@ -108,9 +106,7 @@ requires (mode == project::EditMode::VertexEdit && std::derived_from<T, nicxlive
 void IncMeshEditorOneFor<T, mode>::mergeMesh(MeshData& data, Mat4) {
     const auto points = data.vertices.toArray();
     core::math::mesh::MeshVertexArray imported;
-    imported.resize(points.size());
-    for (std::size_t i = 0; i < points.size(); ++i)
-        imported.set(i, core::math::mesh::ngCreateMeshVertex(points[i]));
+    for (const auto point : points) imported.append(core::math::mesh::ngCreateMeshVertex(point));
     auto combined = vertices;
     combined.append(imported);
     vertices = combined;

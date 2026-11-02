@@ -224,7 +224,7 @@ void IncMeshEditor::resetSelection() {
     actions::parameter::Bindings bindings;
     { const auto map = editors; if (!map.isNull()) for (const auto& entry : map)
         bindings.push_back(compat::ngRequireObject(parameter)->getOrAddBinding(
-            entry.first, compat::RetainedString::fromStaticLiteral("deform"))); }
+            entry.first, nicxlive::core::common::NullableString("deform"))); }
     auto action = actions::parameter::ngCreateParameterBindingsAction<
         actions::parameter::ParameterChangeBindingsValueAction>(
         compat::RetainedString::fromStaticLiteral("reset selection"), parameter, bindings,
@@ -235,7 +235,7 @@ void IncMeshEditor::resetSelection() {
         auto drawing = entry.first; auto editor = entry.second;
         auto binding = std::dynamic_pointer_cast<nicxlive::core::param::DeformationParameterBinding>(
             compat::ngRequireObject(parameter)->getOrAddBinding(
-                drawing, compat::RetainedString::fromStaticLiteral("deform")));
+                drawing, nicxlive::core::common::NullableString("deform")));
 #ifndef NDEBUG
         if (!binding) throw compat::ngStaticError<compat::AssertError>(
             compat::RetainedString::fromStaticLiteral("Assertion failure"),
@@ -278,7 +278,7 @@ void IncMeshEditor::flipSelection() {
     actions::parameter::Bindings bindings;
     { const auto map = editors; if (!map.isNull()) for (const auto& entry : map)
         bindings.push_back(compat::ngRequireObject(parameter)->getOrAddBinding(
-            entry.first, compat::RetainedString::fromStaticLiteral("deform"))); }
+            entry.first, nicxlive::core::common::NullableString("deform"))); }
     incActionPushGroup();
     auto action = actions::parameter::ngCreateParameterBindingsAction<
         actions::parameter::ParameterChangeBindingsValueAction>(
@@ -290,7 +290,7 @@ void IncMeshEditor::flipSelection() {
         auto editor = entry.second;
         auto binding = std::dynamic_pointer_cast<nicxlive::core::param::DeformationParameterBinding>(
             compat::ngRequireObject(parameter)->getOrAddBinding(
-                entry.first, compat::RetainedString::fromStaticLiteral("deform")));
+                entry.first, nicxlive::core::common::NullableString("deform")));
 #ifndef NDEBUG
         if (!binding) throw compat::ngStaticError<compat::AssertError>(
             compat::RetainedString::fromStaticLiteral("Assertion failure"),

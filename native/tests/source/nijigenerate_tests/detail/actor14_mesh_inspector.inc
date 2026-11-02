@@ -10,6 +10,7 @@ void testMeshDeformerInspectorCommandsUndoRedo() {
     using nijigenerate::panels::inspector::ModelEditSubMode;
     using nijigenerate::panels::inspector::Selection;
     using nijigenerate::panels::inspector::TypedInspector;
+    using nijigenerate::panels::inspector::pathdeform::detail::pendulum;
     using nicxlive::core::nodes::Node;
     using nicxlive::core::nodes::MeshGroup;
     using nicxlive::core::nodes::GridDeformer;
@@ -66,7 +67,8 @@ void testMeshDeformerInspectorCommandsUndoRedo() {
         return ngRequireObject(nijigenerate::project::incActivePuppet())->root;
     });
     path->setName(NullableString::fromStaticLiteral("path-inspector-target"));
-    path->driver = std::allocate_shared<ConnectedPendulumDriver>(SourceAllocator<ConnectedPendulumDriver>{}, path);
+    path->driver = std::allocate_shared<PathDeformer::ConnectedDriverAdapter>(
+        SourceAllocator<PathDeformer::ConnectedDriverAdapter>{}, std::make_unique<ConnectedPendulumDriver>(path), path.get());
     auto pathInspector = ngCreateInspectorDeferred<PathApplyInspector, PathDeformer>(
         [&] { return Selection<PathDeformer>{path}; }, [] { return ModelEditSubMode::Layout; });
     auto pathCtx = std::allocate_shared<Context>(SourceAllocator<Context>{});
@@ -75,11 +77,11 @@ void testMeshDeformerInspectorCommandsUndoRedo() {
     incActionClearHistory();
     check(ngRequireObject(constructSourceCommand<PathDeformDynamicCommandBase>(true)->run(pathCtx))->succeeded,
         "PathDeformer dynamic inspector command should succeed");
-    check(path->dynamic, "PathDeformer dynamic inspector command should apply");
+    check(path->dynamicDeformation, "PathDeformer dynamic inspector command should apply");
     incActionUndo();
-    check(!path->dynamic, "undo PathDeformer dynamic should restore default");
+    check(!path->dynamicDeformation, "undo PathDeformer dynamic should restore default");
     incActionRedo();
-    check(path->dynamic, "redo PathDeformer dynamic should restore new value");
+    check(path->dynamicDeformation, "redo PathDeformer dynamic should restore new value");
     incActionClearHistory();
     check(ngRequireObject(constructSourceCommand<PathDeformPhysicsEnabledCommandBase>(false)->run(pathCtx))->succeeded,
         "PathDeformer physicsEnabled inspector command should succeed");
@@ -101,39 +103,39 @@ void testMeshDeformerInspectorCommandsUndoRedo() {
     incActionRedo();
     check(path->curveType == PathDeformer::CurveType::Bezier, "redo PathDeformer curveType should restore new value");
     incActionClearHistory();
-    auto oldGravity = ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->gravity();
+    auto oldGravity = ngRequireObject(pendulum(*path))->gravity();
     check(ngRequireObject(constructSourceCommand<PathDeformGravityCommandBase>(2.25f)->run(pathCtx))->succeeded,
         "PathDeformer gravity inspector command should succeed");
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->gravity(), 2.25f),
+    check(near(ngRequireObject(pendulum(*path))->gravity(), 2.25f),
         "PathDeformer gravity inspector command should apply");
     incActionUndo();
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->gravity(), oldGravity),
+    check(near(ngRequireObject(pendulum(*path))->gravity(), oldGravity),
         "undo PathDeformer gravity should restore old value");
     incActionRedo();
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->gravity(), 2.25f),
+    check(near(ngRequireObject(pendulum(*path))->gravity(), 2.25f),
         "redo PathDeformer gravity should restore new value");
     incActionClearHistory();
-    auto oldRestoreConstant = ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->restoreConstant();
+    auto oldRestoreConstant = ngRequireObject(pendulum(*path))->restoreConstant();
     check(ngRequireObject(constructSourceCommand<PathDeformRestoreConstantCommandBase>(3.5f)->run(pathCtx))->succeeded,
         "PathDeformer restoreConstant inspector command should succeed");
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->restoreConstant(), 3.5f),
+    check(near(ngRequireObject(pendulum(*path))->restoreConstant(), 3.5f),
         "PathDeformer restoreConstant inspector command should apply");
     incActionUndo();
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->restoreConstant(), oldRestoreConstant),
+    check(near(ngRequireObject(pendulum(*path))->restoreConstant(), oldRestoreConstant),
         "undo PathDeformer restoreConstant should restore old value");
     incActionRedo();
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->restoreConstant(), 3.5f),
+    check(near(ngRequireObject(pendulum(*path))->restoreConstant(), 3.5f),
         "redo PathDeformer restoreConstant should restore new value");
     incActionClearHistory();
-    auto oldDamping = ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->damping();
+    auto oldDamping = ngRequireObject(pendulum(*path))->damping();
     check(ngRequireObject(constructSourceCommand<PathDeformDampingCommandBase>(0.4f)->run(pathCtx))->succeeded,
         "PathDeformer damping inspector command should succeed");
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->damping(), 0.4f),
+    check(near(ngRequireObject(pendulum(*path))->damping(), 0.4f),
         "PathDeformer damping inspector command should apply");
     incActionUndo();
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->damping(), oldDamping),
+    check(near(ngRequireObject(pendulum(*path))->damping(), oldDamping),
         "undo PathDeformer damping should restore old value");
     incActionRedo();
-    check(near(ngRequireObject(std::dynamic_pointer_cast<ConnectedPendulumDriver>(path->driver))->damping(), 0.4f),
+    check(near(ngRequireObject(pendulum(*path))->damping(), 0.4f),
         "redo PathDeformer damping should restore new value");
 }

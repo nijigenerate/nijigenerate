@@ -62,8 +62,12 @@ void testDepthBoneSerializationRoundTrip() {
         "duplicating a DepthRigRoot must create a distinct root and child hierarchy");
     auto copiedBone = std::dynamic_pointer_cast<ExDepthBone>(copiedRoot->children[0]);
     check(copiedBone != nullptr && copiedBone->uuid != bone->uuid && copiedBone->boneId == bone->boneId &&
-        copiedBone->restHead == bone->restHead && copiedBone->restTail == bone->restTail && near(copiedBone->restRoll, bone->restRoll) &&
-        copiedBone->constraintType == bone->constraintType && copiedBone->hingeAxis == bone->hingeAxis &&
+        copiedBone->restHead.x == bone->restHead.x && copiedBone->restHead.y == bone->restHead.y &&
+        copiedBone->restHead.z == bone->restHead.z && copiedBone->restTail.x == bone->restTail.x &&
+        copiedBone->restTail.y == bone->restTail.y && copiedBone->restTail.z == bone->restTail.z &&
+        near(copiedBone->restRoll, bone->restRoll) && copiedBone->constraintType == bone->constraintType &&
+        copiedBone->hingeAxis.x == bone->hingeAxis.x && copiedBone->hingeAxis.y == bone->hingeAxis.y &&
+        copiedBone->hingeAxis.z == bone->hingeAxis.z &&
         copiedBone->lockRotation == bone->lockRotation && copiedBone->lockTranslation == bone->lockTranslation &&
         copiedBone->allowParentToTargets == bone->allowParentToTargets && equalLimits(copiedBone->rotationLimits, bone->rotationLimits) &&
         near(copiedBone->maxStepRadians, bone->maxStepRadians), "duplicating a DepthBone must preserve all extension state");
@@ -134,9 +138,12 @@ void testDepthBoneSerializationRoundTrip() {
     check(loadedTarget != nullptr, "DepthBone target should load from INX");
     check(loadedBone != nullptr, "DepthBone node should load from INX");
     check(loadedBone->boneId.view() == "SerializedBone", "DepthBone boneId should round-trip");
-    check(loadedBone->restHead == Vec3{1, 2, 3} && loadedBone->restTail == Vec3{4, 5, 6}, "DepthBone rest segment should round-trip");
+    check(loadedBone->restHead.x == 1 && loadedBone->restHead.y == 2 && loadedBone->restHead.z == 3 &&
+        loadedBone->restTail.x == 4 && loadedBone->restTail.y == 5 && loadedBone->restTail.z == 6,
+        "DepthBone rest segment should round-trip");
     check(near(loadedBone->restRoll, 0.25f), "DepthBone restRoll should round-trip");
-    check(loadedBone->constraintType.view() == "hinge" && loadedBone->hingeAxis == Vec3{0, 1, 0}, "DepthBone constraint should round-trip");
+    check(loadedBone->constraintType.view() == "hinge" && loadedBone->hingeAxis.x == 0 &&
+        loadedBone->hingeAxis.y == 1 && loadedBone->hingeAxis.z == 0, "DepthBone constraint should round-trip");
     check(loadedBone->lockRotation && loadedBone->lockTranslation && !loadedBone->allowParentToTargets,
         "DepthBone constraint booleans should round-trip");
     check(loadedBone->rotationLimits.size() == 2 && near(loadedBone->rotationLimits[0], -0.75f) && near(loadedBone->rotationLimits[1], 0.5f),

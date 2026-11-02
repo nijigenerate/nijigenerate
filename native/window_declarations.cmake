@@ -19,7 +19,7 @@ if(NIJIGENERATE_IMGUI AND TARGET nicxlive::nicxlive AND TARGET SDL3::SDL3)
         FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/nijigenerate/core/window_state_internal.hpp")
     target_include_directories(nijigenerate_window_state PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(nijigenerate_window_state PUBLIC
-        nijigenerate_native_options SDL3::SDL3 nijigenerate_imgui)
+        nijigenerate_native_options SDL3::SDL3 nijigenerate_imgui nicxlive::nicxlive)
     target_link_libraries(nijigenerate_window_declarations INTERFACE nijigenerate_window_state)
     set(window_sdl3_binding_directory "${CMAKE_CURRENT_BINARY_DIR}/generated/window-sdl3/$<CONFIG>")
     file(GENERATE

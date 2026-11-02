@@ -1,4 +1,5 @@
 #include "server_registration.hpp"
+#include "server_internal.hpp"
 #include "server_resources.hpp"
 #include "server_guides.hpp"
 #include "task.hpp"
@@ -82,7 +83,7 @@ void registerResources(providers::mcp::server::MCPServer& server, ResourceNotifi
             auto result=task::ngRunInMainThread<Json>(task::MainThreadAction<Json>([path] {
                 std::uint32_t parameter=0,target=0;String name,message;
                 if(!parseBindingDescriptorPath(path,parameter,target,name,message)) {
-                    Object error;error[literal("item")]={};error[literal("error")]=jsonString(message);return Json(error);
+                    Object error;error[literal("item")]=Json{};error[literal("error")]=jsonString(message);return Json(error);
                 }
                 return readBindingByDescriptor(parameter,target,name);
             }));
