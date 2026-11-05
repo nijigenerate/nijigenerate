@@ -40,6 +40,16 @@ foreach(_ng_editor_provider IN LISTS _ng_editor_providers)
 endforeach()
 
 add_executable(nijigenerate "${CMAKE_CURRENT_LIST_DIR}/src/editor_entry.cpp")
+if(WIN32)
+    enable_language(RC)
+    set(_ng_editor_resource_dir "${PROJECT_SOURCE_DIR}/build-aux/windows")
+    target_sources(nijigenerate PRIVATE "${_ng_editor_resource_dir}/nijigenerate.rc")
+    target_include_directories(nijigenerate PRIVATE
+        "$<$<COMPILE_LANGUAGE:RC>:${_ng_editor_resource_dir}>")
+    set_property(SOURCE "${_ng_editor_resource_dir}/nijigenerate.rc" APPEND PROPERTY OBJECT_DEPENDS
+        "${_ng_editor_resource_dir}/version.h"
+        "${_ng_editor_resource_dir}/nijigenerate.ico")
+endif()
 target_link_libraries(nijigenerate PRIVATE ${_ng_editor_providers})
 set(_ng_editor_features)
 foreach(_ng_editor_feature HAVE_MCP IN_NIGHTLY IN_LITE)
