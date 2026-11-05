@@ -313,10 +313,15 @@ void ngReleaseOpenGLRenderBackend() {
     if (selected) {
         if (!selectedContext || SDL_GL_GetCurrentContext() != selectedContext)
             throw std::logic_error("GL runtime shutdown requires its owning current context");
-        if (nicxlive::core::getCurrentRenderBackend() == selected)
-            nicxlive::core::inSetRenderBackend({});
+        // Shader destructors use the selected backend. Release every retained
+        // shader while both that backend and its owning context are still live.
+        oglReleaseMaskBackend();
+        oglReleasePartBackendResources();
+        oglReleaseBlendShaders();
         oglReleaseRenderer();
         debug_gl::ngReleaseOpenGLDebugProvider();
+        if (nicxlive::core::getCurrentRenderBackend() == selected)
+            nicxlive::core::inSetRenderBackend({});
     }
     selected.reset();
     selectedContext = nullptr;

@@ -5,6 +5,7 @@
 #include "settings.hpp"
 #include <nijigenerate/resources/embedded.hpp>
 #include <imgui_internal.h>
+#include <misc/freetype/imgui_freetype.h>
 #include <initializer_list>
 #include <vector>
 #include <cstdint>
@@ -78,6 +79,9 @@ void incInitFonts() {
     thread_local FontResources fonts;
     detail::initFontList();
     detail::atlas = ImGui::GetIO().Fonts;
+    // The D i2d-imgui build uses FreeType. stb_truetype scales and hints the
+    // same Noto data differently, so select the same rasterizer explicitly.
+    detail::atlas->FontBuilderIO = ImGuiFreeType::GetBuilderForFreeType();
     const auto appName = compat::RetainedString::fromStaticLiteral("APP\0");
     if (settings::incSettingsGet<bool>(compat::RetainedString::fromStaticLiteral("useOpenDyslexic"))) {
         detail::_incAddFontData(appName, fonts.dyslexic, 24.0f, glyphRange({0x0020, 0x024F, 0}), ImVec2(0, -8));

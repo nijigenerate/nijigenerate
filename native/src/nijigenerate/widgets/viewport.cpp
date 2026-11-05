@@ -52,11 +52,11 @@ void ngBeginViewportToolArea(compat::RetainedStringSlice id, ImGuiDir horizontal
         cursor = ImVec2(x, y);
     } else {
         const auto x = horizontal == ImGuiDir_Right
-            ? compat::ngRequireObject(window)->InnerRect.Min.x - (paddingX + data->contentSize.x)
-            : compat::ngRequireObject(window)->InnerRect.Max.x + paddingX;
+            ? compat::ngRequireObject(window)->InnerRect.Max.x - (paddingX + data->contentSize.x)
+            : compat::ngRequireObject(window)->InnerRect.Min.x + paddingX;
         const auto y = vertical == ImGuiDir_Down
-            ? window->InnerRect.Min.y - (paddingY + data->contentSize.y)
-            : window->InnerRect.Max.y + paddingY;
+            ? window->InnerRect.Max.y - (paddingY + data->contentSize.y)
+            : window->InnerRect.Min.y + paddingY;
         cursor = ImVec2(x, y);
     }
     ImGui::SetCursorScreenPos(cursor);

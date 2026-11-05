@@ -8,6 +8,7 @@
 #include <nijigenerate/compat/scope_exit.hpp>
 #include <nijigenerate/core.hpp>
 #include <nijigenerate/core/i18n.hpp>
+#include <nijigenerate/core/logo.hpp>
 #include <nijigenerate/core/shortcut/base.hpp>
 #include <nijigenerate/core/shortcut/defaults.hpp>
 #include <nijigenerate/core/translation.hpp>
@@ -262,6 +263,10 @@ int ngRunEditor(Arguments args) {
 #endif
             core::settings::incSettingsSave();
             stopBackgroundServices();
+            atlas::atlas::ngShutdownAtlassing();
+            widgets::dialog::ngShutdownDialogs();
+            windows::base::ngShutdownWindows();
+            core::ngShutdownLogo();
             core::ngFinalize();
             return 0;
         };

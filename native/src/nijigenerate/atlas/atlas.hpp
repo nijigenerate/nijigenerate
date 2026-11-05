@@ -19,6 +19,7 @@ using Part = nicxlive::core::nodes::Part;
 using Rect = nicxlive::core::nodes::Rect;
 using BlendMode = nicxlive::core::nodes::BlendMode;
 void incInitAtlassing();
+void ngShutdownAtlassing();
 class Atlas : public std::enable_shared_from_this<Atlas> {
     template<class> friend struct nicxlive::core::d_runtime::SourceAllocator;
 public:

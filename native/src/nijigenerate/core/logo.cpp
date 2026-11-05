@@ -44,6 +44,14 @@ void ngInitLogo() {
         target->setWrapping(nicxlive::core::Wrapping::Repeat);
     }
 }
+void ngShutdownLogo() {
+    // Dispose the GPU handles while their owning GL context is still current,
+    // including textures whose shared object is also retained by a panel.
+    for (auto* texture : {&grid, &ada, &logo, &logoI2D}) {
+        if (*texture) (*texture)->dispose();
+        texture->reset();
+    }
+}
 LogoTextureHandle ngGetLogo() { return logo; }
 LogoTextureHandle ngGetLogoI2D() { return logoI2D; }
 LogoTextureHandle ngGetAda() { return ada; }

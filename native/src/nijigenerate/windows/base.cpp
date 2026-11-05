@@ -200,6 +200,13 @@ void incPopWindowListAll() {
     windowList.resize(0);
 }
 
+void ngShutdownWindows() {
+    // Release the backing storage too: shortening a Source slice retains its
+    // window objects, including textures that require the current GL context.
+    windowStack = {};
+    windowList = {};
+}
+
 void incPopWindow() {
     if (windowStack.empty()) return;
     auto top = windowStack[windowStack.size() - 1];

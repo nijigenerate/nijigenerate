@@ -128,6 +128,9 @@ void ViewportPanel::onUpdate() {
         }
     }
     if(ImGui::BeginChild("##ViewportView",{0,-38},ImGuiChildFlags_None,flags)) {
+        drawList=ImGui::GetWindowDrawList();
+        window=ImGui::GetCurrentWindow();
+        const auto viewportOrigin=ImGui::GetCursorScreenPos();
         auto viewport=view::ngViewport();size=ImGui::GetContentRegionAvail();
         size={clampSize(size.x),clampSize(size.y)};
         if(size.x!=lastSize.x||size.y!=lastSize.y)
@@ -145,21 +148,22 @@ void ViewportPanel::onUpdate() {
         int width,height;nicxlive::core::inGetViewport(width,height);
         const auto backgroundColor=core::ngViewportGetBackgroundColor();
         compat::ngRequireObject(window);
-        ImRect rect({window->InnerRect.Max.x-1,window->InnerRect.Max.y},
-            {window->InnerRect.Min.x+1,window->InnerRect.Max.y+size.y});
+        // Use the child content rectangle in screen coordinates. An inverted
+        // rectangle below the parent window clips the rendered model away.
+        ImRect rect(viewportOrigin,{viewportOrigin.x+size.x,viewportOrigin.y+size.y});
         compat::ngRequireObject(drawList)->AddRectFilled(rect.Min,rect.Max,ImGui::GetColorU32(backgroundColor));
         drawList->AddImage(static_cast<ImTextureID>(nicxlive::core::inGetRenderImage()),rect.Min,rect.Max,
             {static_cast<float>(0.5/width),static_cast<float>(1-0.5/height)},
             {static_cast<float>(1-0.5/width),static_cast<float>(0.5/height)},0xffffffff);
         compat::ngRequireObject(viewport)->drawOverlay(drawList,
-            compat::ngRequireObject(ImGui::GetCurrentWindow())->InnerRect.Max,rect);
+            viewportOrigin,rect);
         const auto channel=compat::ngRequireObject(viewport)->asyncDerivedUpdateViewportChannel();auto project=incActiveProject();
         compat::Slice<core::asyncderivedupdate::AsyncDerivedUpdateSnapshot> snapshots;
         if(project&&channel!=0) {
             snapshots=core::asyncderivedupdate::incAsyncDerivedUpdateSnapshots(project->derivedUpdateScope,channel);
             nijigenerate::viewport::asyncderivedupdateoverlay::drawAsyncDerivedUpdateViewportOverlay(
                 snapshots,
-                drawList,compat::ngRequireObject(ImGui::GetCurrentWindow())->InnerRect.Max,rect);
+                drawList,viewportOrigin,rect);
         }
         ImGui::ItemAdd(rect,ImGui::GetID("###VIEWPORT_DISP"));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,priorWindowPadding);

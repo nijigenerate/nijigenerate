@@ -23,8 +23,6 @@ int gs2mvp{}, gs2offset{}, gs2opacity{}, gs2MultColor{}, gs2ScreenColor{}, gs2Em
 int mmvp{}, mthreshold{};
 bool partBackendInitialized = false;
 namespace {
-bool boundValid{};
-std::uint32_t boundAlbedo{}, boundBackend{};
 constexpr GLenum attachments[]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
 template<std::size_t N>
 void sampler(const std::shared_ptr<nicxlive::core::Shader>& shader, const char (&name)[N], int unit) {
@@ -163,17 +161,27 @@ void oglInitPartBackendResources() {
     mmvp = compat::ngRequireObject(partMaskShader)->getUniformLocation(RetainedString::fromStaticLiteral("mvp"));
     mthreshold = compat::ngRequireObject(partMaskShader)->getUniformLocation(RetainedString::fromStaticLiteral("threshold"));
 }
-void oglResetBoundAlbedo() { boundValid = false; boundAlbedo = boundBackend = 0; }
+void oglReleasePartBackendResources() {
+    partShader.reset();
+    partShaderStage1.reset();
+    partShaderStage2.reset();
+    partMaskShader.reset();
+    partBackendInitialized = false;
+    oglResetBoundAlbedo();
+}
+void oglResetBoundAlbedo() {
+    // Every packet establishes its bindings; no retained cache needs invalidation.
+}
 void oglDrawPartPacket(const PartDrawPacket& packet) { if (packet.renderable) oglExecutePartPacket(packet); }
 void oglExecutePartPacket(const PartDrawPacket& packet) {
     // Native packets snapshot texture identities and backend IDs instead of retaining D Texture references.
     if (!packet.textureCount) return;
     oglBindDrawableVao();
-    if (!boundValid || boundAlbedo != packet.textureUUIDs[0] || boundBackend != packet.textureBackendIds[0]) {
-        for (unsigned i = 0; i < std::min(packet.textureCount, 3u); ++i) {
-            glActiveTexture(GL_TEXTURE0 + i); glBindTexture(GL_TEXTURE_2D, packet.textureBackendIds[i]);
-        }
-        boundValid = true; boundAlbedo = packet.textureUUIDs[0]; boundBackend = packet.textureBackendIds[0];
+    // Compositing and texture uploads also change these bindings. Packet
+    // identities alone cannot prove the current GL state still matches them.
+    for (unsigned i = 0; i < 3; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, i < packet.textureCount ? packet.textureBackendIds[i] : 0);
     }
     if (packet.isMask) {
         compat::ngRequireObject(partMaskShader)->use();

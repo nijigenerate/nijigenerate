@@ -95,6 +95,7 @@ void ngDialog(DialogTag tag, DialogTag title, DialogText body,
 void ngDialog(DialogTag title, DialogText body, DialogLevel level = DialogLevel::Error,
               DialogButtons buttons = DialogButtons::OK, DialogUserData userData = {});
 void ngCleanupDialogs();
+void ngShutdownDialogs();
 DialogButtons ngDialogButtonSelected(const char* tag);
 DialogUserData ngDialogButtonUserData(const char* tag);
 void ngRegisterDialogHandler(DialogHandlerRef handler);

@@ -44,11 +44,9 @@ void resetAutosaveTimer() {
 }
 
 void startAutosaveTimer() {
-#ifndef NDEBUG
-    if (autosaveTimer.running) throw compat::ngStaticError<compat::AssertError>(
-        compat::RetainedString::fromStaticLiteral("start was called when the StopWatch was already running."),
-        compat::RetainedString::fromStaticLiteral("std/datetime/stopwatch.d"), 181);
-#endif
+    // A new/opened project starts a fresh interval, including when the previous
+    // project's timer is still running.
+    autosaveTimer.elapsed = {};
     autosaveTimer.running = true;
     autosaveTimer.startedAt = AutosaveTimerState::Clock::now();
 }

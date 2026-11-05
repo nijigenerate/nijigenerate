@@ -45,6 +45,7 @@ std::shared_ptr<Shader> oglGetBlendShader(BlendMode mode) {
     const auto found = blendShaders.findRetained(mode);
     return found ? *found : nullptr;
 }
+void oglReleaseBlendShaders() { blendShaders.clear(); }
 
 void oglBlendToBuffer(std::shared_ptr<Shader> shader, BlendMode mode, unsigned target,
     unsigned bgAlbedo, unsigned bgEmissive, unsigned bgBump,
@@ -178,6 +179,7 @@ bool oglSupportsAdvancedBlend() { return SDL_GL_ExtensionSupported("GL_KHR_blend
 bool oglSupportsAdvancedBlendCoherent() { return SDL_GL_ExtensionSupported("GL_KHR_blend_equation_advanced_coherent"); }
 #else
 std::shared_ptr<Shader> oglGetBlendShader(BlendMode) { return nullptr; }
+void oglReleaseBlendShaders() {}
 void oglBlendToBuffer(std::shared_ptr<Shader>, BlendMode, unsigned,
     unsigned, unsigned, unsigned, unsigned, unsigned, unsigned) {}
 void oglSetAdvancedBlendCoherent(bool) {}

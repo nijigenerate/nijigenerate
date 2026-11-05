@@ -29,4 +29,13 @@ void ngInitDialogs() {
         nicxlive::core::Texture::createSource(error),
     };
 }
+
+void ngShutdownDialogs() {
+    detail::dialogHandlers = {};
+    detail::entries = {};
+    for (const auto& texture : detail::adaTextures) {
+        if (texture) texture->dispose();
+    }
+    detail::adaTextures = {};
+}
 } // namespace nijigenerate::widgets::dialog

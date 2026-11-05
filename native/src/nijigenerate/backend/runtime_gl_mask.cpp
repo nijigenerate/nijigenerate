@@ -36,6 +36,11 @@ void oglBeginMask(bool useStencil) {
     glEnable(GL_STENCIL_TEST); glClearStencil(useStencil ? 0 : 1); glClear(GL_STENCIL_BUFFER_BIT);
     glStencilMask(0xff); glStencilFunc(GL_ALWAYS, useStencil ? 0 : 1, 0xff); glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 }
+void oglReleaseMaskBackend() {
+    shader.reset();
+    initialized = false;
+    origin = matrix = 0;
+}
 void oglEndMask() { glStencilMask(0xff); glStencilFunc(GL_ALWAYS, 1, 0xff); glDisable(GL_STENCIL_TEST); }
 void oglBeginMaskContent() { glStencilFunc(GL_EQUAL, 1, 0xff); glStencilMask(0); }
 void oglExecuteMaskPacket(const nicxlive::core::nodes::MaskDrawPacket& packet) {
@@ -79,6 +84,7 @@ void oglExecuteMaskApplyPacket(const nicxlive::core::RenderBackend::MaskApplyPac
 }
 #else
 void oglInitMaskBackend() {}
+void oglReleaseMaskBackend() {}
 void oglBeginMask(bool) {}
 void oglEndMask() {}
 void oglBeginMaskContent() {}

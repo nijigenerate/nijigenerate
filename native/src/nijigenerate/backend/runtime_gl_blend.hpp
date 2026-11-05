@@ -4,6 +4,7 @@
 namespace nijigenerate::backend::runtime_gl {
 using BlendMode = nicxlive::core::nodes::BlendMode;
 std::shared_ptr<nicxlive::core::Shader> oglGetBlendShader(BlendMode mode);
+void oglReleaseBlendShaders();
 void oglBlendToBuffer(std::shared_ptr<nicxlive::core::Shader> shader, BlendMode mode, unsigned target,
     unsigned bgAlbedo, unsigned bgEmissive, unsigned bgBump,
     unsigned fgAlbedo, unsigned fgEmissive, unsigned fgBump);

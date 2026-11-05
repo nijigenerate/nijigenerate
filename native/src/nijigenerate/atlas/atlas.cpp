@@ -153,6 +153,15 @@ void incInitAtlassing() {
     atlasRenderOpacity = compat::ngRequireObject(atlasShader)->getUniformLocation(
         SourceString::fromStaticLiteral("opacity"));
 }
+void ngShutdownAtlassing() {
+    currCanvas.reset();
+    atlasShader.reset();
+    if (writeVBO) NG_ATLAS_GL("glDeleteBuffers", PFNGLDELETEBUFFERSPROC)(1, &writeVBO);
+    if (writeVAO) NG_ATLAS_GL("glDeleteVertexArrays", PFNGLDELETEVERTEXARRAYSPROC)(1, &writeVAO);
+    if (writeFBO) NG_ATLAS_GL("glDeleteFramebuffers", PFNGLDELETEFRAMEBUFFERSPROC)(1, &writeFBO);
+    writeVBO = writeVAO = writeFBO = 0;
+    atlasMVP = atlasRenderOpacity = 0;
+}
 std::shared_ptr<Atlas> Atlas::create(std::size_t atlasSize, int padding, float scale) {
     return ngCreateDerived<Atlas>(atlasSize, padding, scale);
 }

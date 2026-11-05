@@ -6,10 +6,9 @@ namespace nijigenerate::backend::gl {
 
 bool ngGLBackendInit(const char*) {
     auto& state = detail::glBackendState();
-    // Preserve the original source constant, not a queried driver capability.
-    constexpr GLint major = 4;
-    constexpr GLint minor = 2;
-    state.glVersion = static_cast<GLuint>(major * 100 + minor * 10);
+    // The window may supply a 3.2 or 3.1 context. Only advertise capabilities
+    // provided by that context, including sampler objects introduced in 3.3.
+    state.glVersion = platform::ngGLBackendContextVersion();
 
     auto& io = ImGui::GetIO();
     if (state.glVersion >= 320) {

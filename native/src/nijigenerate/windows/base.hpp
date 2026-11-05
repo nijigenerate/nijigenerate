@@ -29,6 +29,7 @@ void incPopWindowList(WindowReference window);
 void incPopWindowListAll();
 void incPopWindow();
 void incUpdateWindows();
+void ngShutdownWindows();
 WindowReference incGetTopWindow();
 void incPopWelcomeWindow();
 bool incWelcomeWindowOnTop();

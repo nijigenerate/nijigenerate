@@ -10,6 +10,7 @@ extern int gs2mvp, gs2offset, gs2opacity, gs2MultColor, gs2ScreenColor, gs2Emiss
 extern int mmvp, mthreshold;
 extern bool partBackendInitialized;
 void oglInitPartBackendResources();
+void oglReleasePartBackendResources();
 void oglResetBoundAlbedo();
 void oglDrawPartPacket(const nicxlive::core::nodes::PartDrawPacket& packet);
 void oglExecutePartPacket(const nicxlive::core::nodes::PartDrawPacket& packet);
