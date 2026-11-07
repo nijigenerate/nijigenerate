@@ -16,9 +16,8 @@ template<class Text> bool drawTextLinkWithIcon(Text icon, Text text) {
 template<class Text> bool drawTextLink(Text text, ImVec4 hoverColor, ImVec4 clickedColor, ImVec4 baseColor) {
     auto* window = ImGui::GetCurrentWindow();
     if (compat::ngRequireObject(window)->SkipItems) return false;
-    const auto cursor = ImGui::GetCursorPos();
+    const auto position = ImGui::GetCursorScreenPos();
     bool clicked = false, hovered = false, held = false;
-    ImGui::NewLine();
     const auto* begin = text.data();
     const auto* end = begin ? begin + text.size() : begin;
     ImGui::PushID(begin, end);
@@ -27,28 +26,26 @@ template<class Text> bool drawTextLink(Text text, ImVec4 hoverColor, ImVec4 clic
     const auto clickedId = ImGui::GetID(key.data(), key.data() + key.size());
     const bool previouslyClicked = compat::ngRequireObject(storage)->GetBool(clickedId, false);
     const auto size = ngMeasureString(text);
-    // The pinned core retains this obsolete API; preserve the source call timing.
-    ImGui::SetItemAllowOverlap();
     const auto id = ImGui::GetID(begin, end);
-    const auto position = window->DC.CursorPos;
+    // Keep hit testing at the same screen position as the rendered text.
     const ImRect bounds(position, ImVec2(position.x + size.x, position.y + size.y));
     ImGui::ItemSize(bounds);
-    // D binding AllowItemOverlap and this pinned core's AllowOverlap are both4096.
-    clicked = ImGui::ButtonBehavior(bounds, id, &hovered, &held, ImGuiButtonFlags_AllowOverlap);
     if (!ImGui::ItemAdd(bounds, id)) {
         ImGui::PopID();
         return false;
     }
+    clicked = ImGui::ButtonBehavior(bounds, id, &hovered, &held);
     if (clicked) storage->SetBool(ImGui::GetID(key.data(), key.data() + key.size()), true);
     if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-    ImGui::SetCursorPos(cursor);
-    if (!held && hovered) {
-        ngTextColored(hoverColor, text); detail::addUnderline(hoverColor);
-    } else if ((held && hovered) || previouslyClicked) {
-        ngTextColored(clickedColor, text); detail::addUnderline(clickedColor);
-    } else {
-        ngTextColored(baseColor, text); detail::addUnderline(baseColor);
-    }
+    const auto color = !held && hovered ? hoverColor
+        : ((held && hovered) || previouslyClicked) ? clickedColor : baseColor;
+    // Render the registered item directly instead of submitting a second text
+    // item, which would replace its ID and hover rectangle.
+    ImGui::PushStyleColor(ImGuiCol_Text, color);
+    ImGui::RenderText(position, begin, end, false);
+    ImGui::PopStyleColor();
+    window->DrawList->AddLine({bounds.Min.x, bounds.Max.y}, bounds.Max,
+        ImGui::GetColorU32(color), 1.0f);
     ImGui::PopID();
     return clicked;
 }

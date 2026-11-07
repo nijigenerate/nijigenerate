@@ -44,6 +44,7 @@ asset catalog is disabled because its generator is also absent; application
 resources and the renderer's own shader sources are still compiled.
 
 The executable is `build/macos-native/native/nijigenerate.app/Contents/MacOS/nijigenerate`.
+The build generates the bundle icon from `build-aux/osx/nijigenerate.iconset` using macOS `iconutil`.
 This is a local developer build using local dependency paths, not a redistributable
 package. Override cache variables at configure time if dependencies
 are installed elsewhere.

@@ -156,22 +156,15 @@ void ngRenderWindowShadow(ImDrawList* drawList, ImRect area, float falloff, floa
     drawList->PushTextureID(texture);
     drawList->PushClipRect({clip.x, clip.y}, {clip.z, clip.w}, false);
     auto& style=ImGui::GetStyle();
-    const float inset=style.WindowRounding;
-    const auto innerColor=ImGui::GetColorU32(ImVec4(0,0,0,startShade));
-    const auto outerColor=ImGui::GetColorU32(ImVec4(0,0,0,0));
-    const ImVec2 innerMin(area.Min.x-inset,area.Min.y-inset);
-    const ImVec2 innerMax(area.Max.x+inset,area.Max.y+inset);
-    const ImVec2 realMin(innerMin.x+falloff,innerMin.y+falloff);
-    const ImVec2 realMax(innerMax.x-falloff,innerMax.y-falloff);
-    drawList->AddRectFilled(innerMin,innerMax,innerColor);
-    drawList->AddRectFilledMultiColor({realMax.x,realMax.y},innerMax,outerColor,outerColor,innerColor,outerColor);
-    drawList->AddRectFilledMultiColor({realMin.x,realMax.y},{innerMin.x,innerMax.y},outerColor,outerColor,innerColor,outerColor);
-    drawList->AddRectFilledMultiColor({realMax.x,realMin.y},{innerMax.x,innerMin.y},outerColor,outerColor,innerColor,outerColor);
-    drawList->AddRectFilledMultiColor(realMin,innerMin,outerColor,outerColor,innerColor,outerColor);
-    drawList->AddRectFilledMultiColor({realMax.x,innerMin.y},innerMax,outerColor,innerColor,innerColor,outerColor);
-    drawList->AddRectFilledMultiColor(innerMin,{realMin.x,innerMax.y},innerColor,outerColor,outerColor,innerColor);
-    drawList->AddRectFilledMultiColor({innerMin.x,realMax.y},innerMax,outerColor,outerColor,innerColor,innerColor);
-    drawList->AddRectFilledMultiColor(innerMin,{innerMax.x,realMin.y},innerColor,innerColor,outerColor,outerColor);
+    // Draw outside the window, with rounded contours fading toward the edge.
+    // Overlapping filled caps produced a dark rectangular frame at the corners.
+    for (float outset = falloff; outset > 0; outset -= 1.0f) {
+        const float strength = 1.0f - (outset - 1.0f) / falloff;
+        const auto color = ImGui::GetColorU32(ImVec4(0, 0, 0, startShade * strength * strength));
+        drawList->AddRect({area.Min.x - outset, area.Min.y - outset},
+            {area.Max.x + outset, area.Max.y + outset}, color,
+            style.WindowRounding + outset, ImDrawFlags_None, 1.0f);
+    }
     detail::prepend(output,drawList);
 }
 }

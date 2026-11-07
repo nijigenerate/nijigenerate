@@ -109,7 +109,7 @@ void NodeInspector<ModelEditSubMode::Layout,T>::run() {
             ngEndCategory(); return;
         }
         ImGui::Spacing();
-        const float width=static_cast<float>(std::round((ngAvailableSpace().x/3.0)-2.0));
+        const float width=std::floor((ngAvailableSpace().x-8.f)/3.f);
         const ImVec2 elementSize(width,width);
         if(this->targets.size()==1) {
             incInspectorTextureSlot(node,TextureUsage::Albedo,detail::translated("Albedo"),elementSize); ImGui::SameLine(0,4);

@@ -197,7 +197,7 @@ void ListOutput::drawTreeItem(Resource res) {
     [[maybe_unused]] const auto receiver = weak_from_this().lock();
     const bool isNode=compat::ngRequireObject(res)->type()==ResourceType::Node;
     bool selected=false,noIcon=false;Node node;
-    ImGui::SameLine();
+    ImGui::SameLine(0, 0);
     if(isNode) {
         node=to<nicxlive::core::nodes::Node>(res);selected=incNodeInSelection(node);
         if(auto part=std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(node)) {
@@ -246,7 +246,10 @@ void ListOutput::onUpdate() {
     const auto traverse=[&](auto&& recurse, Resource res) -> void {
         const auto flags=setFlag(res);
         const auto id=reinterpret_cast<void*>(static_cast<std::uintptr_t>(compat::ngRequireObject(res)->uuid()));
+        // The tree item only draws the arrow; the following item owns the label.
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, ImGui::GetStyle().FramePadding.y});
         const bool opened=ImGui::TreeNodeEx(id,flags,"");
+        ImGui::PopStyleVar();
         ImGui::PushID(reinterpret_cast<void*>(static_cast<std::uintptr_t>(res->uuid())));drawTreeItem(res);ImGui::PopID();
         if(opened) {
             if(children().contains(res)) { const auto childSnapshot=children().at(res);

@@ -41,10 +41,26 @@ endforeach()
 
 add_executable(nijigenerate "${CMAKE_CURRENT_LIST_DIR}/src/editor_entry.cpp")
 if(APPLE)
+    find_program(NIJIGENERATE_ICONUTIL iconutil REQUIRED)
+    set(_ng_editor_iconset "${PROJECT_SOURCE_DIR}/build-aux/osx/nijigenerate.iconset")
+    set(_ng_editor_icon "${CMAKE_CURRENT_BINARY_DIR}/nijigenerate.icns")
+    file(GLOB _ng_editor_icon_images CONFIGURE_DEPENDS "${_ng_editor_iconset}/*.png")
+    add_custom_command(OUTPUT "${_ng_editor_icon}"
+        COMMAND "${NIJIGENERATE_ICONUTIL}" -c icns -o "${_ng_editor_icon}" "${_ng_editor_iconset}"
+        DEPENDS ${_ng_editor_icon_images}
+        VERBATIM)
+    set_source_files_properties("${_ng_editor_icon}" PROPERTIES
+        GENERATED TRUE
+        MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(nijigenerate PRIVATE "${_ng_editor_icon}")
     set_target_properties(nijigenerate PROPERTIES
         MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_ICON_FILE "nijigenerate.icns"
         MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.nijigenerate.native"
         MACOSX_BUNDLE_BUNDLE_NAME "nijigenerate Native")
+    add_custom_command(TARGET nijigenerate POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E touch "$<TARGET_BUNDLE_DIR:nijigenerate>"
+        VERBATIM)
 endif()
 if(WIN32)
     enable_language(RC)

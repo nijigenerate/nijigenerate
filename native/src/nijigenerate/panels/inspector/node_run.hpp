@@ -12,6 +12,7 @@
 #include <nijigenerate/core/translation.hpp>
 #include <resource.hpp>
 #include <compat/source_allocator.hpp>
+#include <cmath>
 #include <limits>
 #include <numbers>
 namespace nijigenerate::panels::inspector::node {
@@ -82,7 +83,7 @@ void NodeInspector<ModelEditSubMode::Layout,T>::run() {
         auto avail=ImGui::GetContentRegionAvail();
         const float maximum=std::numeric_limits<float>::max();
         ImGui::TextColored(CategoryTextColor,ngTranslateCString("Translation").data());
-        ImGui::PushItemWidth((avail.x-4.f)/3.f);
+        ImGui::PushItemWidth(std::floor((avail.x-8.f)/3.f));
         ImGui::PushID(0);
         edit.template operator()<"translationX">(translationX,Id::TranslationX,[&](auto state) {
             const auto current=ngInspectorWritableState(state());
@@ -117,7 +118,7 @@ void NodeInspector<ModelEditSubMode::Layout,T>::run() {
             compat::RetainedString::fromStaticLiteral("Makes so that the translation of this node is based off the root node, making it stay in place even if its parent moves."))));
         ImGui::Spacing(); ImGui::Spacing(); ImGui::PopItemWidth(); ImGui::Spacing();
         ImGui::TextColored(CategoryTextColor,ngTranslateCString("Rotation").data());
-        ImGui::PushItemWidth((avail.x-4.f)/3.f);
+        ImGui::PushItemWidth(std::floor((avail.x-8.f)/3.f));
         ImGui::PushID(3);
         {auto state=[&] {return rotationX.get(self);};
         float angle=detail::degrees(compat::ngRequireObject(state())->value);
@@ -159,9 +160,9 @@ void NodeInspector<ModelEditSubMode::Layout,T>::run() {
             dispatch.template operator()<"rotationZ">(Id::RotationZ,ctx,compat::ngRequireObject(current)->value);
         }}
         ImGui::PopID();
-        ImGui::PopItemWidth(); avail.x+=ImGui::GetFontSize(); ImGui::Spacing();
+        ImGui::PopItemWidth(); ImGui::Spacing();
         ImGui::TextColored(CategoryTextColor,ngTranslateCString("Scale").data());
-        ImGui::PushItemWidth((avail.x-14.f)/2.f);
+        ImGui::PushItemWidth(std::floor((avail.x-4.f)/2.f));
         ImGui::PushID(6);
         edit.template operator()<"scaleX">(scaleX,Id::ScaleX,[&](auto state) {
             const auto current=ngInspectorWritableState(state());
@@ -206,7 +207,7 @@ void NodeInspector<ModelEditSubMode::Deform,T>::run(std::shared_ptr<Parameter> p
     if(ngBeginCategory(ngTranslateCString("Transform").data())) {
         auto avail=ImGui::GetContentRegionAvail();
         ImGui::TextColored(CategoryTextColor,ngTranslateCString("Translation").data());
-        ImGui::PushItemWidth((avail.x-4.f)/3.f);
+        ImGui::PushItemWidth(std::floor((avail.x-8.f)/3.f));
         ImGui::PushID(0);
         this->template deform<DeformDescriptor<T,"translationX","transform.t.x">>(
             [&]{return translationX.get(self);},[&](auto name,float* value) {
@@ -228,7 +229,7 @@ void NodeInspector<ModelEditSubMode::Deform,T>::run(std::shared_ptr<Parameter> p
         ImGui::PopItemWidth();
         ImGui::Spacing();
         ImGui::TextColored(CategoryTextColor,ngTranslateCString("Rotation").data());
-        ImGui::PushItemWidth((avail.x-4.f)/3.f);
+        ImGui::PushItemWidth(std::floor((avail.x-8.f)/3.f));
         ImGui::PushID(3);
         this->template deform<DeformDescriptor<T,"rotationX","transform.r.x">>(
             [&]{return rotationX.get(self);},[&](auto name,float* value) {
@@ -247,9 +248,9 @@ void NodeInspector<ModelEditSubMode::Deform,T>::run(std::shared_ptr<Parameter> p
             return ngInspectorDeformFloatDragVal(name,value,0.05f,true);
         }); ImGui::PopID();
         ImGui::PopItemWidth();
-        avail.x+=ImGui::GetFontSize(); ImGui::Spacing();
+        ImGui::Spacing();
         ImGui::TextColored(CategoryTextColor,ngTranslateCString("Scale").data());
-        ImGui::PushItemWidth((avail.x-14.f)/2.f);
+        ImGui::PushItemWidth(std::floor((avail.x-4.f)/2.f));
         ImGui::PushID(6);
         this->template deform<DeformDescriptor<T,"scaleX","transform.s.x">>(
             [&]{return scaleX.get(self);},[&](auto name,float* value) {

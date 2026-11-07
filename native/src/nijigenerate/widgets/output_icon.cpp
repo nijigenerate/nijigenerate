@@ -162,7 +162,7 @@ void IconTreeOutput::drawBinding(Resource res,ImVec2& minimum,ImVec2& maximum,bo
 }
 void IconTreeOutput::drawTreeItem(Resource res) {
     [[maybe_unused]] const auto receiver = weak_from_this().lock();
-    Node node;bool hovered=false,menuOpened=false;ImVec2 minimum,maximum;ImGui::SameLine();
+    Node node;bool hovered=false,menuOpened=false;ImVec2 minimum,maximum;ImGui::SameLine(0, 0);
     switch(compat::ngRequireObject(res)->type()) {
     case ResourceType::Node:node=to<nicxlive::core::nodes::Node>(res);drawNode(res,node,minimum,maximum,hovered);break;
     case ResourceType::Parameter:menuOpened=drawParameter(res,minimum,maximum,hovered);break;
@@ -175,6 +175,14 @@ void IconTreeOutput::drawTreeItem(Resource res) {
     if(ngSelectorResourceObjectEquals(popupOpened,res)) {
         constexpr auto flags=ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_AlwaysAutoResize|
             ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoSavedSettings;
+        // Width-dependent inspector controls must not drive their own auto-fit
+        // width. Keep the established node-view width and auto-fit only height.
+        const auto viewport = ImGui::GetWindowViewport();
+        const auto padding = ImGui::GetStyle().WindowPadding;
+        const float width = std::max(1.f, std::min(float(detail::NodeViewWidth + 20),
+            viewport->WorkSize.x - padding.x * 2));
+        const float maxHeight = std::max(1.f, viewport->WorkSize.y - padding.y * 2);
+        ImGui::SetNextWindowSizeConstraints({width, 0}, {width, maxHeight});
         if(ImGui::Begin(popup,nullptr,flags)) {
             hovered|=ngSelectorResourceObjectEquals(popupOpened,res) && detail::isWindowHovered();
             if(!contentsDrawn.contains(res->uuid())) {
@@ -243,7 +251,10 @@ void IconTreeOutput::onUpdate() {
                 ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
             parents.append(res->uuid());
         }
+        // Avoid reserving label padding in this arrow-only tree item.
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, ImGui::GetStyle().FramePadding.y});
         const bool opened=ImGui::TreeNodeEx(reinterpret_cast<void*>(static_cast<std::uintptr_t>(res->uuid())),flags,"");
+        ImGui::PopStyleVar();
         ImGui::PushID(reinterpret_cast<void*>(static_cast<std::uintptr_t>(res->uuid())));drawTreeItem(res);ImGui::PopID();
         const auto resultMinimum=ImGui::GetItemRectMin();
         const auto resultMaximum=ImGui::GetItemRectMax();
