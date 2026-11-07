@@ -49,9 +49,9 @@ bool incMeshEditGetIsApplySafe();
 void incMeshEditApply();
 void incMeshEditClear();
 void incMeshEditReset();
-std::shared_ptr<automesh::AutoMeshProcessor> ngActiveAutoMeshProcessor();
-void ngActiveAutoMeshProcessor(std::shared_ptr<automesh::AutoMeshProcessor> processor);
-compat::Slice<std::shared_ptr<automesh::AutoMeshProcessor>> ngAutoMeshProcessors();
+std::shared_ptr<::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> ngActiveAutoMeshProcessor();
+void ngActiveAutoMeshProcessor(std::shared_ptr<::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor> processor);
+compat::Slice<std::shared_ptr<::nijigenerate::viewport::vertex::automesh::AutoMeshProcessor>> ngAutoMeshProcessors();
 void ngInitializeVertexViewportModule();
 std::shared_ptr<::nijigenerate::viewport::common::mesheditor::IncMeshEditor> ngVertexViewportGetEditor();
 inline auto incVertexViewportGetEditor() { return ngVertexViewportGetEditor(); }

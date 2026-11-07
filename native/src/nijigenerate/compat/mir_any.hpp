@@ -673,7 +673,7 @@ public:
     explicit SourceTraversalCursor(Range& range) : range_(range) {}
     decltype(auto) operator*() { return detail::sourceFront(range_); }
     decltype(auto) sourceReference()
-        requires requires { sourceMemberReceiver(this->range_)->sourceReferenceFront(); } {
+        requires requires(Range& range) { sourceMemberReceiver(range)->sourceReferenceFront(); } {
         return sourceMemberReceiver(range_)->sourceReferenceFront();
     }
     SourceTraversalCursor& operator++() {

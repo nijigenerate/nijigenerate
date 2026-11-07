@@ -7,6 +7,7 @@
 #include <nijigenerate/core/translation.hpp>
 #include <nijigenerate/core/shortcut/persistence.hpp>
 #include <nijigenerate/core/input.hpp>
+#include <nijigenerate/core/input_shortcut_modifiers.hpp>
 #include <nijigenerate/io/depthmap_psd_names.hpp>
 #include <nijigenerate/widgets/label.hpp>
 #include <nijigenerate/widgets/category.hpp>
@@ -37,7 +38,8 @@ void SettingsWindow::captureShortcutUI() {
         auto code = ngKeyScancode(key);
         if (code != ImGuiKey_None && ImGui::IsKeyPressed(code,false)) { pressed = key; break; }
     }
-    auto preview = ngFormatShortcut(input.KeyCtrl,input.KeyAlt,input.KeyShift,input.KeySuper,pressed);
+    const auto modifiers = ngInputShortcutModifiers(input);
+    auto preview = ngFormatShortcut(modifiers.ctrl,modifiers.alt,modifiers.shift,modifiers.superKey,pressed);
     capturingPreview = preview;
     if (!pressed.empty()) {
         if (capturingCommand) {

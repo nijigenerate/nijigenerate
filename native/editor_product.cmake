@@ -40,6 +40,12 @@ foreach(_ng_editor_provider IN LISTS _ng_editor_providers)
 endforeach()
 
 add_executable(nijigenerate "${CMAKE_CURRENT_LIST_DIR}/src/editor_entry.cpp")
+if(APPLE)
+    set_target_properties(nijigenerate PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.nijigenerate.native"
+        MACOSX_BUNDLE_BUNDLE_NAME "nijigenerate Native")
+endif()
 if(WIN32)
     enable_language(RC)
     set(_ng_editor_resource_dir "${PROJECT_SOURCE_DIR}/build-aux/windows")
@@ -58,6 +64,9 @@ foreach(_ng_editor_feature HAVE_MCP IN_NIGHTLY IN_LITE)
     endif()
 endforeach()
 ng_attach_editor_app(nijigenerate ${_ng_editor_features})
+if(TARGET nijigenerate_translation_catalogs)
+    ng_stage_translation_catalogs(nijigenerate)
+endif()
 
 if(WIN32)
     # FindZLIB publishes an UNKNOWN imported library, so TARGET_RUNTIME_DLLS

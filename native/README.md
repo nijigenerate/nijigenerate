@@ -1,8 +1,10 @@
 # Native C++ port
 
 This is the in-progress C++20 implementation described in `../cpp_design.md` and
-`../tasks.md`. It is not yet an editor executable. The D application remains the
-behavioral reference. No configure step downloads packages or invokes Git.
+`../tasks.md`. Enable `NIJIGENERATE_BUILD_EDITOR` to build the native editor.
+The D application remains the behavioral reference. No configure step downloads
+packages or invokes Git. See [the macOS build guide](MACOS_BUILD.md) for the full
+editor configuration and pinned dependency setup.
 
 ## Build the implemented modules
 

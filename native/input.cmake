@@ -14,6 +14,7 @@ if(NIJIGENERATE_IMGUI AND TARGET nijigenerate_dpi)
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/core/input_shortcut_template.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/core/input_shortcut_spec.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/core/input_modifier_labels.hpp"
+            "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/core/input_shortcut_modifiers.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/core/input_format_shortcut.hpp")
     target_link_libraries(nijigenerate_input PUBLIC nijigenerate_dpi nijigenerate_imgui)
 endif()

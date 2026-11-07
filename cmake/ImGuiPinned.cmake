@@ -36,6 +36,9 @@ add_library(nijigenerate_imgui STATIC
     "${NIJIGENERATE_IMGUI_SOURCE_DIR}/imgui_widgets.cpp")
 target_include_directories(nijigenerate_imgui PUBLIC "${NIJIGENERATE_IMGUI_SOURCE_DIR}")
 target_compile_features(nijigenerate_imgui PUBLIC cxx_std_20)
+# The D editor's persisted window/docking IDs use the pre-1.91.6 hash.
+# This only affects ImGui's implementation; the public ABI is unchanged.
+target_compile_definitions(nijigenerate_imgui PRIVATE IMGUI_USE_LEGACY_CRC32_ADLER)
 # Preserve the unchanged baseline, excluded from ordinary application builds.
 # Its raw implementation must never be linked with the project platform adapter.
 add_library(nijigenerate_imgui_sdl3_reference STATIC EXCLUDE_FROM_ALL

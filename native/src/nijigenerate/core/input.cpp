@@ -1,5 +1,6 @@
 // Copyright 2026, nijigenerate Project. Distributed under the 2-Clause BSD License.
 #include "input.hpp"
+#include "input_shortcut_modifiers.hpp"
 #include "dpi.hpp"
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/compat/array_range_error.hpp>
@@ -117,7 +118,9 @@ bool ngShortcut(compat::RetainedStringSlice shortcut, bool repeat) {
         if (settings::incSettingsGet<bool>(compat::RetainedString::fromStaticLiteral("MacSwapCmdCtrl"), false))
             std::swap(needCtrl, needSuper);
     }
-    if (io.KeyCtrl != needCtrl || io.KeyAlt != needAlt || io.KeyShift != needShift || io.KeySuper != needSuper)
+    const auto modifiers = ngInputShortcutModifiers(io);
+    if (modifiers.ctrl != needCtrl || modifiers.alt != needAlt ||
+            modifiers.shift != needShift || modifiers.superKey != needSuper)
         return false;
     const auto keyToken = parts[parts.size() - 1];
     const auto key = ngKeyScancode(keyToken.view());

@@ -1,5 +1,12 @@
 if(TARGET nijigenerate_tasks AND TARGET nijigenerate_runtime_core)
     add_library(nijigenerate_autorig_framework STATIC
+        src/nijigenerate/autorig/json.cpp
+        src/nijigenerate/autorig/json_numeric_locale.cpp
+        src/nijigenerate/autorig/deterministic/linear.cpp
+        src/nijigenerate/autorig/deterministic/geometry_axis.cpp
+        src/nijigenerate/autorig/deterministic/geometry_json.cpp
+        src/nijigenerate/autorig/deterministic/geometry_kernel.cpp
+        src/nijigenerate/autorig/deterministic/geometry_scalar.cpp
         src/nijigenerate/autorig/framework_values.cpp
         src/nijigenerate/autorig/framework_context.cpp
         src/nijigenerate/autorig/framework_session_run.cpp

@@ -363,6 +363,9 @@ void AutoMeshBatchWindow::renderNodeList(NodeList filtered) {
         compat::detail::ngSourceCStringPostconditions(displayedName.view(), terminatedName.data());
         const auto formattedName = zeroArgumentLabel(std::string_view(terminatedName.data()));
         ImGui::Text("%s", formattedName ? formattedName->c_str() : terminatedName.data());
+        // The overlaid name can own the click instead of the underlying
+        // AllowOverlap Selectable. Keep mouse and keyboard preview selection consistent.
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) active = node;
         if (ImGui::IsItemHovered()) {
             ImGui::BeginTooltip(); ngText(iconName(node));
             if (auto part = std::dynamic_pointer_cast<Part>(node))
@@ -443,11 +446,13 @@ void AutoMeshBatchWindow::onUpdate() {
     const float preview = height < width ? height : width;
     ImGui::BeginGroup();
     if (ImGui::BeginChild("###Nodes", {width, height})) {
-        if (ngCheckbox("##toggleCheck", &selectAll)) toggleAction = selectAll ? ToggleAction::All : ToggleAction::None;
-        ImGui::SameLine(0, 0); ngInputText("##", width, nodeFilter);
+        if (ngCheckbox("###toggleCheck", &selectAll)) toggleAction = selectAll ? ToggleAction::All : ToggleAction::None;
+        ImGui::SameLine(0, 0); ngInputText("##", ImGui::GetContentRegionAvail().x, nodeFilter);
         ImGui::BeginListBox("###NodeList", {width, height - 26}); treeView(); ImGui::EndListBox();
     }
     ImGui::EndChild(); ImGui::SameLine(0, gap); ImGui::BeginGroup();
+    // The worker reads this processor and its configuration until it is joined.
+    ImGui::BeginDisabled(isProcessing());
     ImGui::BeginChild("###Processors", {width, 40});
     auto processors = viewport::vertex::ngAutoMeshProcessors();
     for (auto processor : processors) {
@@ -462,6 +467,7 @@ void AutoMeshBatchWindow::onUpdate() {
     if (ImGui::BeginChild("##Configs", {width, height - 80}))
         compat::ngRequireObject(viewport::vertex::ngActiveAutoMeshProcessor())->configure();
     ImGui::EndChild();
+    ImGui::EndDisabled();
     if (processingThread && !processingThread->running.load(std::memory_order_acquire)) {
         processingThread->join(); processingThread.reset();
         auto retained = lockedParts;

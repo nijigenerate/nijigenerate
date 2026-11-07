@@ -3,6 +3,34 @@
   "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
   "configurePresets": [
     {
+      "name": "macos-local",
+      "displayName": "macOS native editor with local dependencies",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-native",
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"},
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": false,
+        "NIJIGENERATE_BUILD_EDITOR": true,
+        "NIJIGENERATE_RUNTIME_PROBE": true,
+        "NIJIGENERATE_STACKFUL_TASKS": true,
+        "NIJIGENERATE_IMGUI": true,
+        "NIJIGENERATE_EMBED_RESOURCES": true,
+        "NIJIGENERATE_ASSET_CATALOG": false,
+        "NIJIGENERATE_LOGO_RESOURCES": true,
+        "NIJIGENERATE_DIALOGS": true,
+        "NIJIGENERATE_OSQP_INTEGRATION": true,
+        "NIJIGENERATE_OSQP_ROOT": "${sourceDir}/build/macos-deps/install",
+        "NIJIGENERATE_TRANSLATION_CATALOGS": true,
+        "NIJIGENERATE_PYTHON": "/usr/bin/python3",
+        "NIJIGENERATE_NICXLIVE_SOURCE_DIR": "${sourceDir}/../nicxlive",
+        "NIJIGENERATE_IMGUI_SOURCE_DIR": "${sourceDir}/build/macos-deps/imgui-1.91.9b-docking",
+        "SDL3_DIR": "${sourceDir}/build/macos-deps/install/lib/cmake/SDL3",
+        "NICXLIVE_ENABLE_FAST_MATH": false,
+        "NICXLIVE_ENABLE_AVX2": false
+      }
+    },
+    {
       "name": "windows-local",
       "displayName": "Windows x64 local dependency integration",
       "generator": "Visual Studio 17 2022",
@@ -22,6 +50,7 @@
     }
   ],
   "buildPresets": [
+    {"name": "macos-release", "configurePreset": "macos-local", "jobs": 4},
     {"name": "windows-debug", "configurePreset": "windows-local", "configuration": "Debug", "jobs": 1, "nativeToolOptions": ["/nr:false"]},
     {"name": "windows-release", "configurePreset": "windows-local", "configuration": "Release", "jobs": 1, "nativeToolOptions": ["/nr:false"]}
   ],

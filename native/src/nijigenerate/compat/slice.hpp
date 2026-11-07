@@ -14,6 +14,7 @@
 #include <source_location>
 #include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -53,7 +54,9 @@ public:
         : nativeStorage_(std::allocate_shared<std::vector<T>>(
               nicxlive::core::d_runtime::SourceAllocator<std::vector<T>>{}, std::move(values))),
           length_(nativeStorage_->size()) {}
-    explicit Slice(std::span<const T> values) : Slice(values.begin(), values.end()) {}
+    template<class Element, std::size_t Extent>
+        requires std::is_same_v<std::remove_const_t<Element>, T>
+    explicit Slice(std::span<Element, Extent> values) : Slice(values.begin(), values.end()) {}
     template<class Iterator> Slice(Iterator first, Iterator last)
         : storage_(std::allocate_shared<Storage>(
               nicxlive::core::d_runtime::SourceAllocator<Storage>{}, first, last)), length_(storage_->size()) {}

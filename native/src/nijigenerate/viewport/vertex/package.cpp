@@ -52,18 +52,19 @@ using common::mesheditor::IncMeshEditor;
 using common::mesheditor::operations::impl::IncMeshEditorOneDrawable;
 using common::mesheditor::operations::impl::IncMeshEditorOneDeformable;
 using mesheditor::editor::VertexMeshEditor;
-using Processor = std::shared_ptr<automesh::AutoMeshProcessor>;
+namespace vertexAutomesh = ::nijigenerate::viewport::vertex::automesh;
+using Processor = std::shared_ptr<vertexAutomesh::AutoMeshProcessor>;
 using NodeRef = std::shared_ptr<Node>;
 namespace {
 thread_local compat::Slice<Processor> autoMeshProcessors{
-    std::allocate_shared<automesh::optimum::OptimumAutoMeshProcessor>(
-        nicxlive::core::d_runtime::SourceAllocator<automesh::optimum::OptimumAutoMeshProcessor>{}),
-    std::allocate_shared<automesh::contours::ContourAutoMeshProcessor>(
-        nicxlive::core::d_runtime::SourceAllocator<automesh::contours::ContourAutoMeshProcessor>{}),
-    std::allocate_shared<automesh::grid::GridAutoMeshProcessor>(
-        nicxlive::core::d_runtime::SourceAllocator<automesh::grid::GridAutoMeshProcessor>{}),
-    std::allocate_shared<automesh::skeletonize::SkeletonExtractor>(
-        nicxlive::core::d_runtime::SourceAllocator<automesh::skeletonize::SkeletonExtractor>{})};
+    std::allocate_shared<vertexAutomesh::optimum::OptimumAutoMeshProcessor>(
+        nicxlive::core::d_runtime::SourceAllocator<vertexAutomesh::optimum::OptimumAutoMeshProcessor>{}),
+    std::allocate_shared<vertexAutomesh::contours::ContourAutoMeshProcessor>(
+        nicxlive::core::d_runtime::SourceAllocator<vertexAutomesh::contours::ContourAutoMeshProcessor>{}),
+    std::allocate_shared<vertexAutomesh::grid::GridAutoMeshProcessor>(
+        nicxlive::core::d_runtime::SourceAllocator<vertexAutomesh::grid::GridAutoMeshProcessor>{}),
+    std::allocate_shared<vertexAutomesh::skeletonize::SkeletonExtractor>(
+        nicxlive::core::d_runtime::SourceAllocator<vertexAutomesh::skeletonize::SkeletonExtractor>{})};
 thread_local Processor activeProcessor;
 thread_local bool isSubPartsMeshVisible = false;
 

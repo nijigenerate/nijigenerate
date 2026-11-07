@@ -34,4 +34,7 @@ if(NIJIGENERATE_RUNTIME_PROBE)
     target_sources(nijigenerate_core PRIVATE
         "${_inspector_apply_root}/native/src/nijigenerate/commands/inspector/apply_node_command_declarations.cpp")
     target_link_libraries(nijigenerate_core PUBLIC nicxlive::nicxlive)
+    if(TARGET nijigenerate_imgui)
+        target_link_libraries(nijigenerate_core PUBLIC nijigenerate_imgui)
+    endif()
 endif()

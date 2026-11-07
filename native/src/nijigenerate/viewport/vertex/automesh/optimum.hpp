@@ -23,8 +23,8 @@ inline constexpr ::nijigenerate::compat::mir::Any<Predicate> mirAny{};
 
 class OptimumAutoMeshProcessor : public AutoMeshProcessor, public meta::IAutoMeshReflect {
     friend struct meta::AMReflectionSource<OptimumAutoMeshProcessor>;
-    // Each instance receives the source class initializer's static literal descriptor.
-    inline static constinit float initialScaleValues[]{0.5f, 0.0f};
+    // Start with the actual Normal parts preset shown by the configuration UI.
+    inline static constinit float initialScaleValues[]{1, 1.1f, 0.9f, 0.7f, 0.4f, 0.2f, 0.1f, 0};
     static compat::Slice<float> initialScales() {
         return compat::Slice<float>::retainedView(
             std::shared_ptr<void>(std::shared_ptr<void>{}, initialScaleValues), initialScaleValues,
@@ -40,10 +40,10 @@ public:
     float NONSHARP_EXPANSION_FACTOR = 0.05f;
     float NONSHARP_CONTRACTION_FACTOR = 0.05f;
     compat::Slice<float> SCALES = initialScales();
-    float MIN_DISTANCE = 10;
-    float MASK_THRESHOLD = 1;
+    float MIN_DISTANCE = 16;
+    float MASK_THRESHOLD = 15;
     float DIV_PER_PART = 12;
-    compat::RetainedString presetName;
+    compat::RetainedString presetName = compat::RetainedString::fromStaticLiteral("Normal parts");
     OptimumAutoMeshProcessor() = default;
     OptimumAutoMeshProcessor(const OptimumAutoMeshProcessor&) = delete;
     OptimumAutoMeshProcessor& operator=(const OptimumAutoMeshProcessor&) = delete;

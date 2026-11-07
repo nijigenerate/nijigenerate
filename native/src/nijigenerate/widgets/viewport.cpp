@@ -61,7 +61,12 @@ void ngBeginViewportToolArea(compat::RetainedStringSlice id, ImGuiDir horizontal
     }
     ImGui::SetCursorScreenPos(cursor);
     constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-    ImGui::BeginChild("CONTENT_CHILD", data->contentSize, ImGuiChildFlags_None, flags);
+    // Measure even when the previous frame was empty or clipped. A fixed 1x1
+    // child can otherwise remain clipped when tools first become available.
+    constexpr ImGuiChildFlags childFlags = ImGuiChildFlags_AutoResizeX |
+        ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
+    ImGui::BeginChild("CONTENT_CHILD", ImVec2(0, 0), childFlags, flags);
+
 }
 
 void ngEndViewportToolArea() {

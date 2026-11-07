@@ -206,7 +206,7 @@ template<class T> void OneTimeDeform<T>::switchSubTool(SubToolMode next) {
     const auto keepAlive = this->shared_from_this();
     if (mode == next) return;
     auto session = ngOneTimeDeformScope(); session->leaveSubTool(mode); mode = next;
-    session->enterSubTool<T>(next); appliedMode = next;
+    session->template enterSubTool<T>(next); appliedMode = next;
 }
 template<class T> bool OneTimeDeform<T>::onDragStart(base::Vec2 mouse, EditorRef editor) {
     using namespace project;
@@ -275,7 +275,7 @@ template<class T> void OneTimeDeform<T>::setToolMode(base::VertexToolMode toolMo
     const auto keepAlive = this->shared_from_this();
     NodeSelect::setToolMode(toolMode, editor); selectingTargetVertices = false; subToolGestureActive = false;
     ngEnsureOneTimeDeformCallbacks(); auto session = ngOneTimeDeformScope();
-    session->initialize<T>(compat::ngRequireObject(editor)->getTarget()); acquired = session->active();
+    session->template initialize<T>(compat::ngRequireObject(editor)->getTarget()); acquired = session->active();
     if (session->vertImpl) {
         const auto targets = compat::ngRequireObject(session->vertImpl)->getFilterTargets();
         const auto target = compat::ngRequireObject(editor)->getTarget();
@@ -471,8 +471,8 @@ template<class T> bool OneTimeDeform<T>::update(ImGuiIO* io, EditorRef editor, s
     const auto selectLabel = translated("Select vertices");
     const auto selectKey = translated("ALT");
     widgets::ngStatusTooltip(selectLabel, selectKey);
-    if (appliedMode != mode) { ngOneTimeDeformScope()->enterSubTool<T>(mode); appliedMode = mode; }
-    auto ready = ngOneTimeDeformScope(); if (acquired) ready->ensureSubToolReady<T>(mode);
+    if (appliedMode != mode) { ngOneTimeDeformScope()->template enterSubTool<T>(mode); appliedMode = mode; }
+    auto ready = ngOneTimeDeformScope(); if (acquired) ready->template ensureSubToolReady<T>(mode);
     auto session = ngOneTimeDeformScope(); if (action != value(ID::SwitchMode)) session->switchModeConsumed = false;
     if (action >= value(ID::SelectTargetVertex) && action <= value(ID::EndTargetSelection)) {
         switch (static_cast<ID>(action)) {

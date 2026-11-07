@@ -79,7 +79,7 @@ void installNativeCrashHandlerFor(int signal) {
     std::memset(&action, 0, sizeof(action));
     action.sa_sigaction = &nativeCrashSignalHandler;
     action.sa_flags = SA_SIGINFO | SA_RESETHAND | SA_ONSTACK;
-    (void)::sigemptyset(&action.sa_mask);
+    (void)sigemptyset(&action.sa_mask);
     (void)::sigaction(signal, &action, nullptr);
 }
 

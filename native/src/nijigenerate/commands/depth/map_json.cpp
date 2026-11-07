@@ -3,7 +3,7 @@
 #include <nijigenerate/compat/throwable.hpp>
 #include <nijigenerate/compat/switch_error.hpp>
 #include <nijigenerate/core/typed_format.hpp>
-#include <emmintrin.h>
+#include <cmath>
 #include <algorithm>
 #include <bit>
 namespace nijigenerate::commands::depth::map {
@@ -41,7 +41,7 @@ std::size_t jsonSize(Json value, compat::RetainedString name, std::size_t fallba
     if (value.is_uint64()) return std::size_t(value.as_uint64());
     if (value.is_double()) {
         const double number = value.as_double();
-        if (!(number >= 0 && number == double(_mm_cvttsd_si64(_mm_set_sd(number))))) {
+        if (!(number >= 0 && number < 0x1p63 && number == std::trunc(number))) {
             const auto argument = core::translation::ngFormatArgument(name);
             throw depthMapEnforcementFailure(compat::RetainedString(core::translation::ngFormatTyped(
                 "%s must be a non-negative integer", std::span(&argument, 1))),
