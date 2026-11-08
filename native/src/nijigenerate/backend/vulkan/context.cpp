@@ -237,6 +237,7 @@ bool Context::beginFrame() {
   // submission before reusing them or their mapped geometry; no per-draw waits.
   if (lastSubmit_)
     check(vkWaitForFences(device, 1, &lastSubmit_, VK_TRUE, UINT64_MAX));
+  ++frameSerial;
   auto &sync = swap_.FrameSemaphores[swap_.SemaphoreIndex];
   auto result = vkAcquireNextImageKHR(device, swap_.Swapchain, UINT64_MAX,
                                       sync.ImageAcquiredSemaphore,
@@ -405,6 +406,18 @@ void Context::transition(VkCommandBuffer cmd, Image &t, VkImageLayout layout,
                        nullptr, 1, &b);
   t.layout = layout;
   t.externalOwned = false;
+}
+void Context::flushSceneCommands() {
+  if(!command) return;
+  check(vkEndCommandBuffer(command));
+  VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+  submit.commandBufferCount=1; submit.pCommandBuffers=&command;
+  check(vkQueueSubmit(queue,1,&submit,VK_NULL_HANDLE));
+  check(vkQueueWaitIdle(queue));
+  check(vkResetCommandBuffer(command,0));
+  VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+  begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  check(vkBeginCommandBuffer(command,&begin));
 }
 void Context::immediate(const std::function<void(VkCommandBuffer)> &fn) {
   VkCommandBufferAllocateInfo a{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};

@@ -54,6 +54,7 @@ public:
   VkDescriptorPool descriptors{};
   VkSampler sampler{};
   VkCommandBuffer command{};
+  uint64_t frameSerial=0;
   float maxAnisotropy = 1;
   bool advancedBlendSupported = false;
   bool independentBlendSupported = false;
@@ -79,6 +80,9 @@ public:
   void transition(VkCommandBuffer, Image &, VkImageLayout,
                   VkImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
   void immediate(const std::function<void(VkCommandBuffer)> &);
+  // Complete offscreen scene commands before a synchronous readback/mutation.
+  // Must be called before the presentation render pass starts.
+  void flushSceneCommands();
   void upload(Image &, const std::vector<uint8_t> &);
   void generateMipmaps(Image &);
   void generateMipmaps(VkCommandBuffer,Image &);

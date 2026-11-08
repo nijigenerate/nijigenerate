@@ -10,6 +10,7 @@
       "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"},
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "NIJIGENERATE_RENDERER": "METAL",
         "BUILD_TESTING": false,
         "NIJIGENERATE_BUILD_EDITOR": true,
         "NIJIGENERATE_RUNTIME_PROBE": true,

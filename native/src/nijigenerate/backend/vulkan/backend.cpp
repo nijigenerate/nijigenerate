@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
+#include <set>
 
 namespace nijigenerate::backend::vulkan {
 namespace core = nicxlive::core;
@@ -213,6 +214,7 @@ struct Backend::Impl {
     bool stencil = false;
     bool mipmaps = true;
     bool uploaded = false;
+    bool alphaEmpty = false;
     core::Filtering filtering = core::Filtering::Linear;
     core::Wrapping wrapping = core::Wrapping::Clamp;
     float anisotropy = 1;
@@ -226,6 +228,7 @@ struct Backend::Impl {
     std::array<VkFramebuffer, 3> framebuffer{};
     VkFramebuffer mrtFramebuffer{};
     uint32_t width{}, height{};
+    unsigned validOutputs = 7;
   };
   struct Batch {
     Target *target{};
@@ -267,6 +270,7 @@ struct Backend::Impl {
   VkFormat stencilFormat = VK_FORMAT_UNDEFINED;
   VkRenderPass pass{}, offscreenPass{};
   VkRenderPass mrtPass{};
+  std::array<VkRenderPass,4> optimizedPass{}, optimizedMrtPass{};
   VkDescriptorSetLayout setLayout{};
   VkPipelineLayout layout{};
   VkDescriptorPool pool{};
@@ -289,12 +293,35 @@ struct Backend::Impl {
     return value && std::strcmp(value, "0") != 0;
   }();
 
+  const bool gpuReference = [] {
+    const char* v = std::getenv("NIJIGENERATE_VULKAN_GPU_REFERENCE");
+    return v && std::strcmp(v,"0") != 0;
+  }();
+  bool partialScene=false, replaying=false, archiveValid=false;
+  std::vector<Vertex> archivedVertices;
+  std::vector<uint16_t> archivedElements;
+  std::vector<Batch> archivedBatches;
+  std::set<uint32_t> externalOutputs;
+  struct ReplayResources {
+    Buffer vertex, index;
+    VkDescriptorPool pool{};
+    uint64_t frame{};
+  };
+  std::vector<ReplayResources> replayResources;
+  void retireReplayResources(bool all=false) {
+    for(auto it=replayResources.begin();it!=replayResources.end();) {
+      if(!all && it->frame>=c.frameSerial) { ++it; continue; }
+      c.destroy(it->vertex); c.destroy(it->index);
+      vkDestroyDescriptorPool(c.device,it->pool,nullptr);
+      it=replayResources.erase(it);
+    }
+  }
   VkQueryPool profileQueries{};
   bool profilePending = false;
   double timestampPeriod = 0;
   uint64_t timestampMask = ~uint64_t(0);
   struct Profile {
-    uint64_t draws{}, passes{}, copyBytes{}, emissionDraws{}, bumpDraws{};
+    uint64_t draws{}, passes{}, copyBytes{}, emissionDraws{}, bumpDraws{}, mrtDraws{}, colorBytes{};
   } profileLast{}, profileSum{};
   double profileGpuMs = 0;
   unsigned profileFrames = 0;
@@ -312,11 +339,14 @@ struct Backend::Impl {
       profileSum.copyBytes += profileLast.copyBytes;
       profileSum.emissionDraws += profileLast.emissionDraws;
       profileSum.bumpDraws += profileLast.bumpDraws;
+      profileSum.mrtDraws += profileLast.mrtDraws;
+      profileSum.colorBytes += profileLast.colorBytes;
       if (++profileFrames == 120) {
         const double n = profileFrames;
-        std::fprintf(stderr, "[vulkan-gpu] backend_ms=%.3f draws=%.1f passes=%.1f copy_MiB=%.2f emission_draws=%.1f bump_draws=%.1f\n",
+        std::fprintf(stderr, "[vulkan-gpu] backend_ms=%.3f draws=%.1f passes=%.1f copy_MiB=%.2f emission_draws=%.1f bump_draws=%.1f mrt_draws=%.1f color_store_MiB=%.2f gpu_reference=%d\n",
             profileGpuMs/n, profileSum.draws/n, profileSum.passes/n,
-            profileSum.copyBytes/n/1048576., profileSum.emissionDraws/n, profileSum.bumpDraws/n);
+            profileSum.copyBytes/n/1048576., profileSum.emissionDraws/n, profileSum.bumpDraws/n,
+            profileSum.mrtDraws/n,profileSum.colorBytes/n/1048576.,gpuReference);
         profileGpuMs = 0; profileFrames = 0; profileSum = {};
       }
       profilePending = false;
@@ -330,7 +360,68 @@ struct Backend::Impl {
   bool maskWritten = false;
   bool blurRequested = false;
   std::unique_ptr<Target> blurA, blurB;
+    unsigned availableOutputs(const Target& t) const {
+        unsigned mask=1;
+        if(t.colors[1] && t.colors[1]!=t.colors[0]) mask|=2;
+        if(t.colors[2] && t.colors[2]!=t.colors[0] && t.colors[2]!=t.colors[1]) mask|=4;
+        return mask;
+    }
+    Target* producer(uint32_t id) const {
+        auto match=[&](Target* t) { return t && std::find(t->colors.begin(),t->colors.end(),id)!=t->colors.end(); };
+        if(match(root.get())) return root.get();
+        for(const auto& [_,entry]:composites) if(match(entry.target.get())) return entry.target.get();
+        for(const auto& [_,entry]:targets) if(match(entry.get())) return entry.get();
+        for(auto* t:{blurA.get(),blurB.get()}) if(match(t)) return t;
+        return nullptr;
+    }
+    void replayOutputs() {
+        if(!archiveValid || replaying) return;
+        bool missing=false;
+        for(const auto& b:archivedBatches)
+            missing|=(b.target->validOutputs&availableOutputs(*b.target))!=availableOutputs(*b.target);
+        if(!missing) return;
+        replaying=true;
+        vertices.swap(archivedVertices); elements.swap(archivedElements); batches.swap(archivedBatches);
+        try {
+            if(c.command) {
+                record(true);
+                // The caller may immediately replace a sampler or image used
+                // by this replay, or synchronously read its result.
+                c.flushSceneCommands();
+            }
+            else {
+                c.idle();
+                c.immediate([&](VkCommandBuffer cmd) {
+                    c.command=cmd;
+                    try { record(true); } catch(...) { c.command=VK_NULL_HANDLE; throw; }
+                    c.command=VK_NULL_HANDLE;
+                });
+            }
+        }
+        catch(...) {
+            vertices.swap(archivedVertices); elements.swap(archivedElements); batches.swap(archivedBatches);
+            replaying=false; throw;
+        }
+        vertices.swap(archivedVertices); elements.swap(archivedElements); batches.swap(archivedBatches);
+        replaying=false;
+    }
+    void beforeMutation() {
+        // Materialize omitted outputs while the archived texture inputs and
+        // target addresses still describe the last submitted frame.
+        replayOutputs(); archiveValid=false;
+        archivedVertices.clear(); archivedElements.clear(); archivedBatches.clear();
+    }
+    void requireTexture(uint32_t id) {
+        if(auto* t=producer(id)) {
+            unsigned bits=0;
+            for(unsigned i=0;i<3;++i) if(t->colors[i]==id) bits|=1u<<i;
+            if(bits&1) return;
+            externalOutputs.insert(id);
+            if((t->validOutputs&bits)!=bits) replayOutputs();
+        }
+    }
   void destroyTarget(Target &t) {
+    beforeMutation();
     if (t.mrtFramebuffer) vkDestroyFramebuffer(c.device, t.mrtFramebuffer, nullptr);
     for (auto framebuffer : t.framebuffer)
       if (framebuffer) vkDestroyFramebuffer(c.device, framebuffer, nullptr);
@@ -341,6 +432,7 @@ struct Backend::Impl {
                                      bool rootTarget = false) {
     auto t = std::make_unique<Target>();
     t->colors = ids;
+    for(auto id:ids) if(id) textures.at(id).alphaEmpty=false;
     auto &first = textures.at(ids[0]).image;
     t->width = first.width;
     t->height = first.height;
@@ -458,6 +550,26 @@ struct Backend::Impl {
       mrtInfo.pSubpasses = &mrtSub;
       check(vkCreateRenderPass(c.device, &mrtInfo, nullptr, &mrtPass));
     }
+    auto variants=[&](VkRenderPass* result,bool mrt) {
+      VkAttachmentDescription desc[]={attachments[0],attachments[0],attachments[0],attachments[1]};
+      VkAttachmentReference refs[]={{0,VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+          {1,VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},{2,VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}};
+      const unsigned depthIndex=mrt?3:1;
+      if(!mrt) desc[1]=attachments[1];
+      VkAttachmentReference z{depthIndex,VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+      auto subpass=sub; subpass.colorAttachmentCount=mrt?3:1;
+      subpass.pColorAttachments=refs; subpass.pDepthStencilAttachment=&z;
+      auto info=rp; info.attachmentCount=mrt?4:2; info.pAttachments=desc; info.pSubpasses=&subpass;
+      for(unsigned i=0;i<4;++i) {
+        for(unsigned color=0;color<(mrt?3u:1u);++color)
+          desc[color].loadOp=(i&1)?VK_ATTACHMENT_LOAD_OP_DONT_CARE:VK_ATTACHMENT_LOAD_OP_LOAD;
+        desc[depthIndex].loadOp=desc[depthIndex].stencilLoadOp=(i&1)?VK_ATTACHMENT_LOAD_OP_DONT_CARE:VK_ATTACHMENT_LOAD_OP_LOAD;
+        desc[depthIndex].storeOp=desc[depthIndex].stencilStoreOp=(i&2)?VK_ATTACHMENT_STORE_OP_DONT_CARE:VK_ATTACHMENT_STORE_OP_STORE;
+        check(vkCreateRenderPass(c.device,&info,nullptr,&result[i]));
+      }
+    };
+    variants(optimizedPass.data(),false);
+    if(mrtPass) variants(optimizedMrtPass.data(),true);
     VkDescriptorSetLayoutBinding bindings[4]{};
     for (int i = 0; i < 4; ++i) {
       bindings[i].binding = i;
@@ -713,19 +825,60 @@ struct Backend::Impl {
     const auto y1 = int32_t(std::clamp(std::ceil(maxY)+1,0.,double(t.height)));
     return {{x0,y0},{uint32_t(std::max(0,x1-x0)),uint32_t(std::max(0,y1-y0))}};
   }
-  void record() {
+    std::map<Target*,unsigned> planOutputs(bool full) {
+        std::map<Target*,unsigned> result;
+        for(const auto& b:batches) {
+            auto& mask=result[b.target]; mask|=1;
+            if(full) mask|=availableOutputs(*b.target);
+            for(unsigned i=1;i<3;++i)
+                if(externalOutputs.contains(b.target->colors[i])) mask|=(1u<<i)&availableOutputs(*b.target);
+        }
+        auto require=[&](uint32_t texture) {
+            if(!texture) return false;
+            auto* t=producer(texture); if(!t) return false;
+            unsigned bits=0;
+            for(unsigned i=0;i<3;++i) if(t->colors[i]==texture) bits|=1u<<i;
+            bits&=availableOutputs(*t);
+            auto& mask=result[t]; const auto old=mask; mask|=bits; return old!=mask;
+        };
+        bool changed;
+        do {
+            changed=false;
+            for(const auto& b:batches) if(b.count) {
+                changed|=require(b.textures[0]);
+                if((b.kind<9 && b.mask!=1 && (result[b.target]&2)) || b.kind==13 || b.kind==2)
+                    changed|=require(b.textures[1]);
+                if(b.kind<9 && b.mask!=1 && (result[b.target]&4)) changed|=require(b.textures[2]);
+            }
+        } while(changed);
+        return result;
+    }
+  void record(bool forceFull=false) {
     auto cmd = c.command;
-    const bool profiling = beginProfile(cmd);
-    check(vkResetDescriptorPool(c.device, pool, 0));
-    c.ensureBuffer(vertexBuffer, vertices.size() * sizeof(Vertex),
+    const bool full=forceFull || gpuReference || referenceRendering || partialScene || !sceneEnded;
+    const auto outputs=planOutputs(full);
+    if(!replaying) retireReplayResources();
+    Buffer *vb=&vertexBuffer,*ib=&indexBuffer;
+    VkDescriptorPool descriptorPool=pool;
+    if(replaying) {
+      replayResources.emplace_back(); auto& r=replayResources.back(); r.frame=c.frameSerial;
+      VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,32768};
+      VkDescriptorPoolCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      info.maxSets=8192; info.poolSizeCount=1; info.pPoolSizes=&size;
+      check(vkCreateDescriptorPool(c.device,&info,nullptr,&r.pool));
+      descriptorPool=r.pool; vb=&r.vertex; ib=&r.index;
+    }
+    const bool profiling = !replaying && beginProfile(cmd);
+    check(vkResetDescriptorPool(c.device, descriptorPool, 0));
+    c.ensureBuffer(*vb, vertices.size() * sizeof(Vertex),
                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    c.ensureBuffer(indexBuffer, elements.size() * sizeof(uint16_t),
+    c.ensureBuffer(*ib, elements.size() * sizeof(uint16_t),
                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
     if (!vertices.empty())
-      std::memcpy(vertexBuffer.mapped, vertices.data(),
+      std::memcpy(vb->mapped, vertices.data(),
                   vertices.size() * sizeof(Vertex));
     if (!elements.empty())
-      std::memcpy(indexBuffer.mapped, elements.data(),
+      std::memcpy(ib->mapped, elements.data(),
                   elements.size() * sizeof(uint16_t));
     Target *active = nullptr;
     unsigned activeChannel = 0;
@@ -757,20 +910,28 @@ struct Backend::Impl {
       const bool sceneDraw = batches[first].kind < 9;
       while (last < batches.size() && batches[last].target == batches[first].target &&
              (batches[last].kind < 9) == sceneDraw) ++last;
-      const bool mrt = sceneDraw && batches[first].target->mrtFramebuffer;
-      const unsigned channels = sceneDraw && batches[first].target->framebuffer[1] ? (batches[first].target->framebuffer[2]?3:2) : 1;
+      const bool sideOutputs=(outputs.at(batches[first].target)&6)!=0;
+      const bool mrt = sceneDraw && sideOutputs && batches[first].target->mrtFramebuffer;
+      const unsigned channels = sceneDraw && sideOutputs && batches[first].target->framebuffer[1] ? (batches[first].target->framebuffer[2]?3:2) : 1;
       if (mrt) {
         for (size_t i = first; i < last; ++i) draws.emplace_back(&batches[i], 3);
       } else for (unsigned channel = 0; channel < channels; ++channel)
           for (size_t i = first; i < last; ++i) draws.emplace_back(&batches[i], channel);
       first = last;
     }
-    for (const auto &[batch, channel] : draws) {
+    for (size_t drawIndex=0;drawIndex<draws.size();++drawIndex) {
+      const auto [batch,channel]=draws[drawIndex];
       const auto &b = *batch;
       auto &t = *b.target;
+      const unsigned written=channel==3?7u:(1u<<channel);
+      if(b.clear && b.kind<9) {
+        if(channel==0 || channel==3) t.validOutputs=written;
+        else t.validOutputs|=written;
+      }
       if(b.kind==14) {
         end();
-        for(auto id:t.colors) if(id) c.generateMipmaps(cmd,textures.at(id).image);
+        for(unsigned i=0;i<3;++i) if((outputs.at(&t)&(1u<<i)) && t.colors[i])
+          c.generateMipmaps(cmd,textures.at(t.colors[i]).image);
         continue;
       }
       Image* snapshot=nullptr;
@@ -803,10 +964,34 @@ struct Backend::Impl {
                        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
         VkRenderPassBeginInfo r{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         r.renderPass = channel == 3 ? mrtPass : &t == root.get() ? pass : offscreenPass;
+        if(!gpuReference && !referenceRendering) {
+          bool preserve=partialScene || !sceneEnded;
+          size_t next=drawIndex+1;
+          while(next<draws.size()) {
+            const auto& future=*draws[next].first;
+            const auto futureChannel=draws[next].second;
+            const bool snapshot=(futureChannel==0 || futureChannel==3) && future.count &&
+                ((!c.advancedBlendSupported && advanced(future.blend) && !future.fixedBlend) || future.kind==13);
+            if(future.target!=&t || futureChannel!=channel || future.kind==14 || snapshot) break;
+            ++next;
+          }
+          for(size_t i=next;i<draws.size();++i) {
+            const auto& future=*draws[i].first;
+            const auto futureStencil=draws[i].second==3?0:draws[i].second;
+            if(future.target!=&t || futureStencil!=stencilIndex || future.kind==14) continue;
+            if(future.clear) break;
+            if(future.depth || future.mask || future.clearStencil>=0) preserve=true;
+          }
+          const unsigned variant=(b.clear?1:0) | (preserve?0:2);
+          r.renderPass=(channel==3?optimizedMrtPass:optimizedPass)[variant];
+        }
         r.framebuffer = channel == 3 ? t.mrtFramebuffer : t.framebuffer[channel];
         r.renderArea.extent = {t.width, t.height};
         vkCmdBeginRenderPass(cmd, &r, VK_SUBPASS_CONTENTS_INLINE);
-        if (profiling) ++profileLast.passes;
+        if (profiling) {
+          ++profileLast.passes;
+          profileLast.colorBytes+=uint64_t(t.width)*t.height*4*(channel==3?3:1);
+        }
         active = &t;
         activeChannel = channel;
         bool offscreen = &t != root.get();
@@ -846,13 +1031,19 @@ struct Backend::Impl {
         vkCmdClearAttachments(cmd, uint32_t(clears.size()), clears.data(), 1,
                               &rect);
       }
-      if (!b.count)
-        continue;
+      if (!b.count) continue;
+      if(!gpuReference && !referenceRendering && b.kind<9) {
+        const auto bounds=pixelBounds(b);
+        if(!bounds.extent.width || !bounds.extent.height) continue;
+        const auto it=textures.find(b.textures[0]);
+        if(it!=textures.end() && it->second.alphaEmpty &&
+            (b.kind==0 || b.kind==5 || ((b.kind==3 || b.kind==6 || b.kind==7) && b.material.screen[3]>=0))) continue;
+      }
       auto &set = descriptorSets[size_t(batch - batches.data())*4+channel];
       if (!set) {
         VkDescriptorSetAllocateInfo ai{
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        ai.descriptorPool = pool;
+        ai.descriptorPool = descriptorPool;
         ai.descriptorSetCount = 1;
         ai.pSetLayouts = &setLayout;
         check(vkAllocateDescriptorSets(c.device, &ai, &set));
@@ -884,8 +1075,8 @@ struct Backend::Impl {
       vkCmdSetStencilReference(cmd, VK_STENCIL_FACE_FRONT_AND_BACK,
                                b.reference);
       VkDeviceSize offset = 0;
-      vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuffer.handle, &offset);
-      vkCmdBindIndexBuffer(cmd, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT16);
+      vkCmdBindVertexBuffers(cmd, 0, 1, &vb->handle, &offset);
+      vkCmdBindIndexBuffer(cmd, ib->handle, 0, VK_INDEX_TYPE_UINT16);
       if (channel == 0 && c.advancedBlendSupported && !c.advancedBlendCoherent && advanced(b.blend)) {
         VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
         barrier.srcAccessMask=VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -905,6 +1096,7 @@ struct Backend::Impl {
       }
       if (profiling && channel == 1) ++profileLast.emissionDraws;
       if (profiling && channel == 2) ++profileLast.bumpDraws;
+      if (profiling && channel == 3) ++profileLast.mrtDraws;
     }
     end();
     if (profiling) {
@@ -926,6 +1118,8 @@ void Backend::shutdown() {
   if (!p)
     return;
   p->c.idle();
+  p->beforeMutation();
+  p->retireReplayResources(true);
   if (p->profileQueries) vkDestroyQueryPool(p->c.device, p->profileQueries, nullptr);
   if (p->root)
     p->destroyTarget(*p->root);
@@ -956,6 +1150,8 @@ void Backend::shutdown() {
   vkDestroyDescriptorPool(p->c.device, p->pool, nullptr);
   vkDestroyPipelineLayout(p->c.device, p->layout, nullptr);
   vkDestroyDescriptorSetLayout(p->c.device, p->setLayout, nullptr);
+  for(auto pass:p->optimizedPass) if(pass) vkDestroyRenderPass(p->c.device,pass,nullptr);
+  for(auto pass:p->optimizedMrtPass) if(pass) vkDestroyRenderPass(p->c.device,pass,nullptr);
   vkDestroyRenderPass(p->c.device, p->pass, nullptr);
   vkDestroyRenderPass(p->c.device, p->offscreenPass, nullptr);
   if (p->mrtPass) vkDestroyRenderPass(p->c.device, p->mrtPass, nullptr);
@@ -998,7 +1194,7 @@ uint32_t Backend::createTexture(const std::vector<uint8_t> &data, int w, int h,
 void Backend::updateTexture(uint32_t id, const std::vector<uint8_t> &data,
                             int w, int h, int channels) {
   auto &t = p->textures.at(id);
-  if(t.uploaded) flush();
+  if(t.uploaded) { flush(); p->beforeMutation(); }
   if (w != int(t.image.width) || h != int(t.image.height)) {
     p->c.idle();
     p->c.destroy(t.image);
@@ -1016,10 +1212,13 @@ void Backend::updateTexture(uint32_t id, const std::vector<uint8_t> &data,
     }
   }
   p->c.upload(t.image, rgba);
+  t.alphaEmpty=!p->producer(id);
+  for(size_t i=3;i<rgba.size() && t.alphaEmpty;i+=4) t.alphaEmpty=rgba[i]==0;
   t.uploaded=true;
 }
 void Backend::setTextureParams(uint32_t id, core::Filtering filtering,
                                core::Wrapping wrapping, float anisotropy) {
+  p->beforeMutation();
   auto &t = p->textures.at(id);
   t.filtering = filtering; t.wrapping = wrapping; t.anisotropy=std::clamp(anisotropy,1.f,p->c.maxAnisotropy);
   p->c.idle();
@@ -1034,14 +1233,16 @@ void Backend::setTextureParams(uint32_t id, core::Filtering filtering,
   s.anisotropyEnable=p->c.maxAnisotropy>1 && t.anisotropy>1;
   s.maxAnisotropy=t.anisotropy;
   s.addressModeU = s.addressModeV = s.addressModeW =
-      wrapping == core::Wrapping::Clamp ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+      wrapping == core::Wrapping::Clamp ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
         : wrapping == core::Wrapping::Mirror ? VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  s.borderColor=VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
   check(vkCreateSampler(p->c.device, &s, nullptr, &t.sampler));
 }
 void Backend::disposeTexture(uint32_t id) {
   if (!p)
     return;
   flush();
+  p->beforeMutation();
   if (auto target = p->targets.find(id); target != p->targets.end()) {
     p->c.idle(); p->destroyTarget(*target->second); p->targets.erase(target);
   }
@@ -1061,13 +1262,17 @@ void Backend::disposeTexture(uint32_t id) {
     vkDestroySampler(p->c.device, it->second.sampler, nullptr);
   p->c.destroy(it->second.image);
   p->textures.erase(it);
+  p->externalOutputs.erase(id);
 }
 std::vector<uint8_t> Backend::readTexture(uint32_t id) {
+  p->requireTexture(id);
   flush();
+  p->requireTexture(id);
   return p->c.read(p->textures.at(id).image);
 }
 ImTextureID Backend::uiTexture(uint32_t id) {
   if(!id) id=p->white;
+  p->requireTexture(id);
   return p->c.texture(p->textures.at(id).image);
 }
 void Backend::resizeViewportTargets(int w, int h) {
@@ -1097,6 +1302,7 @@ void Backend::resizeViewportTargets(int w, int h) {
 }
 void Backend::beginScene() {
   flush();
+  p->partialScene=false;
   p->scenePending = true;
   p->sceneEnded = false;
   p->postprocessingRequested=false;
@@ -1124,7 +1330,9 @@ void Backend::postProcessScene() {
 }
 void Backend::render() {
   if (p->batches.empty() && !(p->scenePending && p->sceneEnded)) return;
-  if (p->scenePending && p->sceneEnded) {
+  const bool completeScene=p->scenePending && p->sceneEnded;
+  if(p->scenePending && !p->sceneEnded) p->partialScene=true;
+  if (completeScene) {
   if(p->postprocessingRequested) {
     Impl::Batch light; light.target=p->root.get(); light.kind=13;
     light.base=int32_t(p->vertices.size()); light.first=uint32_t(p->elements.size()); light.count=6;
@@ -1164,6 +1372,13 @@ void Backend::render() {
   }
   p->record();
   p->blurRequested = false;
+  if(completeScene && !p->partialScene && !p->referenceRendering && !p->gpuReference) {
+    p->archivedVertices.swap(p->vertices); p->archivedElements.swap(p->elements);
+    p->archivedBatches.swap(p->batches); p->archiveValid=true;
+  } else {
+    p->archiveValid=false;
+    p->archivedVertices.clear(); p->archivedElements.clear(); p->archivedBatches.clear();
+  }
   p->batches.clear();
   p->vertices.clear();
   p->elements.clear();
@@ -1192,8 +1407,8 @@ Image &Backend::sceneImage() {
 }
 nicxlive::core::RenderResourceHandle Backend::renderImageHandle() { return p->root->colors[0]; }
 nicxlive::core::RenderResourceHandle Backend::mainAlbedoHandle() { return p->root->colors[0]; }
-nicxlive::core::RenderResourceHandle Backend::mainEmissiveHandle() { return p->root->colors[1]; }
-nicxlive::core::RenderResourceHandle Backend::mainBumpHandle() { return p->root->colors[2]; }
+nicxlive::core::RenderResourceHandle Backend::mainEmissiveHandle() { auto id=p->root->colors[1]; p->requireTexture(id); return id; }
+nicxlive::core::RenderResourceHandle Backend::mainBumpHandle() { auto id=p->root->colors[2]; p->requireTexture(id); return id; }
 void Backend::dumpViewport(std::vector<uint8_t> &out, int w, int h) {
   if (w != int(p->root->width) || h != int(p->root->height))
     throw std::runtime_error("Viewport readback dimensions mismatch");
@@ -1453,7 +1668,9 @@ void Backend::updateTextureRegion(TextureHandle h,int x,int y,int w,int height,i
     auto dest=pixels.data()+((size_t(y+row)*image.width)+x+col)*4;
     for(int c=0;c<4;++c) dest[c]=c<channels?source[c]:(c==3?255:source[0]);
   }
+  p->beforeMutation();
   p->c.upload(image,pixels);
+  p->textures.at(id).alphaEmpty=false;
 }
 std::size_t Backend::textureNativeHandle(TextureHandle h) { return resource(h)->id; }
 std::size_t Backend::textureNativeHandle(uint32_t id) { return id; }
@@ -1582,6 +1799,8 @@ void Backend::drawDebugLines(const Vec4& color,const Mat4& matrix) {
 }
 void Backend::generateTextureMipmap(TextureHandle h) { generateTextureMipmap(resource(h)->id); }
 void Backend::generateTextureMipmap(uint32_t id) {
+  p->requireTexture(id);
+  p->beforeMutation();
   auto& t=p->textures.at(id);
   auto levels=1u+uint32_t(std::floor(std::log2(std::max(t.image.width,t.image.height))));
   if(levels==t.image.mipLevels) { p->c.generateMipmaps(t.image); return; }
