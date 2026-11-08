@@ -2,7 +2,10 @@
 #include "backend.hpp"
 #include <SDL3/SDL_vulkan.h>
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -11,10 +14,30 @@ namespace nijigenerate::backend::vulkan {
 namespace {
 Context *current{};
 
+using FrameClock = std::chrono::steady_clock;
+
+struct FrameProfile {
+  FrameClock::time_point previousEnd{}, begin{}, ready{}, present{}, submitted{};
+  double updateMs{}, waitMs{}, recordMs{}, submitMs{}, presentMs{};
+  unsigned frames{};
+};
+
+FrameProfile frameProfile;
+
+double elapsedMs(FrameClock::time_point start, FrameClock::time_point end) {
+  return std::chrono::duration<double, std::milli>(end - start).count();
 }
-void check(VkResult result) {
+
+bool enabled(const char *name) {
+  const char *value = std::getenv(name);
+  return value && std::strcmp(value, "1") == 0;
+}
+
+}
+void check(VkResult result, const std::source_location &location) {
   if (result < 0)
-    throw std::runtime_error("Vulkan error " + std::to_string(result));
+    throw std::runtime_error("Vulkan error " + std::to_string(result) + " at " +
+                             location.file_name() + ":" + std::to_string(location.line()));
 }
 Context &context() {
   if (!current)
@@ -83,7 +106,8 @@ Context::Context(SDL_Window *window) : window_(window) {
         physical, nullptr, &extensionCount, deviceExtensions.data()));
     std::vector<const char *> required{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     for (const auto &e : deviceExtensions)
-      if (std::strcmp(e.extensionName,
+      if (!enabled("NIJIGENERATE_VULKAN_PORTABLE_BLEND") &&
+          std::strcmp(e.extensionName,
                       VK_EXT_BLEND_OPERATION_ADVANCED_EXTENSION_NAME) == 0)
         advancedBlendSupported = true;
     if (advancedBlendSupported)
@@ -174,6 +198,12 @@ void Context::release() {
   if (current == this)
     current = nullptr;
 }
+void Context::waitForPreviousFrame() {
+  if (lastSubmit_) {
+    check(vkWaitForFences(device, 1, &lastSubmit_, VK_TRUE, UINT64_MAX));
+    lastSubmit_ = VK_NULL_HANDLE;
+  }
+}
 void Context::idle() {
   check(vkDeviceWaitIdle(device));
   lastSubmit_ = VK_NULL_HANDLE;
@@ -186,7 +216,9 @@ void Context::resize() {
     return;
   }
   idle();
-  VkPresentModeKHR modes[] = {throttle_ > 0 ? VK_PRESENT_MODE_FIFO_KHR
+  VkPresentModeKHR modes[] = {throttle_ > 0 ? (enabled("NIJIGENERATE_VULKAN_MAILBOX")
+                                                   ? VK_PRESENT_MODE_MAILBOX_KHR
+                                                   : VK_PRESENT_MODE_FIFO_KHR)
                                             : VK_PRESENT_MODE_IMMEDIATE_KHR,
                               VK_PRESENT_MODE_FIFO_KHR};
   swap_.PresentMode =
@@ -212,7 +244,7 @@ void Context::initializeImGui() {
   i.MinImageCount = 2;
   i.ImageCount = swap_.ImageCount;
   i.RenderPass = swap_.RenderPass;
-  i.CheckVkResultFn = check;
+  i.CheckVkResultFn = [](VkResult result) { check(result); };
   imgui_ = ImGui_ImplVulkan_Init(&i);
   if (!imgui_)
     throw std::runtime_error("ImGui Vulkan initialization failed");
@@ -225,6 +257,9 @@ void Context::shutdownImGui() {
   }
 }
 bool Context::beginFrame() {
+  static const bool profile = enabled("NIJIGENERATE_VULKAN_PROFILE");
+  if (profile)
+    frameProfile.begin = FrameClock::now();
   int w, h;
   SDL_GetWindowSizeInPixels(window_, &w, &h);
   if (w <= 0 || h <= 0)
@@ -235,8 +270,7 @@ bool Context::beginFrame() {
     resize();
   // The scene targets are shared between swapchain images. Finish the previous
   // submission before reusing them or their mapped geometry; no per-draw waits.
-  if (lastSubmit_)
-    check(vkWaitForFences(device, 1, &lastSubmit_, VK_TRUE, UINT64_MAX));
+  waitForPreviousFrame();
   ++frameSerial;
   auto &sync = swap_.FrameSemaphores[swap_.SemaphoreIndex];
   auto result = vkAcquireNextImageKHR(device, swap_.Swapchain, UINT64_MAX,
@@ -257,9 +291,14 @@ bool Context::beginFrame() {
   VkCommandBufferBeginInfo b{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
   b.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   check(vkBeginCommandBuffer(command, &b));
+  if (profile)
+    frameProfile.ready = FrameClock::now();
   return true;
 }
 void Context::present(ImDrawData *data) {
+  static const bool profile = enabled("NIJIGENERATE_VULKAN_PROFILE");
+  if (profile)
+    frameProfile.present = FrameClock::now();
   auto &f = swap_.Frames[swap_.FrameIndex];
   auto &sync = swap_.FrameSemaphores[swap_.SemaphoreIndex];
   VkRenderPassBeginInfo r{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -285,6 +324,8 @@ void Context::present(ImDrawData *data) {
   check(vkResetFences(device, 1, &f.Fence));
   check(vkQueueSubmit(queue, 1, &s, f.Fence));
   lastSubmit_ = f.Fence;
+  if (profile)
+    frameProfile.submitted = FrameClock::now();
   VkPresentInfoKHR p{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
   p.waitSemaphoreCount = 1;
   p.pWaitSemaphores =
@@ -293,6 +334,28 @@ void Context::present(ImDrawData *data) {
   p.pSwapchains = &swap_.Swapchain;
   p.pImageIndices = &swap_.FrameIndex;
   auto result = vkQueuePresentKHR(queue, &p);
+  if (profile) {
+    const auto end = FrameClock::now();
+    auto &t = frameProfile;
+    if (t.previousEnd != FrameClock::time_point{}) {
+      t.updateMs += elapsedMs(t.previousEnd, t.begin);
+      t.waitMs += elapsedMs(t.begin, t.ready);
+      t.recordMs += elapsedMs(t.ready, t.present);
+      t.submitMs += elapsedMs(t.present, t.submitted);
+      t.presentMs += elapsedMs(t.submitted, end);
+      if (++t.frames == 120) {
+        const double count = t.frames;
+        std::fprintf(stderr,
+                     "[vulkan-frame] update_ms=%.3f wait_ms=%.3f record_ms=%.3f "
+                     "submit_ms=%.3f present_ms=%.3f mode=%d\n",
+                     t.updateMs / count, t.waitMs / count, t.recordMs / count,
+                     t.submitMs / count, t.presentMs / count, int(swap_.PresentMode));
+        t.frames = 0;
+        t.updateMs = t.waitMs = t.recordMs = t.submitMs = t.presentMs = 0;
+      }
+    }
+    t.previousEnd = end;
+  }
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     rebuild_ = true;
   else

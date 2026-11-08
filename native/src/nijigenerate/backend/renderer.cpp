@@ -7,6 +7,8 @@
 #include <imgui_impl_sdl3.h>
 #include <runtime_state.hpp>
 #include <memory>
+#include <cstdlib>
+#include <cstring>
 #include <limits>
 void ngImGuiVulkanPremultipliedTexture(ImTextureID);
 
@@ -42,7 +44,22 @@ void ngInitializeRendererUI() {
     core::dbg::inInitDebug();
 }
 void ngBeginRendererFrame() {
-    owner->idle();
+    static const bool legacyIdle = [] {
+        const char* value = std::getenv("NIJIGENERATE_VULKAN_LEGACY_IDLE");
+        return value && std::strcmp(value, "1") == 0;
+    }();
+    // Detached ImGui windows can submit work outside the main frame fence.
+    if (legacyIdle || (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
+        owner->idle();
+    else {
+        static const bool earlyFence = [] {
+            const char* value = std::getenv("NIJIGENERATE_VULKAN_EARLY_FENCE");
+            return value && std::strcmp(value, "1") == 0;
+        }();
+        // CPU scene preparation can overlap the previous submission.
+        // Context::beginFrame waits before the shared GPU buffers are reused.
+        if (earlyFence) owner->waitForPreviousFrame();
+    }
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplSDL3_NewFrame();
 }

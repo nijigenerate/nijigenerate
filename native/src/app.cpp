@@ -51,6 +51,9 @@
 #include <runtime_state.hpp>
 #include <timing.hpp>
 #include <nodes/drawable.hpp>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <exception>
 #include <memory>
@@ -109,11 +112,21 @@ void updateContents() {
 }
 }
 void incUpdate() {
+    using Clock = std::chrono::steady_clock;
+    static const bool profile = [] {
+        const char* value = std::getenv("NIJIGENERATE_VULKAN_PROFILE");
+        return value && std::string_view(value) == "1";
+    }();
+    static double modelMs{}, beginMs{}, contentsMs{}, endMs{};
+    static unsigned frames{};
+    const auto start = profile ? Clock::now() : Clock::time_point{};
     panels::autorig::ngAutoRigPollWorker();
     project::incAnimationUpdate();
     nicxlive::core::inUpdate();
     io::autosave::incCheckAutosave();
+    const auto beforeBegin = profile ? Clock::now() : Clock::time_point{};
     core::ngBeginLoop();
+    const auto afterBegin = profile ? Clock::now() : Clock::time_point{};
     if (core::ngShouldProcess()) {
         core::shortcut::incHandleShortcuts();
         api::mcp::task::ngMcpProcessQueue();
@@ -124,7 +137,21 @@ void incUpdate() {
         core::tasks::ngStatusUpdate();
         commands::depth::bone::ngFlushDepthBoneDirtyForFrame();
     }
+    const auto beforeEnd = profile ? Clock::now() : Clock::time_point{};
     core::ngEndLoop();
+    if (profile) {
+        const auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+        modelMs += ms(start, beforeBegin);
+        beginMs += ms(beforeBegin, afterBegin);
+        contentsMs += ms(afterBegin, beforeEnd);
+        endMs += ms(beforeEnd, Clock::now());
+        if (++frames == 120) {
+            std::fprintf(stderr, "[vulkan-loop] model_ms=%.3f begin_ms=%.3f contents_ms=%.3f end_ms=%.3f\n",
+                         modelMs / frames, beginMs / frames, contentsMs / frames, endMs / frames);
+            frames = 0;
+            modelMs = beginMs = contentsMs = endMs = 0;
+        }
+    }
 }
 void incUpdateNoEv() {
     panels::autorig::ngAutoRigPollWorker();

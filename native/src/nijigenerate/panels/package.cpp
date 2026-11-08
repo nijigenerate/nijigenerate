@@ -18,6 +18,10 @@
 #include <nijigenerate/core/window.hpp>
 #endif
 #include <array>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <map>
 #include <string>
 #include <utility>
 #include <new>
@@ -144,11 +148,31 @@ void incAddPanel(PanelPtr panel) {
     incPanels.append(std::move(panel));
 }
 void incUpdatePanels() {
+    using Clock = std::chrono::steady_clock;
+    static const bool profile = [] {
+        const char* value = std::getenv("NIJIGENERATE_VULKAN_PROFILE");
+        return value && std::string_view(value) == "1";
+    }();
+    static thread_local std::map<std::string, double> panelMs;
+    static thread_local unsigned frames = 0;
     auto snapshot = incPanels;
     for (auto panel : snapshot) {
         if (!compat::ngRequireObject(panel)->visible && !panel->alwaysVisible) continue;
         if (!panel->isActive()) continue;
+        const auto start = profile ? Clock::now() : Clock::time_point{};
         panel->update();
+        if (profile) {
+            const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+            panelMs[std::string(panel->name().view())] += elapsed;
+        }
+    }
+    if (profile && ++frames == 120) {
+        std::fputs("[vulkan-panels]", stderr);
+        for (const auto& [name, total] : panelMs)
+            std::fprintf(stderr, " %s=%.3fms", name.c_str(), total / frames);
+        std::fputc('\n', stderr);
+        panelMs.clear();
+        frames = 0;
     }
 }
 void incInitPanels() {

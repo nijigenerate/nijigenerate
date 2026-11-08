@@ -5,13 +5,15 @@
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
 #include <memory>
+#include <source_location>
 #include <vector>
 #include <string>
 #include <vulkan/vulkan.h>
 
 namespace nijigenerate::backend::vulkan {
 class Backend;
-void check(VkResult result);
+void check(VkResult result,
+           const std::source_location &location = std::source_location::current());
 struct Buffer {
   VkBuffer handle{};
   VkDeviceMemory memory{};
@@ -70,6 +72,7 @@ public:
   void setThrottle(int rate);
   bool beginFrame();
   void present(ImDrawData *data);
+  void waitForPreviousFrame();
   void idle();
   uint32_t memoryType(uint32_t bits, VkMemoryPropertyFlags flags) const;
   void ensureBuffer(Buffer &, VkDeviceSize, VkBufferUsageFlags);
