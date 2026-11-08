@@ -1,6 +1,14 @@
 // Copyright 2024 nijigenerate Project. BSD-2-Clause; see LICENSE.
 #include <metal_stdlib>
 using namespace metal;
+// Specialization removes unused texture accesses and material arithmetic.
+constant bool writesEmission [[function_constant(0)]];
+constant bool screenEnabled [[function_constant(1)]];
+constant uint blendEquation [[function_constant(2)]];
+constant bool emissionTextureEnabled [[function_constant(3)]];
+constant bool bumpTextureEnabled [[function_constant(4)]];
+constant bool lightingUsesFetch [[function_constant(5)]];
+constant bool writesBump [[function_constant(6)]];
 struct VertexIn { float2 position [[attribute(0)]]; float2 uv [[attribute(1)]]; float z [[attribute(2)]]; };
 struct Varying { float4 position [[position]]; float2 uv; };
 struct Parameters { float4 tint; float4 screen; float4 emission; uint mode; uint kind; uint offscreen; uint padding; };
@@ -177,7 +185,12 @@ fragment float4 singleFragment(Varying in [[stage_in]],
             blurred+=g*emissive.sample(s1,uv+p.screen.xy*d,level(2));
         }
         if(blurred.a>0) blurred/=blurred.a;
-        return source.sample(s0,uv)*(float4(p.tint.rgb,1)+emissive.sample(s1,uv)+blurred);
+        #if NG_FRAMEBUFFER_FETCH
+        float4 base=lightingUsesFetch?destination:source.sample(s0,uv);
+#else
+        float4 base=source.sample(s0,uv);
+#endif
+        return base*(float4(p.tint.rgb,1)+emissive.sample(s1,uv)+blurred);
     }
     if(p.kind==11) return float4(source.sample(s0,uv).rgb,0);
     float4 a=source.sample(s0,uv);
@@ -196,4 +209,104 @@ fragment float4 singleFragment(Varying in [[stage_in]],
     float4 color=sourceColor(a,p);
     if(advancedMode(p.mode)) color=advancedColor(color,destination,p.mode);
     return color;
+}
+
+// Ordinary draws do not read the destination attachment. The output stays in
+// group 0 so transitions to programmable blending retain raster ordering.
+struct OrderedColor {
+#if NG_FRAMEBUFFER_FETCH
+    float4 color [[color(0), raster_order_group(0)]];
+#else
+    float4 color [[color(0)]];
+#endif
+};
+float4 specializedSource(float4 a,constant Parameters& p) {
+    float3 rgb=a.rgb;
+    if(screenEnabled) rgb=1-((1-rgb)*(1-p.screen.rgb*a.a));
+    return float4(clamp(rgb*p.tint.rgb,0.,1.),a.a)*p.tint.a;
+}
+float4 specializedEmission(float4 a,float4 e,constant Parameters& p) {
+    float3 rgb=e.rgb;
+    if(screenEnabled) rgb=1-((1-rgb)*(1-p.screen.rgb*a.a));
+    float coverage=p.emission.x>.5?1.:a.a;
+    return float4(clamp(rgb*p.tint.rgb*max(p.screen.a,0.)*coverage,0.,1.),a.a)*p.tint.a;
+}
+fragment OrderedColor colorFragment(Varying in [[stage_in]],constant Parameters& p [[buffer(0)]],
+    texture2d<float> albedo [[texture(0)]],sampler s0 [[sampler(0)]]) {
+    float4 a=albedo.sample(s0,in.uv);
+    if(a.a<=.0001) discard_fragment();
+    return {specializedSource(a,p)};
+}
+fragment OrderedColor blendColorFragment(Varying in [[stage_in]],
+#if NG_FRAMEBUFFER_FETCH
+    float4 destination [[color(0), raster_order_group(0)]],
+#endif
+    constant Parameters& p [[buffer(0)]],texture2d<float> albedo [[texture(0)]],
+    texture2d<float> background [[texture(3)]],sampler s0 [[sampler(0)]]) {
+#if !NG_FRAMEBUFFER_FETCH
+    float4 destination=background.read(uint2(in.position.xy));
+#endif
+    float4 a=albedo.sample(s0,in.uv);
+    if(a.a<=.0001) discard_fragment();
+    return {advancedColor(specializedSource(a,p),destination,blendEquation)};
+}
+// Optional MRT members are absent from the specialized shader interface, not
+// merely writes of zero to still-attached textures.
+struct OptimizedPlanesOutput {
+#if NG_FRAMEBUFFER_FETCH
+    float4 color [[color(0), raster_order_group(0)]];
+#else
+    float4 color [[color(0)]];
+#endif
+    float4 emission [[color(1), function_constant(writesEmission)]];
+    float4 bump [[color(2), function_constant(writesBump)]];
+};
+OptimizedPlanesOutput shadePlanes(float4 a,float4 e,float4 b,constant Parameters& p) {
+    float4 emissionColor=0;
+    if(writesEmission) emissionColor=specializedEmission(a,e,p);
+    float4 bumpColor=0;
+    if(writesBump) bumpColor=b*a.a*p.tint.a;
+    return {specializedSource(a,p),emissionColor,bumpColor};
+}
+fragment OptimizedPlanesOutput planesFragment(Varying in [[stage_in]],constant Parameters& p [[buffer(0)]],
+    texture2d<float> albedo [[texture(0)]],texture2d<float> emission [[texture(1)]],
+    texture2d<float> bump [[texture(2)]],sampler s0 [[sampler(0)]],sampler s1 [[sampler(1)]],sampler s2 [[sampler(2)]]) {
+    float4 a=albedo.sample(s0,in.uv);
+    if(a.a<=.0001) discard_fragment();
+    float4 e=(writesEmission && emissionTextureEnabled)?emission.sample(s1,in.uv):float4(0);
+    float4 b=(writesBump && bumpTextureEnabled)?bump.sample(s2,in.uv):float4(0);
+    return shadePlanes(a,e,b,p);
+}
+fragment OptimizedPlanesOutput blendPlanesFragment(Varying in [[stage_in]],
+#if NG_FRAMEBUFFER_FETCH
+    float4 destination [[color(0), raster_order_group(0)]],
+#endif
+    constant Parameters& p [[buffer(0)]],texture2d<float> albedo [[texture(0)]],
+    texture2d<float> emission [[texture(1)]],texture2d<float> bump [[texture(2)]],
+    texture2d<float> background [[texture(3)]],sampler s0 [[sampler(0)]],sampler s1 [[sampler(1)]],sampler s2 [[sampler(2)]]) {
+#if !NG_FRAMEBUFFER_FETCH
+    float4 destination=background.read(uint2(in.position.xy));
+#endif
+    float4 a=albedo.sample(s0,in.uv);
+    if(a.a<=.0001) discard_fragment();
+    float4 e=(writesEmission && emissionTextureEnabled)?emission.sample(s1,in.uv):float4(0);
+    float4 b=(writesBump && bumpTextureEnabled)?bump.sample(s2,in.uv):float4(0);
+    auto out=shadePlanes(a,e,b,p);
+    out.color=advancedColor(out.color,destination,blendEquation);
+    return out;
+}
+fragment void maskFragment(Varying in [[stage_in]],constant Parameters& p [[buffer(0)]],
+    texture2d<float> albedo [[texture(0)]],sampler s0 [[sampler(0)]]) {
+    if(albedo.sample(s0,in.uv).a<=p.screen.a) discard_fragment();
+}
+fragment void stencilFragment() {}
+fragment OrderedColor visibleMaskColorFragment(Varying in [[stage_in]],constant Parameters& p [[buffer(0)]],
+    texture2d<float> albedo [[texture(0)]],sampler s0 [[sampler(0)]]) {
+    if(albedo.sample(s0,in.uv).a<=p.screen.a) discard_fragment();
+    return {float4(1)};
+}
+fragment OptimizedPlanesOutput visibleMaskPlanesFragment(Varying in [[stage_in]],constant Parameters& p [[buffer(0)]],
+    texture2d<float> albedo [[texture(0)]],sampler s0 [[sampler(0)]]) {
+    if(albedo.sample(s0,in.uv).a<=p.screen.a) discard_fragment();
+    return {float4(1),float4(1),float4(1)};
 }

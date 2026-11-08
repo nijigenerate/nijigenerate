@@ -31,7 +31,7 @@ public:
     void idle();
     bool recording() const;
     void immediate(const std::function<void()>&);
-    Image createImage(uint32_t,uint32_t,uint32_t mipLevels=1,bool depth=false);
+    Image createImage(uint32_t,uint32_t,uint32_t mipLevels=1,bool depth=false,bool memoryless=false);
     void destroy(Image&);
     void upload(Image&,const std::vector<uint8_t>&);
     void generateMipmaps(Image&);

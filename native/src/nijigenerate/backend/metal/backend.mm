@@ -13,6 +13,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <set>
 namespace nijigenerate::backend::metal {
 namespace core=nicxlive::core;
 using namespace nicxlive::core::nodes;
@@ -62,11 +63,18 @@ struct Backend::Impl {
         id<MTLSamplerState> sampler;
         int channels=4;
         bool stencil=false,mipmaps=true,uploaded=false;
+        bool alphaEmpty=false;
         core::Filtering filtering=core::Filtering::Linear;
         core::Wrapping wrapping=core::Wrapping::Clamp;
         float anisotropy=1;
     };
-    struct Target { std::array<uint32_t,3> colors{}; Image stencil; uint32_t width{},height{}; };
+    struct Target {
+        std::array<uint32_t,3> colors{};
+        Image stencil;
+        Image tileStencil;
+        uint32_t width{},height{};
+        unsigned validOutputs=7;
+    };
   struct Batch {
     Target *target{};
     uint32_t first{}, count{};
@@ -100,6 +108,11 @@ struct Backend::Impl {
     std::vector<Vertex> vertices;
     std::vector<uint16_t> elements;
     std::vector<Batch> batches;
+    std::vector<Vertex> archivedVertices;
+    std::vector<uint16_t> archivedElements;
+    std::vector<Batch> archivedBatches;
+    bool archiveValid=false,partialScene=false,replaying=false;
+    std::set<uint32_t> externalOutputs;
     uint32_t white{},black{};
     int mask=0;
     uint32_t reference=1;
@@ -111,25 +124,103 @@ struct Backend::Impl {
     std::map<uint64_t,Pipeline> pipelines;
     id<MTLSamplerState> sampler;
     const bool profile=[] { auto s=std::getenv("NIJIGENERATE_METAL_PROFILE"); return s && std::strcmp(s,"0"); }();
-    uint64_t profileFrames=0,profileDraws=0,profilePasses=0;
+    const bool referenceRendering=[] {
+        auto s=std::getenv("NIJIGENERATE_METAL_REFERENCE"); return s && std::strcmp(s,"0");
+    }();
+    uint64_t profileFrames=0,profileDraws=0,profilePasses=0,profileColorBytes=0,profileMrtDraws=0;
     void initialize() {
         auto d=[MTLSamplerDescriptor new]; d.minFilter=d.magFilter=MTLSamplerMinMagFilterLinear;
         d.mipFilter=MTLSamplerMipFilterLinear; d.sAddressMode=d.tAddressMode=MTLSamplerAddressModeClampToEdge;
         sampler=[c.p->device newSamplerStateWithDescriptor:d];
     }
-    void destroyTarget(Target& t) { t={}; }
+    unsigned availableOutputs(const Target& t) const {
+        unsigned mask=1;
+        if(t.colors[1] && t.colors[1]!=t.colors[0]) mask|=2;
+        if(t.colors[2] && t.colors[2]!=t.colors[0] && t.colors[2]!=t.colors[1]) mask|=4;
+        return mask;
+    }
+    Target* producer(uint32_t id) const {
+        auto match=[&](Target* t) { return t && std::find(t->colors.begin(),t->colors.end(),id)!=t->colors.end(); };
+        if(match(root.get())) return root.get();
+        for(const auto& [_,entry]:composites) if(match(entry.target.get())) return entry.target.get();
+        for(const auto& [_,entry]:targets) if(match(entry.get())) return entry.get();
+        for(auto* t:{blurA.get(),blurB.get()}) if(match(t)) return t;
+        return nullptr;
+    }
+    void replayOutputs() {
+        if(!archiveValid || replaying) return;
+        bool missing=false;
+        for(const auto& b:archivedBatches)
+            missing|=(b.target->validOutputs&availableOutputs(*b.target))!=availableOutputs(*b.target);
+        if(!missing) return;
+        replaying=true;
+        vertices.swap(archivedVertices); elements.swap(archivedElements); batches.swap(archivedBatches);
+        try { c.immediate([&] { record(true); }); }
+        catch(...) {
+            vertices.swap(archivedVertices); elements.swap(archivedElements); batches.swap(archivedBatches);
+            replaying=false; throw;
+        }
+        vertices.swap(archivedVertices); elements.swap(archivedElements); batches.swap(archivedBatches);
+        replaying=false;
+    }
+    void beforeMutation() {
+        // Materialize omitted outputs while the archived texture inputs and
+        // target addresses still describe the last submitted frame.
+        replayOutputs(); archiveValid=false;
+        archivedVertices.clear(); archivedElements.clear(); archivedBatches.clear();
+    }
+    void requireTexture(uint32_t id) {
+        if(auto* t=producer(id)) {
+            unsigned bits=0;
+            for(unsigned i=0;i<3;++i) if(t->colors[i]==id) bits|=1u<<i;
+            if(bits&1) return;
+            externalOutputs.insert(id);
+            if((t->validOutputs&bits)!=bits) replayOutputs();
+        }
+    }
+    void destroyTarget(Target& t) { beforeMutation(); t={}; }
     std::unique_ptr<Target> makeTarget(const std::array<uint32_t,3>& ids,bool=false) {
         auto t=std::make_unique<Target>(); t->colors=ids;
         const auto& image=textures.at(ids[0]).image; t->width=image.width; t->height=image.height;
+        for(auto id:ids) if(id) textures.at(id).alphaEmpty=false;
         t->stencil=c.createImage(t->width,t->height,1,true); return t;
     }
-    Pipeline pipeline(const Batch& b,bool mrt) {
-        uint64_t key=uint64_t(b.blend)|(uint64_t(b.kind)<<8)|(uint64_t(b.mask)<<16)|(uint64_t(b.depth)<<20)|(uint64_t(mrt)<<21);
+    Pipeline pipeline(const Batch& b,unsigned outputs) {
+        const bool mrt=outputs!=1;
+        const bool screened=b.material.screen[0]!=0 || b.material.screen[1]!=0 || b.material.screen[2]!=0;
+        const bool emissive=b.textures[1] && b.textures[1]!=black;
+        const bool bumped=b.textures[2] && b.textures[2]!=black;
+        uint64_t key=uint64_t(b.blend)|(uint64_t(b.kind)<<8)|(uint64_t(b.mask)<<16)|
+            (uint64_t(b.depth)<<20)|(uint64_t(outputs)<<21)|(uint64_t(screened)<<24)|
+            (uint64_t(emissive)<<25)|(uint64_t(bumped)<<26);
         if(auto it=pipelines.find(key);it!=pipelines.end()) return it->second;
         auto d=[MTLRenderPipelineDescriptor new];
         d.label=@"Model / editor geometry";
         d.vertexFunction=[c.p->library newFunctionWithName:@"sceneVertex"];
-        d.fragmentFunction=[c.p->library newFunctionWithName:mrt?@"sceneFragment":@"singleFragment"];
+        NSString* fragment=mrt?@"sceneFragment":@"singleFragment";
+        if(!referenceRendering) {
+            if(b.mask==1) fragment=b.kind==8?@"stencilFragment":@"maskFragment";
+            else if(b.kind==3 || b.kind==7)
+                fragment=mrt?@"visibleMaskPlanesFragment":@"visibleMaskColorFragment";
+            else if(b.kind==0 || b.kind==5) {
+                if(mrt) fragment=advanced(b.blend)?@"blendPlanesFragment":@"planesFragment";
+                else fragment=advanced(b.blend)?@"blendColorFragment":@"colorFragment";
+            }
+        }
+        auto constants=[MTLFunctionConstantValues new];
+        bool emission=(outputs&2)!=0,bump=(outputs&4)!=0;
+        bool lightingFetch=!referenceRendering && c.advancedBlendSupported;
+        uint32_t equation=uint32_t(b.blend);
+        [constants setConstantValue:&emission type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&screened type:MTLDataTypeBool atIndex:1];
+        [constants setConstantValue:&equation type:MTLDataTypeUInt atIndex:2];
+        [constants setConstantValue:&emissive type:MTLDataTypeBool atIndex:3];
+        [constants setConstantValue:&bumped type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&lightingFetch type:MTLDataTypeBool atIndex:5];
+        [constants setConstantValue:&bump type:MTLDataTypeBool atIndex:6];
+        NSError* shaderError=nil;
+        d.fragmentFunction=[c.p->library newFunctionWithName:fragment constantValues:constants error:&shaderError];
+        if(!d.fragmentFunction) throw std::runtime_error(shaderError.localizedDescription.UTF8String);
         auto vd=[MTLVertexDescriptor vertexDescriptor];
         vd.attributes[0].format=MTLVertexFormatFloat2; vd.attributes[0].offset=0; vd.attributes[0].bufferIndex=0;
         vd.attributes[1].format=MTLVertexFormatFloat2; vd.attributes[1].offset=8; vd.attributes[1].bufferIndex=0;
@@ -137,7 +228,8 @@ struct Backend::Impl {
         vd.layouts[0].stride=sizeof(Vertex); d.vertexDescriptor=vd;
         d.depthAttachmentPixelFormat=MTLPixelFormatDepth32Float_Stencil8;
         d.stencilAttachmentPixelFormat=MTLPixelFormatDepth32Float_Stencil8;
-        for(unsigned i=0;i<(mrt?3u:1u);++i) {
+        for(unsigned i=0;i<3;++i) {
+            if(!(outputs&(1u<<i))) continue;
             auto a=d.colorAttachments[i]; a.pixelFormat=MTLPixelFormatRGBA8Unorm;
             blendState(a,b.blend);
             if(i==0 && advanced(b.blend)) a.blendingEnabled=NO;
@@ -169,57 +261,173 @@ struct Backend::Impl {
         result.depth=[c.p->device newDepthStencilStateWithDescriptor:ds];
         pipelines.emplace(key,result); return result;
     }
-    void record() {
+    std::map<Target*,unsigned> planOutputs(bool full) {
+        std::map<Target*,unsigned> result;
+        for(const auto& b:batches) {
+            auto& mask=result[b.target]; mask|=1;
+            if(full) mask|=availableOutputs(*b.target);
+            for(unsigned i=1;i<3;++i)
+                if(externalOutputs.contains(b.target->colors[i])) mask|=(1u<<i)&availableOutputs(*b.target);
+        }
+        auto require=[&](uint32_t texture) {
+            if(!texture) return false;
+            auto* t=producer(texture); if(!t) return false;
+            unsigned bits=0;
+            for(unsigned i=0;i<3;++i) if(t->colors[i]==texture) bits|=1u<<i;
+            bits&=availableOutputs(*t);
+            auto& mask=result[t]; const auto old=mask; mask|=bits; return old!=mask;
+        };
+        bool changed;
+        do {
+            changed=false;
+            for(const auto& b:batches) if(b.count) {
+                changed|=require(b.textures[0]);
+                if((b.kind<9 && b.mask!=1 && (result[b.target]&2)) || b.kind==13 || b.kind==2)
+                    changed|=require(b.textures[1]);
+                if(b.kind<9 && b.mask!=1 && (result[b.target]&4)) changed|=require(b.textures[2]);
+            }
+        } while(changed);
+        return result;
+    }
+    bool needsMipmaps(const Batch& b,unsigned outputs) const {
+        if(b.kind!=14) return false;
+        for(unsigned i=0;i<3;++i) if((outputs&(1u<<i)) && b.target->colors[i] &&
+            textures.at(b.target->colors[i]).image.mipLevels>1) return true;
+        return false;
+    }
+    bool invisible(const Batch& b) const {
+        if(referenceRendering || !b.count || b.kind>=9) return false;
+        if(b.kind!=8) {
+            auto it=textures.find(b.textures[0]);
+            const bool alphaDiscard=b.kind==0 || b.kind==5 ||
+                ((b.kind==3 || b.kind==6 || b.kind==7) && b.material.screen[3]>=0);
+            if(alphaDiscard && it!=textures.end() && it->second.alphaEmpty) return true;
+        }
+        bool left=true,right=true,top=true,bottom=true;
+        for(uint32_t i=0;i<b.count;++i) {
+            const auto& v=vertices.at(size_t(b.base)+elements.at(b.first+i));
+            if(!std::isfinite(v.x) || !std::isfinite(v.y)) return false;
+            left&=v.x < -1; right&=v.x > 1; top&=v.y > 1; bottom&=v.y < -1;
+        }
+        return left || right || top || bottom;
+    }
+    void record(bool forceFull=false) {
         if(!c.recording()) throw std::logic_error("Metal recording requires a command buffer");
+        const bool full=forceFull || referenceRendering || partialScene || !sceneEnded;
+        const auto outputs=planOutputs(full);
+        const auto planesFor=[&](const Batch& b) { return b.kind<9?outputs.at(b.target):1u; };
+        std::map<Target*,unsigned> segments;
+        std::map<Target*,bool> startsClear;
+        Target* previous=nullptr; unsigned previousPlanes=0;
+        for(const auto& b:batches) {
+            if(b.kind==14) {
+                if(referenceRendering || needsMipmaps(b,outputs.at(b.target))) previous=nullptr;
+                continue;
+            }
+            const auto planes=planesFor(b);
+            if(previous!=b.target || previousPlanes!=planes || b.clear) {
+                if(!segments.contains(b.target)) startsClear[b.target]=b.clear;
+                ++segments[b.target]; previous=b.target; previousPlanes=planes;
+            }
+        }
         auto command=c.p->command;
         id<MTLBuffer> vertexBuffer=nil,indexBuffer=nil;
         if(!vertices.empty()) vertexBuffer=[c.p->device newBufferWithBytes:vertices.data() length:vertices.size()*sizeof(Vertex) options:MTLResourceStorageModeShared];
         if(!elements.empty()) indexBuffer=[c.p->device newBufferWithBytes:elements.data() length:elements.size()*sizeof(uint16_t) options:MTLResourceStorageModeShared];
-        Target* active=nullptr; bool activeMrt=false;
+        Target* active=nullptr; unsigned activePlanes=0;
+        bool activeMemoryless=false;
+        size_t nextBatch=0;
         id<MTLRenderCommandEncoder> encoder=nil;
-        auto end=[&] { if(encoder) { [encoder endEncoding]; encoder=nil; active=nullptr; } };
-        uint64_t draws=0,passes=0;
-        for(const auto& b:batches) {
+        uint64_t draws=0,passes=0,colorBytes=0,mrtDraws=0;
+        auto end=[&] {
+            if(!encoder) return;
+            if(!referenceRendering) {
+                bool depthNeeded=partialScene,stencilNeeded=partialScene,stencilCleared=false;
+                for(size_t i=nextBatch;i<batches.size();++i) {
+                    const auto& future=batches[i];
+                    if(future.target!=active || future.kind==14) continue;
+                    if(future.clear) break;
+                    depthNeeded|=future.depth;
+                    if(future.clearStencil>=0) stencilCleared=true;
+                    if(!stencilCleared && future.mask) stencilNeeded=true;
+                }
+                [encoder setDepthStoreAction:depthNeeded && !activeMemoryless?MTLStoreActionStore:MTLStoreActionDontCare];
+                [encoder setStencilStoreAction:stencilNeeded && !activeMemoryless?MTLStoreActionStore:MTLStoreActionDontCare];
+            }
+            [encoder endEncoding]; encoder=nil; active=nullptr;
+        };
+        for(size_t index=0;index<batches.size();++index) {
+            nextBatch=index;
+            const auto& b=batches[index];
             auto& t=*b.target;
-            if(b.kind==14) { end(); for(auto id:t.colors) if(id) c.generateMipmaps(textures.at(id).image); continue; }
-            const bool mrt=b.kind<9 && t.colors[1] && t.colors[1]!=t.colors[0] && t.colors[2] && t.colors[2]!=t.colors[0];
+            if(b.kind==14) {
+                if(referenceRendering || needsMipmaps(b,outputs.at(&t))) {
+                    end();
+                    for(unsigned i=0;i<3;++i) if((outputs.at(&t)&(1u<<i)) && t.colors[i])
+                        c.generateMipmaps(textures.at(t.colors[i]).image);
+                }
+                continue;
+            }
+            const auto planes=planesFor(b);
             Image lightingSnapshot;
-            if(b.kind==13 || (b.count && advanced(b.blend) && !c.advancedBlendSupported)) {
+            if((b.kind==13 && (referenceRendering || !c.advancedBlendSupported)) ||
+                (b.count && advanced(b.blend) && !c.advancedBlendSupported)) {
                 end(); if(b.kind==13) c.generateMipmaps(textures.at(t.colors[1]).image);
                 lightingSnapshot=c.createImage(t.width,t.height);
                 auto blit=[command blitCommandEncoder];
                 [blit copyFromTexture:native(textures.at(t.colors[0]).image) sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0) sourceSize:MTLSizeMake(t.width,t.height,1) toTexture:native(lightingSnapshot) destinationSlice:0 destinationLevel:0 destinationOrigin:MTLOriginMake(0,0,0)];
                 [blit endEncoding];
             }
-            const bool restart=active!=&t || activeMrt!=mrt || b.clear;
+            if(b.kind==13 && !lightingSnapshot.owner) {
+                end(); c.generateMipmaps(textures.at(t.colors[1]).image);
+            }
+            const bool restart=active!=&t || activePlanes!=planes || b.clear;
             if(restart) {
                 end(); auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
-                for(unsigned i=0;i<(mrt?3u:1u);++i) {
+                for(unsigned i=0;i<3;++i) {
+                    if(!(planes&(1u<<i))) continue;
                     auto a=pass.colorAttachments[i]; a.texture=native(textures.at(t.colors[i]).image);
                     a.loadAction=b.clear?MTLLoadActionClear:MTLLoadActionLoad; a.storeAction=MTLStoreActionStore;
                     Vec4 color{};
                     if(i==0 && &t==root.get()) core::inGetClearColor(color.x,color.y,color.z,color.w);
                     if(b.customClear) color=b.clearColor;
                     a.clearColor=MTLClearColorMake(color.x,color.y,color.z,color.w);
+                    colorBytes+=uint64_t(t.width)*t.height*4;
                 }
-                pass.depthAttachment.texture=pass.stencilAttachment.texture=native(t.stencil);
-                pass.depthAttachment.loadAction=b.clear?MTLLoadActionClear:MTLLoadActionLoad;
-                pass.depthAttachment.storeAction=MTLStoreActionStore; pass.depthAttachment.clearDepth=1;
-                pass.stencilAttachment.loadAction=b.clear || b.clearStencil>=0?MTLLoadActionClear:MTLLoadActionLoad;
-                pass.stencilAttachment.storeAction=MTLStoreActionStore; pass.stencilAttachment.clearStencil=std::max(0,b.clearStencil);
+                activeMemoryless=!referenceRendering && !partialScene && sceneEnded &&
+                    c.advancedBlendSupported && segments.at(&t)==1 && startsClear.at(&t);
+                if(activeMemoryless && !t.tileStencil.owner) t.tileStencil=c.createImage(t.width,t.height,1,true,true);
+                pass.depthAttachment.texture=pass.stencilAttachment.texture=native(activeMemoryless?t.tileStencil:t.stencil);
+                bool usesDepth=false,usesStencil=false;
+                for(size_t j=index;j<batches.size();++j) {
+                    const auto& next=batches[j];
+                    if(next.target!=&t || next.kind==14) continue;
+                    if(j!=index && next.clear) break;
+                    usesDepth|=next.depth; usesStencil|=next.mask!=0 || next.clearStencil>=0;
+                }
+                pass.depthAttachment.loadAction=b.clear?MTLLoadActionClear:
+                    !referenceRendering && !usesDepth?MTLLoadActionDontCare:MTLLoadActionLoad;
+                pass.depthAttachment.storeAction=referenceRendering?MTLStoreActionStore:MTLStoreActionUnknown;
+                pass.depthAttachment.clearDepth=1;
+                pass.stencilAttachment.loadAction=b.clear || b.clearStencil>=0?MTLLoadActionClear:
+                    !referenceRendering && !usesStencil?MTLLoadActionDontCare:MTLLoadActionLoad;
+                pass.stencilAttachment.storeAction=referenceRendering?MTLStoreActionStore:MTLStoreActionUnknown;
+                pass.stencilAttachment.clearStencil=std::max(0,b.clearStencil);
                 encoder=[command renderCommandEncoderWithDescriptor:pass];
                 encoder.label=@"Model / editor target";
                 [encoder setViewport:MTLViewport{0,0,double(t.width),double(t.height),0,1}];
                 [encoder setScissorRect:MTLScissorRect{0,0,t.width,t.height}];
-                active=&t; activeMrt=mrt; ++passes;
+                active=&t; activePlanes=planes; ++passes;
             }
+            if(b.clear) t.validOutputs=planes;
+            else if(b.count && b.mask!=1) t.validOutputs|=planes;
             if(!restart && b.clearStencil>=0) {
                 // Clear stencil inside the existing tile pass. Restarting an
                 // encoder here would store/reload all three color planes for
                 // every mask, despite changing no color pixels.
                 Batch clear=b; clear.kind=8; clear.mask=1; clear.depth=false;
                 clear.blend=BlendMode::Normal;
-                const auto state=pipeline(clear,mrt);
+                const auto state=pipeline(clear,planes);
                 [encoder setRenderPipelineState:state.render];
                 [encoder setDepthStencilState:state.depth];
                 [encoder setStencilReferenceValue:uint32_t(b.clearStencil)];
@@ -235,8 +443,8 @@ struct Backend::Impl {
                 [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
                 ++draws;
             }
-            if(!b.count) continue;
-            const auto state=pipeline(b,mrt);
+            if(!b.count || invisible(b)) continue;
+            const auto state=pipeline(b,planes);
             [encoder setRenderPipelineState:state.render]; [encoder setDepthStencilState:state.depth];
             [encoder setStencilReferenceValue:b.reference];
             DrawParameters params{b.material,uint32_t(b.blend),uint32_t(b.kind),uint32_t(&t!=root.get())};
@@ -252,13 +460,17 @@ struct Backend::Impl {
             [encoder setVertexBuffer:vertexBuffer offset:size_t(b.base)*sizeof(Vertex) atIndex:0];
             [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:b.count indexType:MTLIndexTypeUInt16 indexBuffer:indexBuffer indexBufferOffset:size_t(b.first)*sizeof(uint16_t)];
             ++draws;
+            if(planes!=1) ++mrtDraws;
         }
+        nextBatch=batches.size();
         end();
         if(profile) {
-            profileDraws+=draws; profilePasses+=passes;
+            profileDraws+=draws; profilePasses+=passes; profileColorBytes+=colorBytes; profileMrtDraws+=mrtDraws;
             if(++profileFrames==120) {
-                std::fprintf(stderr,"[metal-gpu] draws=%.1f passes=%.1f framebuffer_fetch=%d\n",profileDraws/120.,profilePasses/120.,int(c.advancedBlendSupported));
-                profileFrames=profileDraws=profilePasses=0;
+                std::fprintf(stderr,"[metal-gpu] draws=%.1f passes=%.1f mrt_draws=%.1f color_store_MiB=%.2f framebuffer_fetch=%d reference=%d\n",
+                    profileDraws/120.,profilePasses/120.,profileMrtDraws/120.,profileColorBytes/120./1048576.,
+                    int(c.advancedBlendSupported),int(referenceRendering));
+                profileFrames=profileDraws=profilePasses=profileColorBytes=profileMrtDraws=0;
             }
         }
     }
@@ -309,7 +521,7 @@ uint32_t Backend::createTexture(const std::vector<uint8_t> &data, int w, int h,
 void Backend::updateTexture(uint32_t id, const std::vector<uint8_t> &data,
                             int w, int h, int channels) {
   auto &t = p->textures.at(id);
-  if(t.uploaded) flush();
+  if(t.uploaded) { flush(); p->beforeMutation(); }
   if (w != int(t.image.width) || h != int(t.image.height)) {
     p->c.idle();
     p->c.destroy(t.image);
@@ -327,22 +539,28 @@ void Backend::updateTexture(uint32_t id, const std::vector<uint8_t> &data,
     }
   }
   p->c.upload(t.image, rgba);
+  t.alphaEmpty=!p->producer(id);
+  for(size_t i=3;i<rgba.size() && t.alphaEmpty;i+=4) t.alphaEmpty=rgba[i]==0;
   t.uploaded=true;
 }
 void Backend::setTextureParams(uint32_t id, core::Filtering filtering,
                                core::Wrapping wrapping, float anisotropy) {
+    p->beforeMutation();
     auto& t=p->textures.at(id); t.filtering=filtering; t.wrapping=wrapping;
     t.anisotropy=std::clamp(anisotropy,1.f,p->c.maxAnisotropy);
     auto d=[MTLSamplerDescriptor new];
     d.minFilter=d.magFilter=filtering==core::Filtering::Linear?MTLSamplerMinMagFilterLinear:MTLSamplerMinMagFilterNearest;
     d.mipFilter=t.mipmaps?(filtering==core::Filtering::Linear?MTLSamplerMipFilterLinear:MTLSamplerMipFilterNearest):MTLSamplerMipFilterNotMipmapped;
-    d.sAddressMode=d.tAddressMode=d.rAddressMode=wrapping==core::Wrapping::Clamp?MTLSamplerAddressModeClampToEdge:wrapping==core::Wrapping::Mirror?MTLSamplerAddressModeMirrorRepeat:MTLSamplerAddressModeRepeat;
+    // Match OpenGL's transparent GL_CLAMP_TO_BORDER, including the filtering
+    // footprint at UV edges. ClampToEdge extrudes cropped Part edge texels.
+    d.sAddressMode=d.tAddressMode=d.rAddressMode=wrapping==core::Wrapping::Clamp?MTLSamplerAddressModeClampToZero:wrapping==core::Wrapping::Mirror?MTLSamplerAddressModeMirrorRepeat:MTLSamplerAddressModeRepeat;
     d.maxAnisotropy=NSUInteger(t.anisotropy); t.sampler=[p->c.p->device newSamplerStateWithDescriptor:d];
 }
 void Backend::disposeTexture(uint32_t id) {
   if (!p)
     return;
   flush();
+  p->beforeMutation();
   if (auto target = p->targets.find(id); target != p->targets.end()) {
     p->c.idle(); p->destroyTarget(*target->second); p->targets.erase(target);
   }
@@ -361,13 +579,17 @@ void Backend::disposeTexture(uint32_t id) {
 
   p->c.destroy(it->second.image);
   p->textures.erase(it);
+  p->externalOutputs.erase(id);
 }
 std::vector<uint8_t> Backend::readTexture(uint32_t id) {
+  p->requireTexture(id);
   flush();
+  p->requireTexture(id);
   return p->c.read(p->textures.at(id).image);
 }
 ImTextureID Backend::uiTexture(uint32_t id) {
   if(!id) id=p->white;
+  p->requireTexture(id);
   return p->c.texture(p->textures.at(id).image);
 }
 void Backend::resizeViewportTargets(int w, int h) {
@@ -397,6 +619,7 @@ void Backend::resizeViewportTargets(int w, int h) {
 }
 void Backend::beginScene() {
   flush();
+  p->partialScene=false;
   p->scenePending = true;
   p->sceneEnded = false;
   p->postprocessingRequested=false;
@@ -424,6 +647,8 @@ void Backend::postProcessScene() {
 }
 void Backend::render() {
   if (p->batches.empty() && !(p->scenePending && p->sceneEnded)) return;
+  const bool completeScene=p->scenePending && p->sceneEnded;
+  if(p->scenePending && !p->sceneEnded) p->partialScene=true;
   if (p->scenePending && p->sceneEnded) {
   if(p->postprocessingRequested) {
     Impl::Batch light; light.target=p->root.get(); light.kind=13;
@@ -464,6 +689,13 @@ void Backend::render() {
   }
   p->record();
   p->blurRequested = false;
+  if(completeScene && !p->partialScene && !p->referenceRendering) {
+    p->archivedVertices.swap(p->vertices); p->archivedElements.swap(p->elements);
+    p->archivedBatches.swap(p->batches); p->archiveValid=true;
+  } else {
+    p->archiveValid=false;
+    p->archivedVertices.clear(); p->archivedElements.clear(); p->archivedBatches.clear();
+  }
   p->batches.clear();
   p->vertices.clear();
   p->elements.clear();
@@ -492,8 +724,12 @@ Image &Backend::sceneImage() {
 }
 nicxlive::core::RenderResourceHandle Backend::renderImageHandle() { return p->root->colors[0]; }
 nicxlive::core::RenderResourceHandle Backend::mainAlbedoHandle() { return p->root->colors[0]; }
-nicxlive::core::RenderResourceHandle Backend::mainEmissiveHandle() { return p->root->colors[1]; }
-nicxlive::core::RenderResourceHandle Backend::mainBumpHandle() { return p->root->colors[2]; }
+nicxlive::core::RenderResourceHandle Backend::mainEmissiveHandle() {
+  p->requireTexture(p->root->colors[1]); return p->root->colors[1];
+}
+nicxlive::core::RenderResourceHandle Backend::mainBumpHandle() {
+  p->requireTexture(p->root->colors[2]); return p->root->colors[2];
+}
 void Backend::dumpViewport(std::vector<uint8_t> &out, int w, int h) {
   if (w != int(p->root->width) || h != int(p->root->height))
     throw std::runtime_error("Viewport readback dimensions mismatch");
@@ -753,7 +989,9 @@ void Backend::updateTextureRegion(TextureHandle h,int x,int y,int w,int height,i
     auto dest=pixels.data()+((size_t(y+row)*image.width)+x+col)*4;
     for(int c=0;c<4;++c) dest[c]=c<channels?source[c]:(c==3?255:source[0]);
   }
+  p->beforeMutation();
   p->c.upload(image,pixels);
+  p->textures.at(id).alphaEmpty=false;
 }
 std::size_t Backend::textureNativeHandle(TextureHandle h) { return resource(h)->id; }
 std::size_t Backend::textureNativeHandle(uint32_t id) { return id; }
@@ -876,6 +1114,8 @@ void Backend::drawDebugLines(const Vec4& color,const Mat4& matrix) {
 }
 void Backend::generateTextureMipmap(TextureHandle h) { generateTextureMipmap(resource(h)->id); }
 void Backend::generateTextureMipmap(uint32_t id) {
+  p->requireTexture(id);
+  p->beforeMutation();
   auto& t=p->textures.at(id);
   auto levels=1u+uint32_t(std::floor(std::log2(std::max(t.image.width,t.image.height))));
   if(levels==t.image.mipLevels) { p->c.generateMipmaps(t.image); return; }

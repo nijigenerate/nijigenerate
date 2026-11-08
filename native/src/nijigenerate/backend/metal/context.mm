@@ -123,13 +123,13 @@ void Context::immediate(const std::function<void()>& fn) {
         auto done=p->command; p->command=nil; checkCommand(done);
     }
 }
-Image Context::createImage(uint32_t w,uint32_t h,uint32_t levels,bool depth) {
+Image Context::createImage(uint32_t w,uint32_t h,uint32_t levels,bool depth,bool memoryless) {
     @autoreleasepool {
         if(!w || !h || w>uint32_t(maxTextureSize()) || h>uint32_t(maxTextureSize()))
             throw std::invalid_argument("Invalid Metal texture dimensions");
         auto d=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:depth?MTLPixelFormatDepth32Float_Stencil8:MTLPixelFormatRGBA8Unorm width:w height:h mipmapped:levels>1];
         d.mipmapLevelCount=levels;
-        d.storageMode=MTLStorageModePrivate;
+        d.storageMode=memoryless?MTLStorageModeMemoryless:MTLStorageModePrivate;
         d.usage=MTLTextureUsageRenderTarget | (depth?0:MTLTextureUsageShaderRead);
         return {retainMetal([p->device newTextureWithDescriptor:d]),w,h,levels};
     }
