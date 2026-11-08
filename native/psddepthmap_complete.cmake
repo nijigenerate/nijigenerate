@@ -24,7 +24,7 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_renderer AND
     target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_renderer
         nijigenerate_depth_draw_gpu nijigenerate_depth_camera nijigenerate_dialogs
         nijigenerate_label nijigenerate_button nijigenerate_dummy nijigenerate_tooltip
-        nijigenerate_texture_widget nijigenerate_io Vulkan::Vulkan)
+        nijigenerate_texture_widget nijigenerate_io nijigenerate_gpu_api)
     if(MSVC)
         set_property(SOURCE ${_psddepthmap_sources} APPEND PROPERTY COMPILE_OPTIONS /fp:strict)
     else()

@@ -5,7 +5,7 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_window_state
         AND TARGET nijigenerate_window_simple AND TARGET nijigenerate_modal
         AND TARGET nijigenerate_dialogs AND TARGET nijigenerate_label
         AND TARGET nijigenerate_dpi AND TARGET nijigenerate_renderer
-        AND TARGET Vulkan::Vulkan)
+        AND TARGET nijigenerate_gpu_api)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT TARGET nijigenerate_portal_filechooser)
         return()
     endif()
@@ -18,7 +18,7 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_window_state
         "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/core/window_title.cpp")
     target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_window_state
         nijigenerate_window_simple nijigenerate_modal nijigenerate_dialogs nijigenerate_label
-        nijigenerate_dpi nijigenerate_renderer Vulkan::Vulkan)
+        nijigenerate_dpi nijigenerate_renderer nijigenerate_gpu_api)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(nijigenerate_runtime_core PRIVATE nijigenerate_portal_filechooser)
     endif()

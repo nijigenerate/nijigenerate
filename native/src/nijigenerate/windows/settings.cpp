@@ -16,7 +16,7 @@
 #include <nijigenerate/io/package.hpp>
 #include <nijigenerate/io/save_settings.hpp>
 #include <nijigenerate/io/depthmap_psd_names.hpp>
-#include <nijigenerate/backend/vulkan/context.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <nijigenerate/widgets/button.hpp>
 #include <nijigenerate/widgets/label.hpp>
 #include <nijigenerate/widgets/dummy.hpp>
@@ -193,10 +193,8 @@ void SettingsWindow::onUpdate() {
         }
         case PaneCase::Rendering: {
             beginSection(core::translation::ngTranslateCString("Rendering").data());
-            VkPhysicalDeviceProperties properties{};
-            vkGetPhysicalDeviceProperties(backend::vulkan::context().physical,&properties);
-            ImGui::TextUnformatted("Vulkan");
-            ImGui::TextUnformatted(properties.deviceName);
+            ImGui::TextUnformatted(backend::selected::context().apiName());
+            ImGui::TextUnformatted(backend::selected::context().deviceName().c_str());
             endSection(); break;
         }
         case PaneCase::FileHandling: {

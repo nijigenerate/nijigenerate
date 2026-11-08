@@ -15,7 +15,7 @@
 #include <nijigenerate/core/math/source_matrix_inverse.hpp>
 #include <nijigenerate/commands/depth/detail/bone_dirty_providers.hpp>
 #include <nijigenerate/ext/nodes/exdepthmapped.hpp>
-#include <nijigenerate/backend/vulkan/backend.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <nodes/grid_deformer.hpp>
 #include <texture.hpp>
 #include <runtime_state.hpp>
@@ -99,7 +99,7 @@ void DepthMeshEditorOne::renderTextureLikeVertexMode() {
         const auto receiver = compat::ngRequireObject(texture);
         return receiver->getTextureId();
     };
-    auto& renderer=backend::vulkan::backend();
+    auto& renderer=backend::selected::backend();
     renderer.pushTarget(textureId());
     nicxlive::core::inPushViewport(textureWidth, textureHeight);
     const auto camera = nicxlive::core::inGetCameraHandle();

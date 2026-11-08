@@ -3,7 +3,7 @@
 #include <common/object_key_policy.hpp>
 #include <string>
 #include <nijigenerate/compat/throwable.hpp>
-#include <nijigenerate/backend/vulkan/backend.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <math/veca.hpp>
 #include <algorithm>
 #include <bit>
@@ -81,7 +81,7 @@ void renderToTexture(const std::shared_ptr<Texture>& texture,Rect where,Rect uv,
     const std::array<uint32_t,6> indices{0,1,2,2,1,3};
     // A positive-height Vulkan offscreen viewport maps clip -Y to its top row.
     const auto projection=Mat4::orthographic(0,width,0,height,-1,1);
-    auto& renderer=backend::vulkan::backend();
+    auto& renderer=backend::selected::backend();
     renderer.pushTarget(currCanvas->backendId(),{},false);
     try { renderer.drawMesh(texture->backendId(),positions,uvs,indices,projection,{1,1,1,opacity},{},false,mode); }
     catch(...) { renderer.popTarget(); throw; }
@@ -177,7 +177,7 @@ void Atlas::resize(std::size_t size) {
     for (std::size_t i = 0; i < textures.size(); ++i) {
         if (const auto texture = textures[i]) texture->dispose();
         textures[i] = Texture::createSource(static_cast<int>(size), static_cast<int>(size), i == 0 ? 4 : 3);
-        auto& renderer=backend::vulkan::backend();
+        auto& renderer=backend::selected::backend();
         renderer.pushTarget(textures[i]->backendId()); renderer.popTarget();
     }
 }

@@ -6,6 +6,7 @@
 #include <imgui_impl_vulkan.h>
 #include <memory>
 #include <vector>
+#include <string>
 #include <vulkan/vulkan.h>
 
 namespace nijigenerate::backend::vulkan {
@@ -83,6 +84,13 @@ public:
   void generateMipmaps(VkCommandBuffer,Image &);
   std::vector<uint8_t> read(Image &);
   ImTextureID texture(Image &);
+  const char* apiName() const { return "Vulkan"; }
+  std::string deviceName() const {
+    VkPhysicalDeviceProperties props{}; vkGetPhysicalDeviceProperties(physical,&props); return props.deviceName;
+  }
+  int maxTextureSize() const {
+    VkPhysicalDeviceProperties props{}; vkGetPhysicalDeviceProperties(physical,&props); return int(props.limits.maxImageDimension2D);
+  }
   int width() const { return swap_.Width; }
   int height() const { return swap_.Height; }
 };

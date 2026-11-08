@@ -46,7 +46,12 @@ void ngOpenWindow() {
             compat::RetainedString::fromStaticLiteral("source/nijigenerate/core/window.d"), 221);
     (void)SDL_EnableScreenSaver();
 
-    SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#ifdef NIJIGENERATE_RENDERER_METAL
+    flags |= SDL_WINDOW_METAL;
+#else
+    flags |= SDL_WINDOW_VULKAN;
+#endif
     if (settings::incSettingsGet<bool>(settings::SettingsString(
             compat::RetainedString::fromStaticLiteral("WinMax")), false))
         flags |= SDL_WINDOW_MAXIMIZED;

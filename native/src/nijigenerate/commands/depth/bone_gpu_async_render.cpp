@@ -1,13 +1,13 @@
 #include "bone_gpu_async.hpp"
 #include "gpu_dispatch_packet.hpp"
-#include <nijigenerate/backend/vulkan/compute.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <map>
 #include <cstring>
 #include <algorithm>
 namespace nijigenerate::commands::depth::bone_gpu_async {
-namespace vk=backend::vulkan;
+namespace gpu=backend::selected;
 namespace {
-struct Job { size_t count; std::shared_ptr<vk::ComputeJob> compute; };
+struct Job { size_t count; std::shared_ptr<gpu::ComputeJob> compute; };
 std::map<uint32_t,Job> jobs;
 uint32_t nextJob=1;
 struct Parameters {
@@ -19,8 +19,8 @@ static_assert(sizeof(Parameters)==160);
 }
 compat::Slice<compat::RetainedStringSlice> ngDepthBoneGpuAsyncMissingRequirements() {
     compat::Slice<compat::RetainedStringSlice> missing;
-    try { (void)vk::context(); } catch(const std::exception&) {
-        missing.append(compat::RetainedStringSlice(compat::RetainedString::fromStaticLiteral("Vulkan compute context")));
+    try { (void)gpu::context(); } catch(const std::exception&) {
+        missing.append(compat::RetainedStringSlice(compat::RetainedString::fromStaticLiteral("GPU compute context")));
     }
     return missing;
 }
@@ -50,7 +50,7 @@ bool ngSubmitDepthBoneGpuAsync(DepthBoneGpuDispatchPacket& packet,uint32_t& id,c
             std::as_bytes(std::span(positions)),std::as_bytes(std::span(packet.depths.data(),packet.depths.size())),
             std::as_bytes(std::span(packet.bones.data(),packet.bones.size())),
             std::as_bytes(std::span(packet.sources.data(),packet.sources.size())),std::as_bytes(std::span(&params,1))};
-        auto job=vk::ngSubmitCompute(vk::ComputeKernel::DepthBone,inputs,uint32_t(count));
+        auto job=gpu::ngSubmitCompute(gpu::ComputeKernel::DepthBone,inputs,uint32_t(count));
         id=nextJob++; jobs.emplace(id,Job{count,std::move(job)}); return true;
     } catch(const std::exception& e) { error=compat::RetainedStringSlice(compat::RetainedString(e.what())); return false; }
 }

@@ -1,5 +1,5 @@
 #include "gpu_internal.hpp"
-#include <nijigenerate/backend/vulkan/compute.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <map>
 #include <span>
 namespace nijigenerate::viewport::depth::draw {
@@ -8,7 +8,7 @@ namespace gpu_detail {
 namespace {
 struct SampleJob {
     uint32_t layerIndex{}; size_t count{};
-    std::shared_ptr<backend::vulkan::ComputeJob> compute;
+    std::shared_ptr<backend::selected::ComputeJob> compute;
 };
 struct ComposeJob {
     uint32_t id{};
@@ -55,7 +55,7 @@ bool ngSubmitDepthDrawGpuLayerSample(DepthDrawGpuLayerSamplePacket& packet,uint3
             std::as_bytes(std::span(upload.layer.data(),upload.layer.size())),
             std::as_bytes(std::span(upload.binding.data(),upload.binding.size())),
             std::as_bytes(std::span(depths)),std::as_bytes(std::span(coverage))};
-        auto job=backend::vulkan::ngSubmitCompute(backend::vulkan::ComputeKernel::DepthSample,inputs,uint32_t(packet.documentPositions.size()));
+        auto job=backend::selected::ngSubmitCompute(backend::selected::ComputeKernel::DepthSample,inputs,uint32_t(packet.documentPositions.size()));
         id=nextSampleId++; sampleJobs.emplace(id,SampleJob{packet.layerIndex,packet.documentPositions.size(),std::move(job)}); return true;
     } catch(const compat::ThrowableException& e) { error=e.msg; return false; }
     catch(const std::exception& e) { error=GpuError(std::string(e.what())); return false; }
@@ -68,7 +68,7 @@ bool submitDepthDrawGpuComposeBackend(DepthDrawGpuComposePacket& packet, std::ui
             [] {
                 const auto diagnostic = ngDepthDrawGpuLayerSampleSupportDiagnostic();
                 return allocateGpuMemory([&] {
-                    return "DepthDraw GPU composition requires Vulkan layer sampling support: " +
+                    return "DepthDraw GPU composition requires GPU layer sampling support: " +
                         std::string(diagnostic.view());
                 });
             }, 987);

@@ -56,7 +56,11 @@ void ngCreateContext() {
 #endif
 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+#ifdef NIJIGENERATE_RENDERER_METAL
+    (void)ImGui_ImplSDL3_InitForMetal(state.window);
+#else
     (void)ImGui_ImplSDL3_InitForVulkan(state.window);
+#endif
     ::nijigenerate::platform::ngConfigureImGuiSDL3Coordinates(
         false, &dpi::incGetUIScale);
     backend::ngInitializeRendererUI();

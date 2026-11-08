@@ -1,7 +1,7 @@
 // Copyright 2024 nijigenerate Project. BSD-2-Clause; see LICENSE.
 #include "renderer.hpp"
 #include "mesheditor/node_stable_sort.hpp"
-#include <nijigenerate/backend/vulkan/backend.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <nijigenerate/core/math/source_matrix_inverse.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/compat/scope_exit.hpp>
@@ -22,7 +22,7 @@ void DepthTextureMeshRenderer::drawSolid(compat::Slice<Vec2> positions,compat::S
     std::vector<Vec3> vertices; vertices.reserve(positions.size());
     for(auto p:positions) vertices.push_back({p.x,p.y,0});
     std::vector<uint32_t> triangles(indices.begin(),indices.end());
-    backend::vulkan::backend().drawMesh(0,vertices,{},triangles,camera->matrix(),color);
+    backend::selected::backend().drawMesh(0,vertices,{},triangles,camera->matrix(),color);
 }
 void DepthTextureMeshRenderer::draw(std::shared_ptr<nicxlive::core::Texture> texture,compat::Slice<Vec2> positions,
     compat::Slice<Vec2> uvs,compat::Slice<uint16_t> indices,std::shared_ptr<nicxlive::core::math::Camera> camera) {
@@ -30,7 +30,7 @@ void DepthTextureMeshRenderer::draw(std::shared_ptr<nicxlive::core::Texture> tex
     std::vector<Vec3> vertices; vertices.reserve(positions.size());
     for(auto p:positions) vertices.push_back({p.x,p.y,0});
     std::vector<uint32_t> triangles(indices.begin(),indices.end());
-    backend::vulkan::backend().drawMesh(texture->backendId(),vertices,{uvs.data(),uvs.size()},triangles,camera->matrix());
+    backend::selected::backend().drawMesh(texture->backendId(),vertices,{uvs.data(),uvs.size()},triangles,camera->matrix());
 }
 bool DepthTargetOffscreenTextureRenderer::rebuildTexture(Target target) {
     const auto vertices = compat::ngRequireObject(target)->getVertices().toArray(); if (vertices.empty()) return false;
@@ -41,9 +41,7 @@ bool DepthTargetOffscreenTextureRenderer::rebuildTexture(Target target) {
         maxPoint.x = std::max(maxPoint.x, value.x); maxPoint.y = std::max(maxPoint.y, value.y);
     }
     sourceSize = {std::max(1.f, maxPoint.x - minPoint.x), std::max(1.f, maxPoint.y - minPoint.y)};
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(backend::vulkan::context().physical,&properties);
-    const auto maxSize=int(properties.limits.maxImageDimension2D);
+    const auto maxSize=backend::selected::context().maxTextureSize();
     if (!ngDepthTargetOffscreenTextureSize(minPoint, maxPoint, maxSize, textureWidth, textureHeight, texturePixelScale)) return false;
     if (texture && (compat::ngRequireObject(texture)->width() != textureWidth
             || compat::ngRequireObject(texture)->height() != textureHeight)) {
@@ -83,7 +81,7 @@ void DepthTargetOffscreenTextureRenderer::dispose() {
 }
 std::shared_ptr<nicxlive::core::Texture> DepthTargetOffscreenTextureRenderer::render(Target target) {
     const auto keepAlive = weak_from_this().lock(); if (!target || !rebuildTexture(target)) return {};
-    auto& renderer=backend::vulkan::backend();
+    auto& renderer=backend::selected::backend();
     renderer.pushTarget(texture->backendId());
     nicxlive::core::inPushViewport(textureWidth, textureHeight);
     const auto camera = nicxlive::core::inGetCameraHandle();

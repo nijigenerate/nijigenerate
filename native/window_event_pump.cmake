@@ -3,7 +3,7 @@ function(ng_attach_window_event_pump)
     foreach(provider IN ITEMS nijigenerate_runtime_core nijigenerate_window_state
             nijigenerate_tasks nijigenerate_io_save nijigenerate_renderer
             nijigenerate_window_simple nijigenerate_modal nijigenerate_dialogs
-            nijigenerate_label nijigenerate_dpi Vulkan::Vulkan)
+            nijigenerate_label nijigenerate_dpi nijigenerate_gpu_api)
         if(NOT TARGET "${provider}")
             message(FATAL_ERROR "Window event pump requires actual provider ${provider}")
         endif()

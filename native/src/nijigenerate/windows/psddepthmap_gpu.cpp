@@ -3,7 +3,7 @@
 #include <nijigenerate/compat/array_access.hpp>
 #include <nijigenerate/compat/throwable.hpp>
 #include <compat/object_metadata.hpp>
-#include <nijigenerate/backend/vulkan/backend.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <nodes/common.hpp>
 #include <algorithm>
 #include <bit>
@@ -65,7 +65,7 @@ std::shared_ptr<nicxlive::core::Texture> PsdDepth3DAdjustGpuRenderer::renderScop
     int w,int h,const void* context,void (*invoke)(const void*)) {
     const auto receiver=weak_from_this().lock();
     if(!ensureTarget(w,h)) return {};
-    auto& renderer=backend::vulkan::backend();
+    auto& renderer=backend::selected::backend();
     renderer.pushTarget(texture->backendId(),{.08f,.09f,.10f,1});
     try { if(!invoke) compat::ngFailNullAccess(false); invoke(context); }
     catch(...) { renderer.popTarget(); throw; }
@@ -74,7 +74,7 @@ std::shared_ptr<nicxlive::core::Texture> PsdDepth3DAdjustGpuRenderer::renderScop
 bool PsdDepth3DAdjustGpuRenderer::capturePreview(int& w,int& h,compat::Slice<uint8_t>& rgba) {
     const auto receiver=weak_from_this().lock(); w=0; h=0; rgba={};
     if(!texture || width<=0 || height<=0) return false;
-    auto pixels=backend::vulkan::backend().readTexture(texture->backendId());
+    auto pixels=backend::selected::backend().readTexture(texture->backendId());
     rgba.resize(pixels.size());
     // Preserve the preview's document-row order, independent of render targets.
     const auto rowBytes=size_t(width)*4;
@@ -102,7 +102,7 @@ void PsdDepth3DAdjustGpuRenderer::drawLayer(std::shared_ptr<nicxlive::core::Text
             std::clamp(cameraDepth/std::max(depthDisplayScale*2,1.f),-1.f,1.f)});
         uvs.push_back({mesh.vertexData[i+3],mesh.vertexData[i+4]});
     }
-    backend::vulkan::backend().drawMesh(layerTexture->backendId(),positions,uvs,
+    backend::selected::backend().drawMesh(layerTexture->backendId(),positions,uvs,
         {mesh.indices.data(),mesh.indices.size()},Mat4::identity(),{1,1,1,1},{},true);
 }
 void PsdDepth3DAdjustGpuRenderer::dispose() {

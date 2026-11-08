@@ -34,23 +34,23 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_renderer AND
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/commands/depth/editor_table.hpp")
     target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_renderer
         nijigenerate_debug nijigenerate_viewport_base_primitives nijigenerate_input
-        nijigenerate_drag nijigenerate_core Vulkan::Vulkan)
-    if(TARGET nijigenerate_input AND TARGET nijigenerate_drag AND TARGET Vulkan::Vulkan
+        nijigenerate_drag nijigenerate_core nijigenerate_gpu_api)
+    if(TARGET nijigenerate_input AND TARGET nijigenerate_drag AND TARGET nijigenerate_gpu_api
             AND NOT TARGET nijigenerate_depth_editor_commands)
         add_library(nijigenerate_depth_editor_commands INTERFACE)
         target_include_directories(nijigenerate_depth_editor_commands INTERFACE "${CMAKE_CURRENT_LIST_DIR}/src")
         target_compile_features(nijigenerate_depth_editor_commands INTERFACE cxx_std_20)
         target_link_libraries(nijigenerate_depth_editor_commands INTERFACE nijigenerate_runtime_core)
     endif()
-    if(TARGET nijigenerate_input AND TARGET nijigenerate_drag AND TARGET Vulkan::Vulkan
+    if(TARGET nijigenerate_input AND TARGET nijigenerate_drag AND TARGET nijigenerate_gpu_api
             AND NOT TARGET nijigenerate_depth_renderer)
         add_library(nijigenerate_depth_renderer INTERFACE)
         target_include_directories(nijigenerate_depth_renderer INTERFACE "${CMAKE_CURRENT_LIST_DIR}/src")
         target_compile_features(nijigenerate_depth_renderer INTERFACE cxx_std_20)
         target_link_libraries(nijigenerate_depth_renderer INTERFACE nijigenerate_runtime_core
-            nijigenerate_renderer Vulkan::Vulkan)
+            nijigenerate_renderer nijigenerate_gpu_api)
     endif()
-    if(TARGET nijigenerate_input AND TARGET nijigenerate_drag AND TARGET Vulkan::Vulkan
+    if(TARGET nijigenerate_input AND TARGET nijigenerate_drag AND TARGET nijigenerate_gpu_api
             AND TARGET nijigenerate_imgui)
         foreach(depth_editor_module IN ITEMS nijigenerate_depth_mesh_editor nijigenerate_depth_mesh_node)
             if(NOT TARGET ${depth_editor_module})

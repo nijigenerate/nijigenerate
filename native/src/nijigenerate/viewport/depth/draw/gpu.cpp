@@ -1,5 +1,5 @@
 #include "gpu_internal.hpp"
-#include <nijigenerate/backend/vulkan/context.hpp>
+#include <nijigenerate/backend/active.hpp>
 #include <common/resource_key_map.hpp>
 #include <functional>
 
@@ -33,10 +33,10 @@ GpuError unavailableMessage(const GpuError& diagnostic) {
 compat::Slice<compat::RetainedStringSlice> missing(bool) {
     compat::Slice<compat::RetainedStringSlice> result;
 #if defined(NIJIGENERATE_DEPTH_GPU_RENDER)
-    try { (void)backend::vulkan::context(); }
-    catch(const std::exception&) { result.append(compat::RetainedString::fromStaticLiteral("Vulkan compute context")); }
+    try { (void)backend::selected::context(); }
+    catch(const std::exception&) { result.append(compat::RetainedString::fromStaticLiteral("GPU compute context")); }
 #else
-    result.append(compat::RetainedString::fromStaticLiteral("Vulkan rendering backend"));
+    result.append(compat::RetainedString::fromStaticLiteral("GPU rendering backend"));
 #endif
     return result;
 }
