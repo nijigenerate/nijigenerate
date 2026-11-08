@@ -1,5 +1,5 @@
 # Independent psddepthmap.d whole dialog implementation. Runtime validation is deferred.
-if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_gl_backend_source AND
+if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_renderer AND
         TARGET nijigenerate_depth_draw_gpu AND TARGET nijigenerate_dialogs AND
         TARGET nijigenerate_io AND TARGET nijigenerate_tooltip AND TARGET nijigenerate_texture_widget)
     set(_psddepthmap_sources
@@ -21,10 +21,10 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_gl_backend_source AN
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/windows/psddepthmap_complete_values.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/windows/psddepthmap_values.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/windows/detail/psddepthmap_value_declarations.hpp")
-    target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_gl_backend_source
+    target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_renderer
         nijigenerate_depth_draw_gpu nijigenerate_depth_camera nijigenerate_dialogs
         nijigenerate_label nijigenerate_button nijigenerate_dummy nijigenerate_tooltip
-        nijigenerate_texture_widget nijigenerate_io OpenGL::GL)
+        nijigenerate_texture_widget nijigenerate_io Vulkan::Vulkan)
     if(MSVC)
         set_property(SOURCE ${_psddepthmap_sources} APPEND PROPERTY COMPILE_OPTIONS /fp:strict)
     else()

@@ -1,12 +1,9 @@
 // Copyright (c) 2020-2023 Inochi2D Project, 2024 nijigenerate Project. BSD-2-Clause.
 #include "atlas.hpp"
-#include "atlas_shaders.hpp"
 #include <common/object_key_policy.hpp>
 #include <string>
 #include <nijigenerate/compat/throwable.hpp>
-#include <shader.hpp>
-#include <nijigenerate/backend/runtime_gl_blend.hpp>
-#include <nijigenerate/backend/runtime_gl_geometry_calls.hpp>
+#include <nijigenerate/backend/vulkan/backend.hpp>
 #include <math/veca.hpp>
 #include <algorithm>
 #include <bit>
@@ -18,7 +15,6 @@
 #include <new>
 #include <stdexcept>
 
-#define NG_ATLAS_GL(name, type) ::nijigenerate::platform::ngGLBackendProcedure<type>(name)
 namespace nijigenerate::atlas::atlas {
 namespace {
 std::unique_ptr<int[]> allocatePackedIndices(std::size_t count) {
@@ -73,95 +69,27 @@ bool ngAtlasObjectEquals(std::shared_ptr<Atlas> left, std::shared_ptr<Atlas> rig
     return nicxlive::core::common::ngClassObjectEquals(std::move(left), std::move(right), &prepareAtlasClassInfo);
 }
 namespace {
-using namespace backend::runtime_gl;
-// Ordinary D module variables are thread-local, including retained object references.
-thread_local GLuint writeFBO{}, writeVAO{}, writeVBO{};
-thread_local GLint atlasMVP{}, atlasRenderOpacity{};
-thread_local std::shared_ptr<nicxlive::core::Shader> atlasShader;
 thread_local std::shared_ptr<Texture> currCanvas;
-void setCanvas(const std::shared_ptr<Texture>& canvas) {
-    NG_ATLAS_GL("glBindVertexArray", PFNGLBINDVERTEXARRAYPROC)(writeVAO);
-    currCanvas = canvas;
-    glBindFramebuffer(GL_FRAMEBUFFER, writeFBO);
-    NG_ATLAS_GL("glFramebufferTexture2D", PFNGLFRAMEBUFFERTEXTURE2DPROC)(
-        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-        compat::ngRequireObject(canvas)->getTextureId(), 0);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-void renderToTexture(const std::shared_ptr<Texture>& texture, Rect where, Rect uvs,
-    BlendMode mode = BlendMode::Normal, float opacity = 1) {
-    NG_ATLAS_GL("glBindVertexArray", PFNGLBINDVERTEXARRAYPROC)(writeVAO);
-    glBindFramebuffer(GL_FRAMEBUFFER, writeFBO);
-    const auto viewportWidthOwner = currCanvas;
-    const auto viewportWidth = compat::ngRequireObject(viewportWidthOwner)->width();
-    const auto viewportHeightOwner = currCanvas;
-    const auto viewportHeight = compat::ngRequireObject(viewportHeightOwner)->height();
-    glViewport(0, 0, viewportWidth, viewportHeight);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    oglSetBlendMode(mode);
-    const float l = where.x, r = where.x + where.w, t = where.y, b = where.y + where.h;
-    const float ul = uvs.x, ur = uvs.x + uvs.w, ut = uvs.y, ub = uvs.y + uvs.h;
-    using nicxlive::core::math::Vec2;
-    const nicxlive::core::math::Vec2Array bufData{
-        {l,t}, {ul,ut}, {l,b}, {ul,ub}, {r,t}, {ur,ut},
-        {r,t}, {ur,ut}, {l,b}, {ul,ub}, {r,b}, {ur,ub}};
-    glBindBuffer(GL_ARRAY_BUFFER, writeVBO);
-    const auto bufAoS = bufData.toArray();
-    NG_ATLAS_GL("glBufferData", PFNGLBUFFERDATAPROC)(
-        GL_ARRAY_BUFFER, bufAoS.size()*sizeof(Vec2), bufAoS.data(), GL_DYNAMIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vec2)*2, nullptr);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vec2)*2,
-        reinterpret_cast<const void*>(sizeof(Vec2)));
-    compat::ngRequireObject(atlasShader)->use();
-    compat::ngRequireObject(atlasShader)->setUniform(atlasRenderOpacity, opacity);
-    using nicxlive::core::math::Mat4;
-    const auto matrixShader = compat::ngRequireObject(atlasShader);
-    const auto matrixLocation = atlasMVP;
-    const auto projectionWidthOwner = currCanvas;
-    const auto projectionWidth = compat::ngRequireObject(projectionWidthOwner)->width();
-    const auto projectionHeightOwner = currCanvas;
-    const auto projectionHeight = compat::ngRequireObject(projectionHeightOwner)->height();
-    const auto projection = Mat4::orthographic(0, projectionWidth, projectionHeight, 0, 0, 2)
-        * Mat4::scale({1, -1, 1});
-    const auto translationHeightOwner = currCanvas;
-    const auto translationHeight = compat::ngRequireObject(translationHeightOwner)->height();
-    const auto translationY = std::bit_cast<std::int32_t>(0u - static_cast<std::uint32_t>(translationHeight));
-    matrixShader->setUniform(matrixLocation, projection * Mat4::translation(0, translationY, -1));
-    compat::ngRequireObject(texture)->bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+void setCanvas(const std::shared_ptr<Texture>& canvas) { currCanvas=canvas; }
+void renderToTexture(const std::shared_ptr<Texture>& texture,Rect where,Rect uv,
+    BlendMode mode=BlendMode::Normal,float opacity=1) {
+    using namespace nicxlive::core::math;
+    const auto width=currCanvas->width(),height=currCanvas->height();
+    const float l=where.x,r=l+where.w,t=where.y,b=t+where.h;
+    const std::array<Vec3,4> positions{{{l,t,0},{l,b,0},{r,t,0},{r,b,0}}};
+    const std::array<Vec2,4> uvs{{{uv.x,uv.y},{uv.x,uv.y+uv.h},{uv.x+uv.w,uv.y},{uv.x+uv.w,uv.y+uv.h}}};
+    const std::array<uint32_t,6> indices{0,1,2,2,1,3};
+    // A positive-height Vulkan offscreen viewport maps clip -Y to its top row.
+    const auto projection=Mat4::orthographic(0,width,0,height,-1,1);
+    auto& renderer=backend::vulkan::backend();
+    renderer.pushTarget(currCanvas->backendId(),{},false);
+    try { renderer.drawMesh(texture->backendId(),positions,uvs,indices,projection,{1,1,1,opacity},{},false,mode); }
+    catch(...) { renderer.popTarget(); throw; }
+    renderer.popTarget();
 }
 }
-void incInitAtlassing() {
-    NG_ATLAS_GL("glGenFramebuffers", PFNGLGENFRAMEBUFFERSPROC)(1, &writeFBO);
-    NG_ATLAS_GL("glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC)(1, &writeVAO);
-    NG_ATLAS_GL("glGenBuffers", PFNGLGENBUFFERSPROC)(1, &writeVBO);
-    using SourceString = nicxlive::core::d_runtime::RetainedString;
-    atlasShader = std::allocate_shared<nicxlive::core::Shader>(
-        nicxlive::core::d_runtime::SourceAllocator<nicxlive::core::Shader>{},
-        SourceString::fromStaticLiteral(detail::vertexShader), SourceString::fromStaticLiteral(detail::fragmentShader));
-    atlasMVP = compat::ngRequireObject(atlasShader)->getUniformLocation(SourceString::fromStaticLiteral("mvp"));
-    atlasRenderOpacity = compat::ngRequireObject(atlasShader)->getUniformLocation(
-        SourceString::fromStaticLiteral("opacity"));
-}
-void ngShutdownAtlassing() {
-    currCanvas.reset();
-    atlasShader.reset();
-    if (writeVBO) NG_ATLAS_GL("glDeleteBuffers", PFNGLDELETEBUFFERSPROC)(1, &writeVBO);
-    if (writeVAO) NG_ATLAS_GL("glDeleteVertexArrays", PFNGLDELETEVERTEXARRAYSPROC)(1, &writeVAO);
-    if (writeFBO) NG_ATLAS_GL("glDeleteFramebuffers", PFNGLDELETEFRAMEBUFFERSPROC)(1, &writeFBO);
-    writeVBO = writeVAO = writeFBO = 0;
-    atlasMVP = atlasRenderOpacity = 0;
-}
+void incInitAtlassing() {}
+void ngShutdownAtlassing() { currCanvas.reset(); }
 std::shared_ptr<Atlas> Atlas::create(std::size_t atlasSize, int padding, float scale) {
     return ngCreateDerived<Atlas>(atlasSize, padding, scale);
 }
@@ -229,7 +157,6 @@ bool Atlas::pack(std::shared_ptr<Part> p, float fscale) {
             const auto uuid = p->getUUID();
             mappings.set(uuid, mapping);
             renderToTexture(texture, where, uvRect);
-            backend::runtime_gl::oglBlendModeBarrier(BlendMode::Normal);
         }
     }
     return true;
@@ -240,7 +167,6 @@ void Atlas::renderOnTop(std::uint32_t index, std::shared_ptr<Texture> texture, R
     if (texture && index < textures.size()) {
         setCanvas(textures[index]);
         renderToTexture(texture, where, uvs, mode, opacity);
-        backend::runtime_gl::oglBlendModeBarrier(mode);
     }
 }
 void Atlas::resize(std::size_t size) {
@@ -251,13 +177,8 @@ void Atlas::resize(std::size_t size) {
     for (std::size_t i = 0; i < textures.size(); ++i) {
         if (const auto texture = textures[i]) texture->dispose();
         textures[i] = Texture::createSource(static_cast<int>(size), static_cast<int>(size), i == 0 ? 4 : 3);
-        glBindFramebuffer(GL_FRAMEBUFFER, writeFBO);
-        NG_ATLAS_GL("glFramebufferTexture2D", PFNGLFRAMEBUFFERTEXTURE2DPROC)(
-            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-            compat::ngRequireObject(textures[i])->getTextureId(), 0);
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        auto& renderer=backend::vulkan::backend();
+        renderer.pushTarget(textures[i]->backendId()); renderer.popTarget();
     }
 }
 void Atlas::finalize() {

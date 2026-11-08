@@ -48,7 +48,6 @@
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/utils/crashdump.hpp>
 #include <nijigenerate/api/mcp/task.hpp>
-#include <nijigenerate/backend/runtime_gl_blend.hpp>
 #include <runtime_state.hpp>
 #include <timing.hpp>
 #include <nodes/drawable.hpp>
@@ -193,12 +192,7 @@ int ngRunEditor(Arguments args) {
             core::actionstack::incActionInit();
             core::ngOpenWindow();
 #if defined(NG_REGRESSION_SMOKE)
-            if (smoke.enabled) SDL_GL_SetSwapInterval(0);
 #endif
-            const bool fallback = core::settings::incSettingsGet<bool>("TripleBufferFallback",
-                backend::runtime_gl::oglIsTripleBufferFallbackEnabled());
-            backend::runtime_gl::oglSetTripleBufferFallback(fallback);
-            backend::runtime_gl::oglApplyBlendingCapabilities();
             ext::incInitExt();
             windows::flipconfig::ngInitFlipConfig();
             panels::resource::ngInitResourcePanel();

@@ -1,9 +1,9 @@
 # Include after the actual window frame, save, task and GL providers are selected.
 function(ng_attach_window_event_pump)
     foreach(provider IN ITEMS nijigenerate_runtime_core nijigenerate_window_state
-            nijigenerate_tasks nijigenerate_io_save nijigenerate_gl_backend_source
+            nijigenerate_tasks nijigenerate_io_save nijigenerate_renderer
             nijigenerate_window_simple nijigenerate_modal nijigenerate_dialogs
-            nijigenerate_label nijigenerate_dpi OpenGL::GL)
+            nijigenerate_label nijigenerate_dpi Vulkan::Vulkan)
         if(NOT TARGET "${provider}")
             message(FATAL_ERROR "Window event pump requires actual provider ${provider}")
         endif()
@@ -23,7 +23,7 @@ function(ng_attach_window_event_pump)
         target_sources(nijigenerate_runtime_core PRIVATE
             "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/nijigenerate/core/window_event_pump.cpp")
         target_link_libraries(nijigenerate_runtime_core PUBLIC nijigenerate_window_state
-            nijigenerate_tasks nijigenerate_io_save nijigenerate_gl_backend_source)
+            nijigenerate_tasks nijigenerate_io_save nijigenerate_renderer)
         target_compile_features(nijigenerate_runtime_core PUBLIC cxx_std_20)
         set_property(TARGET nijigenerate_runtime_core PROPERTY NG_WINDOW_EVENT_PUMP_ATTACHED TRUE)
     endif()

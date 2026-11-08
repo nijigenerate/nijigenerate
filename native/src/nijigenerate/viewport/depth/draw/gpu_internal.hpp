@@ -2,25 +2,13 @@
 #include "gpu.hpp"
 #include <nijigenerate/compat/throwable.hpp>
 #include <nijigenerate/compat/out_of_memory_error.hpp>
-#include <nijigenerate/platform/gl_backend_procedure.hpp>
 #include <concepts>
 #include <new>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 namespace nijigenerate::viewport::depth::draw::gpu_detail {
-// Capability queries represent absent procedures as null, like the original
-// BindBC pointers. Keep the real backend's current-context policy.
-inline SDL_FunctionPointer queryProcedure(const char* name) {
-    try { return platform::ngGLGetBackendProcedure(name); }
-    catch (const std::logic_error&) { return nullptr; }
-    catch (const std::runtime_error&) { return nullptr; }
-}
-template<class Function> Function queryProcedure(const char* name) {
-    static_assert(sizeof(Function) == sizeof(SDL_FunctionPointer));
-    return std::bit_cast<Function>(queryProcedure(name));
-}
-// Call only with pure byte/buffer work, after any provider or GL calls finish.
+// Allocation helpers do not retain GPU resources or device state.
 template<class F> decltype(auto) allocateGpuMemory(F&& allocate) {
     try { return allocate(); }
     catch (const std::bad_alloc&) { throw compat::ngStaticError<compat::OutOfMemoryError>(); }

@@ -3,7 +3,7 @@
 #include "window_state_internal.hpp"
 #include "settings.hpp"
 #include "dpi.hpp"
-#include <nijigenerate/backend/gl.hpp>
+#include <nijigenerate/backend/renderer.hpp>
 #include <nijigenerate/widgets/modal.hpp>
 #include <nijigenerate/widgets/dialog.hpp>
 #include <nijigenerate/widgets/label.hpp>
@@ -19,10 +19,8 @@
 
 namespace nijigenerate::core {
 void ngBeginLoopNoEv() {
-    backend::gl::ngGLBackendNewFrame();
-    backend::gl::ngGLBackendPlatformNewFrame();
+    backend::ngBeginRendererFrame();
     ImGui::NewFrame();
-    backend::gl::ngGLBackendBeginRender();
 #if defined(__linux__)
     (void)platform::portal::ngUpdatePortal();
 #endif
@@ -64,23 +62,7 @@ void ngBeginLoopNoEv() {
 void ngEndLoop() {
     widgets::dialog::ngCleanupDialogs();
     ImGui::Render();
-    // Preserve each source scale query and float product before integer cast.
-    const auto displayWidth = compat::ngRequireObject(detail::windowState().io)->DisplaySize.x;
-    const auto width = compat::ngFloatToInt32(displayWidth * dpi::incGetUIScale());
-    const auto displayHeight = compat::ngRequireObject(detail::windowState().io)->DisplaySize.y;
-    const auto height = compat::ngFloatToInt32(displayHeight * dpi::incGetUIScale());
-    glViewport(0, 0, width, height);
-    glClearColor(.5f, .5f, .5f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    backend::gl::ngGLBackendRenderDrawData(ImGui::GetDrawData());
-    if (compat::ngRequireObject(detail::windowState().io)->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-        auto* currentWindow = SDL_GL_GetCurrentWindow();
-        const auto currentContext = SDL_GL_GetCurrentContext();
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-        (void)SDL_GL_MakeCurrent(currentWindow, currentContext);
-    }
-    (void)SDL_GL_SwapWindow(detail::windowState().window);
+    backend::ngRenderUI(ImGui::GetDrawData());
 }
 void ngExit() {
     auto& state = detail::windowState();

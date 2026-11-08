@@ -1,9 +1,9 @@
-if(TARGET nijigenerate_panels AND TARGET nijigenerate_gl_backend_source AND TARGET nijigenerate_main_viewport)
+if(TARGET nijigenerate_panels AND TARGET nijigenerate_renderer AND TARGET nijigenerate_main_viewport)
     add_library(nijigenerate_scene_tool_panels STATIC
         "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/scene.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/toolsettings.cpp")
     target_link_libraries(nijigenerate_scene_tool_panels PUBLIC nijigenerate_panels
-        nijigenerate_gl_backend_source nijigenerate_main_viewport)
+        nijigenerate_renderer nijigenerate_main_viewport)
     target_sources(nijigenerate_scene_tool_panels PUBLIC
         FILE_SET scene_tool_panel_headers TYPE HEADERS
         BASE_DIRS "${CMAKE_CURRENT_LIST_DIR}/src"

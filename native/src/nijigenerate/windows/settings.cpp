@@ -16,7 +16,7 @@
 #include <nijigenerate/io/package.hpp>
 #include <nijigenerate/io/save_settings.hpp>
 #include <nijigenerate/io/depthmap_psd_names.hpp>
-#include <nijigenerate/backend/runtime_gl_blend.hpp>
+#include <nijigenerate/backend/vulkan/context.hpp>
 #include <nijigenerate/widgets/button.hpp>
 #include <nijigenerate/widgets/label.hpp>
 #include <nijigenerate/widgets/dummy.hpp>
@@ -37,7 +37,6 @@ using namespace core::shortcut;
 using namespace viewport::base;
 using namespace widgets;
 using namespace io::autosave;
-using namespace backend::runtime_gl;
 namespace {
 template<std::size_t N> compat::RetainedString tr(const char (&text)[N]) {
     return core::translation::ngTranslateRetained(compat::RetainedString::fromStaticLiteral(text));
@@ -194,12 +193,11 @@ void SettingsWindow::onUpdate() {
         }
         case PaneCase::Rendering: {
             beginSection(core::translation::ngTranslateCString("Rendering").data());
-            bool fallback = incSettingsGet<bool>(literal("TripleBufferFallback"), oglIsTripleBufferFallbackEnabled());
-            if (ngCheckbox(core::translation::ngTranslateCString("Enable triple buffer fallback").data(), &fallback)) {
-                incSettingsSet(literal("TripleBufferFallback"), fallback);
-                oglSetTripleBufferFallback(fallback); oglApplyBlendingCapabilities();
-            }
-            ngTooltip(tr("Fallback to double buffering when triple buffering is unstable.")); endSection(); break;
+            VkPhysicalDeviceProperties properties{};
+            vkGetPhysicalDeviceProperties(backend::vulkan::context().physical,&properties);
+            ImGui::TextUnformatted("Vulkan");
+            ImGui::TextUnformatted(properties.deviceName);
+            endSection(); break;
         }
         case PaneCase::FileHandling: {
             beginSection(core::translation::ngTranslateCString("Autosaves").data());

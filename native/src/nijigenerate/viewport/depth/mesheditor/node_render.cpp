@@ -15,19 +15,16 @@
 #include <nijigenerate/core/math/source_matrix_inverse.hpp>
 #include <nijigenerate/commands/depth/detail/bone_dirty_providers.hpp>
 #include <nijigenerate/ext/nodes/exdepthmapped.hpp>
-#include <nijigenerate/platform/gl_backend_procedure.hpp>
+#include <nijigenerate/backend/vulkan/backend.hpp>
 #include <nodes/grid_deformer.hpp>
 #include <texture.hpp>
 #include <runtime_state.hpp>
-#include <SDL3/SDL_opengl.h>
-#include <SDL3/SDL_opengl_glext.h>
 #include <cmath>
 #include <algorithm>
 #include <bit>
 #include <utility>
 #include <tuple>
 
-#define NG_DEPTH_NODE_GL(name, type) ::nijigenerate::platform::ngGLBackendProcedure<type>(name)
 namespace nijigenerate::viewport::depth::mesheditor::node {
 namespace {
 template<class T, class... Args> std::shared_ptr<T> allocateDepthNodeObject(Args&&... args) {
@@ -63,10 +60,6 @@ void DepthMeshEditorOne::dispose() {
         { const auto disposing = texture; disposing->dispose(); }
         texture.reset();
     }
-    if (textureFbo) {
-        NG_DEPTH_NODE_GL("glDeleteFramebuffers", PFNGLDELETEFRAMEBUFFERSPROC)(1, &textureFbo);
-        textureFbo = 0;
-    }
     if (offscreenTextureRenderer) {
         { const auto disposing = offscreenTextureRenderer; disposing->dispose(); }
         offscreenTextureRenderer.reset();
@@ -90,7 +83,7 @@ void DepthMeshEditorOne::rebuildTexture() {
     if (!texture) {
         texture = nicxlive::core::Texture::createSource(textureWidth, textureHeight, 4, false, false);
     }
-    if (!textureFbo) NG_DEPTH_NODE_GL("glGenFramebuffers", PFNGLGENFRAMEBUFFERSPROC)(1, &textureFbo);
+    textureFbo=texture->backendId();
     log(formatted("texture ready: size=%sx%s fbo=%s", textureWidth, textureHeight, textureFbo));
 }
 void DepthMeshEditorOne::renderTextureLikeVertexMode() {
@@ -106,33 +99,8 @@ void DepthMeshEditorOne::renderTextureLikeVertexMode() {
         const auto receiver = compat::ngRequireObject(texture);
         return receiver->getTextureId();
     };
-    GLint previousDraw = 0, previousRead = 0, previousViewport[4]{};
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDraw);
-    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousRead);
-    glGetIntegerv(GL_VIEWPORT, previousViewport);
-    const auto bind = NG_DEPTH_NODE_GL("glBindFramebuffer", PFNGLBINDFRAMEBUFFERPROC);
-    bind(GL_FRAMEBUFFER, textureFbo);
-    NG_DEPTH_NODE_GL("glFramebufferTexture2D", PFNGLFRAMEBUFFERTEXTURE2DPROC)(
-        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId(), 0);
-    const GLenum attachment = GL_COLOR_ATTACHMENT0;
-    NG_DEPTH_NODE_GL("glDrawBuffers", PFNGLDRAWBUFFERSPROC)(1, &attachment);
-    const auto status = NG_DEPTH_NODE_GL("glCheckFramebufferStatus", PFNGLCHECKFRAMEBUFFERSTATUSPROC)(GL_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        if (!loggedFramebufferIncomplete) {
-            const auto id = textureId();
-            const auto width = textureWidth;
-            const auto height = textureHeight;
-            log(formatted("offscreen skipped: framebuffer incomplete status=%s textureId=%s size=%sx%s",
-                status, id, width, height));
-            loggedFramebufferIncomplete = true;
-        }
-        bind(GL_DRAW_FRAMEBUFFER, GLuint(previousDraw)); bind(GL_READ_FRAMEBUFFER, GLuint(previousRead));
-        glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]); return;
-    }
-    glViewport(0, 0, textureWidth, textureHeight);
-    glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_BLEND);
-    NG_DEPTH_NODE_GL("glBlendEquation", PFNGLBLENDEQUATIONPROC)(GL_FUNC_ADD);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); glClearColor(0, 0, 0, 0); glClear(GL_COLOR_BUFFER_BIT);
+    auto& renderer=backend::vulkan::backend();
+    renderer.pushTarget(textureId());
     nicxlive::core::inPushViewport(textureWidth, textureHeight);
     const auto camera = nicxlive::core::inGetCameraHandle();
     if (!camera) compat::ngFailNullAccess(true);
@@ -156,12 +124,7 @@ void DepthMeshEditorOne::renderTextureLikeVertexMode() {
         for (auto part : parts) compat::ngRequireObject(part)->drawOne();
     }, [&] {
         compat::ngRequireObject(target)->setOneTimeTransform({}); nicxlive::core::inPopViewport();
-        bind(GL_DRAW_FRAMEBUFFER, GLuint(previousDraw)); bind(GL_READ_FRAMEBUFFER, GLuint(previousRead));
-        glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
-        if (previousDraw != 0) {
-            const GLenum attachments[]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
-            NG_DEPTH_NODE_GL("glDrawBuffers", PFNGLDRAWBUFFERSPROC)(3, attachments);
-        }
+        renderer.popTarget();
     });
 }
 void DepthMeshEditorOne::applyToTarget() {
@@ -263,4 +226,3 @@ void DepthMeshEditorOne::draw(std::shared_ptr<nicxlive::core::math::Camera> view
     }
 }
 }
-#undef NG_DEPTH_NODE_GL

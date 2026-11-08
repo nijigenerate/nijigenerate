@@ -1,6 +1,5 @@
 #pragma once
 #include "../psddepthmap_complete_values.hpp"
-#include <shader.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <compat/object_metadata.hpp>
 #include <texture.hpp>
@@ -11,13 +10,7 @@
 namespace nijigenerate::windows::psddepthmap::detail {
 class PsdDepth3DAdjustGpuRenderer final : public std::enable_shared_from_this<PsdDepth3DAdjustGpuRenderer> {
     std::shared_ptr<nicxlive::core::Texture> texture;
-    unsigned fbo = 0, depthBuffer = 0, vao = 0, vbo = 0, ibo = 0;
-    std::shared_ptr<nicxlive::core::Shader> shader;
-    int viewportSizeUniform = -1, centerUniform = -1, yawPitchUniform = -1, zoomPanUniform = -1;
-    int depthScaleUniform = -1, layerDepthTransformUniform = -1, textureUniform = -1;
-    int width = 0, height = 0;
-    void ensureShader();
-    void ensureBuffers();
+    int width=0,height=0;
     bool ensureTarget(int width, int height);
     std::shared_ptr<nicxlive::core::Texture> renderScoped(int width, int height,
         const void* context, void (*invoke)(const void*));

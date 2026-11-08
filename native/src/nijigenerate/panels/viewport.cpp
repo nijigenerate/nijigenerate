@@ -111,6 +111,13 @@ void ViewportPanel::onUpdate() {
     const auto receiver=shared_from_this();
     const bool interactionAllowed=!api::mcp::task::ngMcpExternalCommandsBlocked();
     auto& input=ImGui::GetIO();auto camera=nicxlive::core::inGetCameraHandle();
+    if (!std::isfinite(view::viewportTargetZoom) || view::viewportTargetZoom <= 0) view::viewportTargetZoom=1;
+    if (!std::isfinite(view::viewportZoom) || view::viewportZoom <= 0) view::viewportZoom=view::viewportTargetZoom;
+    if (!std::isfinite(view::viewportTargetPosition.x) || !std::isfinite(view::viewportTargetPosition.y))
+        view::viewportTargetPosition={0,0};
+    if (!std::isfinite(camera->position.x) || !std::isfinite(camera->position.y))
+        camera->position=view::viewportTargetPosition;
+    camera->scale={view::viewportZoom,view::viewportZoom};
     auto* drawList=ImGui::GetWindowDrawList();auto* window=ImGui::GetCurrentWindow();
     auto size=ImGui::GetContentRegionAvail();
     if(std::isnan(size.x)||std::isnan(size.y)) size={0,0};
@@ -153,8 +160,8 @@ void ViewportPanel::onUpdate() {
         ImRect rect(viewportOrigin,{viewportOrigin.x+size.x,viewportOrigin.y+size.y});
         compat::ngRequireObject(drawList)->AddRectFilled(rect.Min,rect.Max,ImGui::GetColorU32(backgroundColor));
         drawList->AddImage(static_cast<ImTextureID>(nicxlive::core::inGetRenderImage()),rect.Min,rect.Max,
-            {static_cast<float>(0.5/width),static_cast<float>(1-0.5/height)},
-            {static_cast<float>(1-0.5/width),static_cast<float>(0.5/height)},0xffffffff);
+            {static_cast<float>(0.5/width),static_cast<float>(0.5/height)},
+            {static_cast<float>(1-0.5/width),static_cast<float>(1-0.5/height)},0xffffffff);
         compat::ngRequireObject(viewport)->drawOverlay(drawList,
             viewportOrigin,rect);
         const auto channel=compat::ngRequireObject(viewport)->asyncDerivedUpdateViewportChannel();auto project=incActiveProject();

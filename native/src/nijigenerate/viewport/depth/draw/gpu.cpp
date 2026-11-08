@@ -1,5 +1,5 @@
 #include "gpu_internal.hpp"
-#include <nijigenerate/platform/gl_backend_procedure.hpp>
+#include <nijigenerate/backend/vulkan/context.hpp>
 #include <common/resource_key_map.hpp>
 #include <functional>
 
@@ -30,32 +30,13 @@ GpuError unavailableMessage(const GpuError& diagnostic) {
         return GpuError("DepthDraw GPU composition is unavailable: " + std::string(diagnostic.view()));
     });
 }
-compat::Slice<compat::RetainedStringSlice> missing(bool layerSample) {
+compat::Slice<compat::RetainedStringSlice> missing(bool) {
     compat::Slice<compat::RetainedStringSlice> result;
 #if defined(NIJIGENERATE_DEPTH_GPU_RENDER)
-    const auto check = [&](const auto& name) {
-        if (!queryProcedure(name)) result.append(compat::RetainedString::fromStaticLiteral(name));
-    };
-    check("glCreateShader");
-    if (layerSample) { check("glShaderSource"); check("glCompileShader"); check("glCreateProgram"); }
-    check("glTransformFeedbackVaryings");
-    check("glBeginTransformFeedback");
-    check("glEndTransformFeedback");
-    check("glBindBufferRange");
-    check("glBindBufferBase");
-    check("glGetIntegeri_v");
-    check("glGetInteger64i_v");
-    check("glGetBufferSubData");
-    check("glGenVertexArrays");
-    check("glBindVertexArray");
-    check("glDeleteVertexArrays");
-    check("glTexBuffer");
-    check("glFenceSync");
-    check("glClientWaitSync");
-    check("glDeleteSync");
+    try { (void)backend::vulkan::context(); }
+    catch(const std::exception&) { result.append(compat::RetainedString::fromStaticLiteral("Vulkan compute context")); }
 #else
-    (void)layerSample;
-    result.append(compat::RetainedString::fromStaticLiteral("rendering backend"));
+    result.append(compat::RetainedString::fromStaticLiteral("Vulkan rendering backend"));
 #endif
     return result;
 }

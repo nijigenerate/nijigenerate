@@ -9,7 +9,6 @@
 #include <nijigenerate/compat/out_of_memory_error.hpp>
 #include <nodes/grid_deformer.hpp>
 #include <compat/source_allocator.hpp>
-#include <SDL3/SDL_opengl.h>
 #include <tuple>
 
 namespace nijigenerate::actions::node::detail {
@@ -24,10 +23,8 @@ using nicxlive::core::math::Vec3Array;
 using nicxlive::core::d_runtime::SourceAllocator;
 namespace dbg = core::dbg;
 void drawDepthPoint(Vec2 point, Vec4 color, float size) {
-    const auto enabled = glIsEnabled(GL_DEPTH_TEST); glDisable(GL_DEPTH_TEST);
     Vec3Array points{nicxlive::core::math::Vec3{point.x, point.y, 0}}; dbg::inDbgSetBuffer(points);
     dbg::inDbgPointsSize(size); dbg::inDbgDrawPoints(color);
-    if (enabled) glEnable(GL_DEPTH_TEST);
 }
 void drawDepthPoint(DepthEditorHandle editor, Vec2 local, float depth, DepthCamera3D& camera, Vec4 color, float size) {
     const auto renderer = std::allocate_shared<DepthTargetRenderer>(SourceAllocator<DepthTargetRenderer>{});
@@ -36,10 +33,8 @@ void drawDepthPoint(DepthEditorHandle editor, Vec2 local, float depth, DepthCame
     drawDepthPoint(point.point, color, point.size);
 }
 void drawDepthLinePoints(Vec2 p0, Vec2 p1, Vec4 color, float width) {
-    const auto enabled = glIsEnabled(GL_DEPTH_TEST); glDisable(GL_DEPTH_TEST);
     Vec3Array points; points.append({p0.x, p0.y, 0}); points.append({p1.x, p1.y, 0});
     dbg::inDbgSetBuffer(points); dbg::inDbgLineWidth(width); dbg::inDbgDrawLines(color); dbg::inDbgLineWidth(1);
-    if (enabled) glEnable(GL_DEPTH_TEST);
 }
 void drawDepthLine(DepthEditorHandle editor, Vec2 p0, Vec2 p1, DepthCamera3D& camera, Vec4 color, float width) {
     const auto renderer = std::allocate_shared<DepthTargetRenderer>(SourceAllocator<DepthTargetRenderer>{});
@@ -49,13 +44,11 @@ void drawDepthLine(DepthEditorHandle editor, Vec2 p0, Vec2 p1, DepthCamera3D& ca
 }
 void drawDepthPolyline(Vec3Array points, Vec4 color, float width) {
     if (points.size() < 2) return;
-    const auto enabled = glIsEnabled(GL_DEPTH_TEST); glDisable(GL_DEPTH_TEST);
     Vec3Array lines;
     for (std::size_t i = 0; i < points.size() - 1; ++i) {
         lines.append(points[i].toVector()); lines.append(points[i + 1].toVector());
     }
     dbg::inDbgSetBuffer(lines); dbg::inDbgLineWidth(width); dbg::inDbgDrawLines(color); dbg::inDbgLineWidth(1);
-    if (enabled) glEnable(GL_DEPTH_TEST);
 }
 void drawDepthRingCurve(DepthEditorHandle editor, std::shared_ptr<DepthRingOperation> operation,
     DepthCamera3D& camera, bool backSide, Vec4 color, float width) {
@@ -68,7 +61,6 @@ void drawDepthRingCurve(DepthEditorHandle editor, std::shared_ptr<DepthRingOpera
 }
 void drawDepthEllipse(DepthEditorHandle editor, Vec2 center, float radiusX, float radiusY, float angle,
     float depth, DepthCamera3D& camera, Vec4 color, float width) {
-    const auto enabled = glIsEnabled(GL_DEPTH_TEST); glDisable(GL_DEPTH_TEST);
     Vec3Array points;
     const auto renderer = std::allocate_shared<DepthTargetRenderer>(SourceAllocator<DepthTargetRenderer>{});
     if (!editor) actions::node::detail::failActionObjectReference();
@@ -76,7 +68,6 @@ void drawDepthEllipse(DepthEditorHandle editor, Vec2 center, float radiusX, floa
         points.append({line.p0.x, line.p0.y, 0}); points.append({line.p1.x, line.p1.y, 0});
     }
     dbg::inDbgSetBuffer(points); dbg::inDbgLineWidth(width); dbg::inDbgDrawLines(color); dbg::inDbgLineWidth(1);
-    if (enabled) glEnable(GL_DEPTH_TEST);
 }
 void DepthAttachedPointOperation::draw(DepthEditorHandle editor, DepthCamera3D& camera, bool selected, DepthOperationHandle hot) {
     const auto keepAlive = retainReceiver();

@@ -11,7 +11,7 @@ endif()
 # depth_editor_completion.cmake under the additional three capabilities below.
 if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_depth_draw_gpu AND
         TARGET nijigenerate_depth_draw_pngexport AND TARGET nijigenerate_actions_asyncprogress AND
-        TARGET nijigenerate_actions_depthbone AND TARGET nijigenerate_gl_backend_source AND
+        TARGET nijigenerate_actions_depthbone AND TARGET nijigenerate_renderer AND
         TARGET nijigenerate_debug AND TARGET nijigenerate_viewport_base_primitives)
     target_sources(nijigenerate_runtime_core PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/viewport/depth/common/session.cpp")

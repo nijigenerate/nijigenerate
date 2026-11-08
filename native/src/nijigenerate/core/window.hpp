@@ -1,11 +1,8 @@
 #pragma once
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_opengl.h>
-#include <SDL3/SDL_opengl_glext.h>
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <backends/imgui_impl_opengl3.h>
 #include <render/common.hpp>
 
 #include "nijigenerate/compat/retained_string_slice.hpp"

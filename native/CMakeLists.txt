@@ -420,7 +420,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/expath.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/depthbone_nodes.cmake")
 
 if(NIJIGENERATE_RUNTIME_PROBE)
-    find_package(OpenGL REQUIRED)
+    find_package(Vulkan REQUIRED COMPONENTS glslc)
     include("${CMAKE_CURRENT_SOURCE_DIR}/ownership_graph.cmake")
     include("${CMAKE_CURRENT_SOURCE_DIR}/depth_grid.cmake")
     if(BUILD_TESTING)
@@ -1231,11 +1231,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/flipconfig_declarations.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/backend_gl_declarations.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/depth_draw_gpu.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/depth_draw_composer.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/debug_gl.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/runtime_gl_core.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/runtime_gl_geometry.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/runtime_gl_texture_consumers.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/runtime_gl_lifecycle.cmake")
+
+
+
+
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/atlas_complete.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/automesh_processor.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/runtime_snapshot.cmake")
@@ -1503,9 +1503,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/window_loop.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/window_event_pump.cmake")
 if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_window_state
         AND TARGET nijigenerate_tasks AND TARGET nijigenerate_io_save
-        AND TARGET nijigenerate_gl_backend_source AND TARGET nijigenerate_window_simple
+        AND TARGET nijigenerate_renderer AND TARGET nijigenerate_window_simple
         AND TARGET nijigenerate_modal AND TARGET nijigenerate_dialogs
-        AND TARGET nijigenerate_label AND TARGET nijigenerate_dpi AND TARGET OpenGL::GL)
+        AND TARGET nijigenerate_label AND TARGET nijigenerate_dpi AND TARGET Vulkan::Vulkan)
     ng_attach_window_event_pump()
 endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/windows_package.cmake")
@@ -1561,6 +1561,9 @@ if(BUILD_TESTING)
     include("${CMAKE_CURRENT_SOURCE_DIR}/source_m194_port.cmake")
 endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/phobos_socket.cmake")
+if(NIJIGENERATE_BUILD_EDITOR)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/vulkan.cmake")
+endif()
 if(BUILD_TESTING)
     include("${CMAKE_CURRENT_SOURCE_DIR}/source_m340_port.cmake")
 endif()

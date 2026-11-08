@@ -53,7 +53,7 @@ if(NIJIGENERATE_IMGUI AND TARGET nicxlive::nicxlive AND TARGET SDL3::SDL3)
     add_library(nijigenerate_window_finalize STATIC src/nijigenerate/core/window_finalize.cpp)
     # The actual renderer target is declared later in the parent CMake source.
     target_link_libraries(nijigenerate_window_finalize PUBLIC nijigenerate_window_declarations
-        PRIVATE nijigenerate_gl_backend_source nijigenerate_imgui_sdl3)
+        PRIVATE nijigenerate_renderer nijigenerate_imgui_sdl3)
     if(TARGET nijigenerate_runtime_core)
         # Finalize directly calls the real MCP and AutoMesh shutdown bodies.
         target_link_libraries(nijigenerate_window_finalize PRIVATE nijigenerate_runtime_core)
@@ -66,24 +66,24 @@ if(NIJIGENERATE_IMGUI AND TARGET nicxlive::nicxlive AND TARGET SDL3::SDL3)
                 nijigenerate_window_theme_settings nijigenerate_window_simple
                 nijigenerate_dpi
                 nijigenerate_font nijigenerate_dialogs nijigenerate_window_background
-                nijigenerate_gl_backend_source nijigenerate_imgui_sdl3)
+                nijigenerate_renderer nijigenerate_imgui_sdl3)
         if(APPLE)
             target_compile_definitions(nijigenerate_window_context PRIVATE NG_OSX)
         endif()
         if(WIN32 AND NIJIGENERATE_LOGO_RESOURCES)
-            add_library(nijigenerate_window_open_win32 STATIC src/nijigenerate/platform/window_open_win32.cpp)
+            add_library(nijigenerate_window_open_win32 STATIC src/nijigenerate/platform/window_open_vulkan.cpp)
             target_link_libraries(nijigenerate_window_open_win32 PUBLIC nijigenerate_window_declarations
                 PRIVATE nijigenerate_window_factory nijigenerate_window_context nijigenerate_window_win32_dpi
-                    nijigenerate_window_sdl3_binding nijigenerate_runtime_core nijigenerate_gl_backend_source
+                    nijigenerate_window_sdl3_binding nijigenerate_runtime_core nijigenerate_renderer
                     nijigenerate_logo)
             target_compile_definitions(nijigenerate_window_open_win32 PRIVATE
                 $<$<CONFIG:Debug>:NIJIGENERATE_WINDOW_ORDINARY_DEBUG=1>)
         endif()
         if(APPLE AND NIJIGENERATE_LOGO_RESOURCES)
-            add_library(nijigenerate_window_open_macos STATIC src/nijigenerate/platform/window_open_macos.cpp)
+            add_library(nijigenerate_window_open_macos STATIC src/nijigenerate/platform/window_open_vulkan.cpp)
             target_link_libraries(nijigenerate_window_open_macos PUBLIC nijigenerate_window_declarations
                 PRIVATE nijigenerate_window_factory nijigenerate_window_context
-                    nijigenerate_window_sdl3_binding nijigenerate_runtime_core nijigenerate_gl_backend_source
+                    nijigenerate_window_sdl3_binding nijigenerate_runtime_core nijigenerate_renderer
                     nijigenerate_logo nijigenerate_core nijigenerate_window_debug)
             target_compile_definitions(nijigenerate_window_open_macos PRIVATE
                 $<$<CONFIG:Debug>:NIJIGENERATE_WINDOW_ORDINARY_DEBUG=1>)

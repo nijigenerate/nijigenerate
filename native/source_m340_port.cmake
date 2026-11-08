@@ -9,7 +9,7 @@ set(_ng_m340_required_targets
     nijigenerate_expart nijigenerate_depth_mesh_editor nijigenerate_depth_renderer
     nijigenerate_depth_draw_viewport nijigenerate_depth_viewport nijigenerate_dpi
     nijigenerate_cv nijigenerate_skeleton_path nijigenerate_skeletonize
-    nijigenerate_automesh_processor nijigenerate_window_base nijigenerate_gl_backend_source
+    nijigenerate_automesh_processor nijigenerate_window_base nijigenerate_renderer
     nijigenerate_depth_draw_gpu nijigenerate_dialogs nijigenerate_io nijigenerate_tooltip
     nijigenerate_texture_widget nijigenerate_autorig_evidence nijigenerate_inspector_meshgroup
     nijigenerate_inspector_grid nijigenerate_inspector_drawable nijigenerate_inspector_camera

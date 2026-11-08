@@ -1,5 +1,5 @@
 #include "scene.hpp"
-#include <nijigenerate/backend/runtime_gl_runtime.hpp>
+#include <nijigenerate/backend/vulkan/backend.hpp>
 #include <nijigenerate/core/translation.hpp>
 namespace nijigenerate::panels::scene {
 ScenePanel::ScenePanel()
@@ -7,9 +7,9 @@ ScenePanel::ScenePanel()
         core::translation::ngTranslateRetained(
             compat::RetainedString::fromStaticLiteral("Scene")), false) {}
 void ScenePanel::onUpdate() {
-    auto& light = backend::runtime_gl::inSceneAmbientLight;
+    auto& light = backend::vulkan::ngSceneAmbientLight;
     const auto label = core::translation::ngTranslateCString("Ambient Light");
-    ImGui::ColorEdit3(label.data(), light.data(),
+    ImGui::ColorEdit3(label.data(), &light.x,
         ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
 }
 void ngInitializeScenePanelModule() { ngInitializePanelModule<ScenePanel>(); }

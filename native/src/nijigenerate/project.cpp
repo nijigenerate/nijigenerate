@@ -411,6 +411,7 @@ void incFocusCamera(std::shared_ptr<Node> node) {
     }
     const float x = bounds[0] + (bounds[2] - bounds[0]) * 0.5f;
     const float y = bounds[1] + (bounds[3] - bounds[1]) * 0.5f;
+    if (!std::isfinite(x) || !std::isfinite(y)) return;
     incFocusCamera(node, {-x, -y});
 }
 void incFocusCamera(std::shared_ptr<Node> node, nicxlive::core::math::Vec2 position) {
@@ -430,6 +431,10 @@ void incFocusCamera(std::shared_ptr<Node> node, nicxlive::core::math::Vec2 posit
     }
     const float largestViewport = static_cast<float>(std::min(width, height));
     const float largestBounds = x < y ? y : x;
+    // Empty/new projects have no finite bounds. Never publish NaN camera
+    // targets: interpolation cannot recover from them after a model loads.
+    if (width <= 0 || height <= 0 || !std::isfinite(largestBounds) || largestBounds <= 0 ||
+        !std::isfinite(position.x) || !std::isfinite(position.y)) return;
     const float factor = largestViewport / largestBounds;
     const double zoom = std::clamp(static_cast<double>(factor) * 0.90, 0.1, 2.5);
     const auto emitting = compat::ngRequireObject(activeProject);

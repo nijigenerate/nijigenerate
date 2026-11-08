@@ -279,13 +279,6 @@ private:
 };
 
 class DepthTextureMeshRenderer : public std::enable_shared_from_this<DepthTextureMeshRenderer> {
-    std::uint32_t vao = 0, vbo = 0, ibo = 0;
-    std::shared_ptr<nicxlive::core::Shader> shader, solidShader;
-    int mvpUniform = -1, textureUniform = -1, solidMvpUniform = -1, solidColorUniform = -1;
-    bool loggedEnsure = false, loggedDrawSuccess = false, loggedDrawSkip = false, loggedGlError = false;
-    void ensureBuffers();
-    void ensure();
-    void ensureSolid();
 public:
     DepthTextureMeshRenderer() = default;
     DepthTextureMeshRenderer(const DepthTextureMeshRenderer&) = delete;
@@ -308,7 +301,6 @@ class DepthTargetOffscreenTextureRenderer : public std::enable_shared_from_this<
     using Target = std::shared_ptr<nicxlive::core::nodes::Deformable>;
     using Node = std::shared_ptr<nicxlive::core::nodes::Node>;
     std::shared_ptr<nicxlive::core::Texture> texture;
-    std::uint32_t textureFbo = 0;
     int textureWidth = 0, textureHeight = 0;
     Vec2 sourceSize{1, 1}, texturePixelScale{1, 1}, minPoint{0, 0}, maxPoint{1, 1};
     bool rebuildTexture(Target target);

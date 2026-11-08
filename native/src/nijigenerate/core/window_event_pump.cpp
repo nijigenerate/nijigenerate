@@ -2,7 +2,7 @@
 #include "nijigenerate/core/window_state_internal.hpp"
 #include "nijigenerate/core/asyncderivedupdate.hpp"
 #include "nijigenerate/core/tasks.hpp"
-#include "nijigenerate/backend/gl.hpp"
+#include "nijigenerate/backend/renderer.hpp"
 #include "nijigenerate/io/save.hpp"
 
 #include <SDL3/SDL_events.h>
@@ -40,7 +40,7 @@ void ngBeginLoop() {
             SDL_RaiseWindow(detail::windowState().window);
             break;
         default:
-            backend::gl::ngGLBackendProcessEvent(&event);
+            backend::ngRendererProcessEvent(&event);
             if (event.type == SDL_EVENT_MOUSE_MOTION &&
                 (event.motion.state != 0 || heldMouseButtons != 0)) {
                 sawHeldMouseMotion = true;

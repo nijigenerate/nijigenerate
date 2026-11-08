@@ -49,5 +49,5 @@ inline void ngClearDepthBoneGpuAsyncTestHooks() {
 #elif defined(NIJIGENERATE_GPU_NONRENDER)
 #include "detail/gpu_nonrender_operations.hpp"
 #elif defined(NIJIGENERATE_GPU_RENDER)
-#include "detail/gpu_render_operations.hpp"
+// Vulkan render operations are defined in bone_gpu_async_render.cpp.
 #endif

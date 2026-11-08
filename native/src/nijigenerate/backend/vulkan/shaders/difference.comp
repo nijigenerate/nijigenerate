@@ -1,0 +1,28 @@
+#version 450
+layout(local_size_x=8,local_size_y=8) in;
+layout(set=0,binding=0) uniform sampler2D sourceImage;
+layout(std430,set=0,binding=1) readonly buffer Input { vec4 inputData[]; };
+layout(std430,set=0,binding=2) writeonly buffer Output { vec4 outputData[]; };
+layout(push_constant) uniform Parameters {
+    ivec2 sourceSize; ivec2 targetSize; ivec2 origin; int stage; int sourceHeight;
+} params;
+vec4 fetchValue(ivec2 p) {
+    if(any(greaterThanEqual(p,params.sourceSize))) return vec4(0);
+    if(params.stage!=0) return inputData[p.y*params.sourceSize.x+p.x];
+    p+=params.origin;
+    // The runtime's difference regions use bottom-origin viewport coordinates.
+    p.y=params.sourceHeight-1-p.y;
+    return vec4(clamp(texelFetch(sourceImage,p,0).rgb,0,1),1);
+}
+void main() {
+    ivec2 p=ivec2(gl_GlobalInvocationID.xy);
+    if(any(greaterThanEqual(p,params.targetSize))) return;
+    vec4 value;
+    if(params.sourceSize==params.targetSize) value=fetchValue(p);
+    else {
+        ivec2 at=p*2;
+        value=vec4(0); value+=fetchValue(at); value+=fetchValue(at+ivec2(1,0));
+        value+=fetchValue(at+ivec2(0,1)); value+=fetchValue(at+ivec2(1,1));
+    }
+    outputData[p.y*params.targetSize.x+p.x]=value;
+}

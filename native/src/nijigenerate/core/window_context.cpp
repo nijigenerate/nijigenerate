@@ -6,10 +6,10 @@
 #include "nijigenerate/core/settings.hpp"
 #include "nijigenerate/core/dpi.hpp"
 #include "nijigenerate/core/font.hpp"
-#include "nijigenerate/backend/gl.hpp"
+#include "nijigenerate/backend/renderer.hpp"
 #include "nijigenerate/widgets/dialog.hpp"
 #include "nijigenerate/platform/window_context_policy.hpp"
-#include "nijigenerate/platform/gl_backend_policy.hpp"
+#include "nijigenerate/platform/window_context_policy.hpp"
 #include "nijigenerate/platform/imgui_sdl3_adapter.hpp"
 
 #include <backends/imgui_impl_sdl3.h>
@@ -56,10 +56,10 @@ void ngCreateContext() {
 #endif
 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    (void)ImGui_ImplSDL3_InitForOpenGL(state.window, state.gl_context);
+    (void)ImGui_ImplSDL3_InitForVulkan(state.window);
     ::nijigenerate::platform::ngConfigureImGuiSDL3Coordinates(
-        ::nijigenerate::platform::ngGLBackendManuallyScalesViewport(), &dpi::incGetUIScale);
-    (void)backend::gl::ngGLBackendInit(nullptr);
+        false, &dpi::incGetUIScale);
+    backend::ngInitializeRendererUI();
     font::incInitFonts();
     ngInitStyling();
     widgets::dialog::ngInitDialogs();
