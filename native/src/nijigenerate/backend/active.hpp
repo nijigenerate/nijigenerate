@@ -1,4 +1,5 @@
 #pragma once
+#include <nijigenerate/renderer_config.hpp>
 #ifdef NIJIGENERATE_RENDERER_METAL
 #include "metal/backend.hpp"
 #include "metal/compute.hpp"

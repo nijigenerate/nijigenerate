@@ -7,6 +7,7 @@
 #include "nijigenerate/core/dpi.hpp"
 #include "nijigenerate/core/font.hpp"
 #include "nijigenerate/backend/renderer.hpp"
+#include <nijigenerate/renderer_config.hpp>
 #include "nijigenerate/widgets/dialog.hpp"
 #include "nijigenerate/platform/window_context_policy.hpp"
 #include "nijigenerate/platform/window_context_policy.hpp"

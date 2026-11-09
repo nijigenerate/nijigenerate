@@ -30,7 +30,22 @@ target_include_directories(nijigenerate_vulkan PUBLIC "${CMAKE_CURRENT_LIST_DIR}
     "${NIJIGENERATE_NICXLIVE_SOURCE_DIR}"
     "${NIJIGENERATE_IMGUI_SOURCE_DIR}/backends" PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(nijigenerate_vulkan PUBLIC nicxlive::nicxlive
-    nijigenerate_imgui SDL3::SDL3 Vulkan::Vulkan)
+    nijigenerate_imgui SDL3::SDL3 PRIVATE Vulkan::Vulkan)
+
+# These translation units use the selected concrete backend. Keep the Vulkan
+# SDK include path off the many unrelated targets that link the renderer.
+set(_ng_vk_consumers
+    src/nijigenerate/atlas/atlas.cpp
+    src/nijigenerate/backend/renderer.cpp
+    src/nijigenerate/commands/depth/bone_gpu_async_render.cpp
+    src/nijigenerate/panels/scene.cpp
+    src/nijigenerate/viewport/depth/draw/gpu.cpp
+    src/nijigenerate/viewport/depth/draw/gpu_vulkan.cpp
+    src/nijigenerate/viewport/depth/mesheditor/node_render.cpp
+    src/nijigenerate/viewport/depth/renderer_vulkan.cpp
+    src/nijigenerate/windows/psddepthmap_gpu.cpp
+    src/nijigenerate/windows/settings.cpp)
+set_property(SOURCE ${_ng_vk_consumers} APPEND PROPERTY INCLUDE_DIRECTORIES "${Vulkan_INCLUDE_DIRS}")
 
 target_link_libraries(nijigenerate_depth_gpu_render PUBLIC nijigenerate_vulkan)
 target_link_libraries(nijigenerate_depth_draw_gpu PUBLIC nijigenerate_vulkan)

@@ -1,6 +1,7 @@
 #include "nijigenerate/core/window.hpp"
 #include "nijigenerate/compat/throwable.hpp"
 #include "nijigenerate/backend/renderer.hpp"
+#include <nijigenerate/renderer_config.hpp>
 #include "nijigenerate/core/window_state_internal.hpp"
 #include "nijigenerate/core/window_diagnostic_internal.hpp"
 #include "nijigenerate/core/settings.hpp"
