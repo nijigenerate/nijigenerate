@@ -200,8 +200,8 @@ void ViewportPanel::onUpdate() {
     }
     compat::ngRequireObject(drawList);
     compat::ngRequireObject(window);
-    drawList->AddLine({window->InnerRect.Max.x-1,window->InnerRect.Max.y+size.y},
-        {window->InnerRect.Min.x+1,window->InnerRect.Max.y+size.y},
+    drawList->AddLine({window->InnerRect.Min.x+1,window->InnerRect.Max.y},
+        {window->InnerRect.Max.x-1,window->InnerRect.Max.y},
         ImGui::ColorConvertFloat4ToU32(ImGui::GetStyle().Colors[ImGuiCol_Separator]),2);
     if(interactionAllowed&&ImGui::BeginDragDropTarget()) {
         if(const auto* payload=ImGui::AcceptDragDropPayload("__PARTS_DROP")) {

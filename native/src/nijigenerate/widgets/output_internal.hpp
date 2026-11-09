@@ -81,9 +81,9 @@ void adjustWindowPos(ImVec2 minPos, ImVec2 maxPos, ImGuiWindow* window) {
     if (!window || !window->RootWindow) return;
     const ImRect outer = getOuterRect(window);
     const float spaceLeft = minPos.x - outer.Min.x;
-    const float spaceRight = outer.Max.x - outer.Min.x - maxPos.x;
+    const float spaceRight = outer.Max.x - maxPos.x;
     const float spaceUp = minPos.y - outer.Min.y;
-    const float spaceDown = outer.Max.y - outer.Min.y - minPos.y;
+    const float spaceDown = outer.Max.y - minPos.y;
 
     switch (side) {
     case PopupSide::HorzLarger:
@@ -112,13 +112,13 @@ void adjustWindowPos(ImVec2 minPos, ImVec2 maxPos, ImGuiWindow* window) {
     if (side == PopupSide::HorzLarger || side == PopupSide::HorzNarrower) {
         if (window->Size.y >= spaceDown)
             ImGui::SetWindowPos(window, ImVec2(window->Pos.x, window->Pos.y - (window->Size.y - spaceDown)));
-        if (window->Pos.y < 0)
-            ImGui::SetWindowPos(window, ImVec2(window->Pos.x, 0));
+        if (window->Pos.y < outer.Min.y)
+            ImGui::SetWindowPos(window, ImVec2(window->Pos.x, outer.Min.y));
     } else {
         if (window->Size.x >= spaceRight)
             ImGui::SetWindowPos(window, ImVec2(window->Pos.x - (window->Size.x - spaceRight), window->Pos.y));
-        if (window->Pos.x < 0)
-            ImGui::SetWindowPos(window, ImVec2(0, window->Pos.y));
+        if (window->Pos.x < outer.Min.x)
+            ImGui::SetWindowPos(window, ImVec2(outer.Min.x, window->Pos.y));
     }
 }
 

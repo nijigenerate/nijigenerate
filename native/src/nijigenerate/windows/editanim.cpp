@@ -85,8 +85,9 @@ void EditAnimationWindow::apply() {
 }
 void EditAnimationWindow::onBeginUpdate() {
     const auto receiver = weak_from_this().lock();
-    ImGui::SetNextWindowSize(ImVec2(480,320), ImGuiCond_Appearing);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(480,320), ImVec2(std::numeric_limits<float>::max(),320));
+    ImGui::SetNextWindowSize(ImVec2(480,420), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(480,320),
+        ImVec2(std::numeric_limits<float>::max(), std::numeric_limits<float>::max()));
     base::Window::onBeginUpdate();
 }
 void EditAnimationWindow::onUpdate() {

@@ -40,7 +40,11 @@ public:
     virtual bool opEquals(std::shared_ptr<AnimationListener> other);
     virtual int opCmp(std::shared_ptr<AnimationListener> other);
     virtual void onAnimationChanged(AnimationPlaybackRef animation) {
-        incAnimationTimelineUpdate(*ngRequireObject(ngRequireObject(animation)->animation()));
+        if (!animation || !animation->animation()) {
+            trackHeights = {};
+            return;
+        }
+        incAnimationTimelineUpdate(*animation->animation());
     }
 };
 }

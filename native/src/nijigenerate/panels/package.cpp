@@ -9,6 +9,7 @@
 #include <nijigenerate/compat/detail/source_c_string_contract.hpp>
 #include <common/object_key_policy.hpp>
 #include <nijigenerate/widgets/window.hpp>
+#include <imgui_internal.h>
 #if defined(NG_MCP_TASK_PROVIDER_HEADER)
 #include NG_MCP_TASK_PROVIDER_HEADER
 #else
@@ -84,6 +85,21 @@ Panel::Panel(PanelString name, PanelString display, bool initialVisibility)
 void Panel::onBeginUpdate() {
     [[maybe_unused]] const auto receiver = sourceOwner_.lock();
     flags |= ImGuiWindowFlags_NoCollapse;
+    // The viewport owns the central dock node and hides its tab bar. A panel
+    // restored into that node would otherwise be marked visible but have no
+    // tab through which it can be selected.
+    if (name_.view() != "Viewport") {
+        const auto* existing = ImGui::FindWindowByName(windowID.data());
+        const auto* saved = ImGui::FindWindowSettingsByID(ImHashStr(windowID.data()));
+        const ImGuiID dockId = existing ? existing->DockId : (saved ? saved->DockId : 0);
+        const auto* dock = dockId ? ImGui::DockBuilderGetNode(dockId) : nullptr;
+        if (dock && dock->IsCentralNode()) {
+            const auto viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowDockID(0, ImGuiCond_Always);
+            ImGui::SetNextWindowPos({viewport->WorkPos.x + 80, viewport->WorkPos.y + 80}, ImGuiCond_Always);
+            ImGui::SetNextWindowSize({420, 300}, ImGuiCond_Always);
+        }
+    }
     drewContents = widgets::ngBegin(windowID.data(), &visible, flags);
     if (wasVisible != visible)
         core::settings::incSettingsSet(visibilityKey(name_), visible);

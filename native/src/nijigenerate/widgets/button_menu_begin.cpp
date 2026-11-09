@@ -40,9 +40,9 @@ bool ngBeginDropdownMenu(std::string_view id, std::string_view icon, ImVec2 mini
 
     auto position = ImGui::GetCursorScreenPos();
     if (window) {
-        // Preserve inmath's min(max(x, min), max), including authored endpoints.
-        position.x = std::min(std::max(position.x, window->OuterRectClipped.Max.x),
-            window->OuterRectClipped.Min.x - 192.0f);
+        const auto left = window->OuterRectClipped.Min.x;
+        const auto right = std::max(left, window->OuterRectClipped.Max.x - 192.0f);
+        position.x = std::clamp(position.x, left, right);
     }
     ImGui::SetNextWindowSizeConstraints(minimum, maximum);
     ImGui::SetNextWindowPos({position.x, position.y + 4}, ImGuiCond_Always, {0, 0});

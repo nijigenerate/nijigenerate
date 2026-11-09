@@ -73,12 +73,12 @@ void ngHeaderResizer(float& width, bool side) {
     float height = static_cast<float>(minTrackHeight);
     const bool isResizing = compat::ngRequireObject(storage)->GetBool(resizingId, false);
     const bool resizeDirection = storage->GetBool(directionId, false);
-    const ImVec2 start(compat::ngRequireObject(window)->OuterRectClipped.Max.x,
-        compat::ngRequireObject(window)->OuterRectClipped.Max.y);
+    const ImVec2 start(compat::ngRequireObject(window)->OuterRectClipped.Min.x,
+        compat::ngRequireObject(window)->OuterRectClipped.Min.y);
     const auto mouse = ImGui::GetMousePos();
-    const ImVec2 size(compat::ngRequireObject(window)->WorkRect.Min.x -
-            compat::ngRequireObject(window)->WorkRect.Max.x,
-        compat::ngRequireObject(window)->WorkRect.Min.y - compat::ngRequireObject(window)->WorkRect.Max.y);
+    const ImVec2 size(compat::ngRequireObject(window)->WorkRect.Max.x -
+            compat::ngRequireObject(window)->WorkRect.Min.x,
+        compat::ngRequireObject(window)->WorkRect.Max.y - compat::ngRequireObject(window)->WorkRect.Min.y);
     ImVec2 dragStart;
     ImVec2 dragEnd;
     bool hovered;
@@ -128,7 +128,7 @@ void ngBeginTimelinePlayhead(nicxlive::core::Animation& animation, float zoom) {
     setStorageFloat(storage, ImGui::GetID("PlayHead_StartX"), start.x);
     setStorageFloat(storage, ImGui::GetID("PlayHead_StartY"), start.y);
     setStorageFloat(storage, ImGui::GetID("PlayHead_Width"), fullSize);
-    setStorageFloat(storage, ImGui::GetID("PlayHead_Height"), window->ClipRect.Min.y - window->ClipRect.Max.y);
+    setStorageFloat(storage, ImGui::GetID("PlayHead_Height"), window->ClipRect.Max.y - window->ClipRect.Min.y);
 }
 
 void ngEndTimelinePlayhead(nicxlive::core::Animation& animation, float zoom, float frame) {

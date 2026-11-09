@@ -35,9 +35,9 @@ public:
         base::viewportTargetPosition = position;
     }
     virtual void onAnimationChanged(project::AnimationPlaybackRef animation) {
+        if (!animation || !animation->animation()) return;
         const auto receiver = compat::ngRequireObject(base::ngViewport());
-        const auto playback = compat::ngRequireObject(animation);
-        const auto value = compat::ngRequireObject(playback->animation());
+        const auto value = animation->animation();
         receiver->animationChanged(*value);
     }
 

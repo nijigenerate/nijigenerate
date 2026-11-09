@@ -29,10 +29,9 @@ bool ngBeginInnerToolbar(float height, bool matchTitlebar, bool offset) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, barColor);
     ImGui::PushStyleColor(ImGuiCol_Button, barColor);
     if (!compat::ngRequireObject(window)->IsExplicitChild) {
-        // Preserve the source coordinate order and parent clip ownership.
-        ImGui::PushClipRect(ImVec2(window->OuterRectClipped.Max.x,
-            offset ? window->OuterRectClipped.Max.y - 1 : window->OuterRectClipped.Max.y),
-            ImVec2(window->OuterRectClipped.Min.x, window->OuterRectClipped.Min.y), false);
+        ImGui::PushClipRect(ImVec2(window->OuterRectClipped.Min.x,
+            offset ? window->OuterRectClipped.Min.y - 1 : window->OuterRectClipped.Min.y),
+            window->OuterRectClipped.Max, false);
         ImGui::SetCursorPosY(offset ? ImGui::GetCursorPosY() - 1 : ImGui::GetCursorPosY());
     }
     const bool visible = ImGui::BeginChild("###Toolbar", ImVec2(0, height), 0,
@@ -42,9 +41,9 @@ bool ngBeginInnerToolbar(float height, bool matchTitlebar, bool offset) {
 }
 
 void ngEndInnerToolbar() {
+    ImGui::EndChild();
     auto* window = ImGui::GetCurrentWindow();
     if (!compat::ngRequireObject(window)->IsExplicitChild) ImGui::PopClipRect();
-    ImGui::EndChild();
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(4);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);

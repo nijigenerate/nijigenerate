@@ -47,8 +47,8 @@ void ngBeginViewportToolArea(compat::RetainedStringSlice id, ImGuiDir horizontal
     const float paddingY = pad ? style.FramePadding.y : 0;
     ImVec2 cursor;
     if (pos) {
-        const auto x = pos->x + compat::ngRequireObject(window)->InnerRect.Max.x;
-        const auto y = pos->y + window->InnerRect.Max.y;
+        const auto x = pos->x + compat::ngRequireObject(window)->InnerRect.Min.x;
+        const auto y = pos->y + window->InnerRect.Min.y;
         cursor = ImVec2(x, y);
     } else {
         const auto x = horizontal == ImGuiDir_Right

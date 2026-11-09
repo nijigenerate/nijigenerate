@@ -51,13 +51,13 @@ void ngLabelOver(compat::RetainedStringSlice text, ImVec2 size, bool entireWindo
     const float xPadding = style.FramePadding.x;
     const float yPadding = style.FramePadding.y;
     if (entireWindow) {
-        origin = compat::ngRequireObject(window)->OuterRectClipped.Max;
-        if (size.x <= 0) size.x = window->OuterRectClipped.Min.x - window->OuterRectClipped.Max.x;
-        if (size.y <= 0) size.y = window->OuterRectClipped.Min.y - window->OuterRectClipped.Max.y;
-        ImGui::PushClipRect(window->OuterRectClipped.Max, window->OuterRectClipped.Min, false);
+        origin = compat::ngRequireObject(window)->OuterRectClipped.Min;
+        if (size.x <= 0) size.x = window->OuterRectClipped.Max.x - origin.x;
+        if (size.y <= 0) size.y = window->OuterRectClipped.Max.y - origin.y;
+        ImGui::PushClipRect(window->OuterRectClipped.Min, window->OuterRectClipped.Max, false);
     } else {
-        if (size.x <= 0) size.x = compat::ngRequireObject(window)->WorkRect.Min.x - origin.x;
-        if (size.y <= 0) size.y = compat::ngRequireObject(window)->WorkRect.Min.y - origin.y;
+        if (size.x <= 0) size.x = compat::ngRequireObject(window)->WorkRect.Max.x - origin.x;
+        if (size.y <= 0) size.y = compat::ngRequireObject(window)->WorkRect.Max.y - origin.y;
     }
     const auto backgroundColor = ImGui::GetColorU32(ImVec4(0, 0, 0, .20f));
     const auto rounding = static_cast<float>(style.WindowRounding * .5);
