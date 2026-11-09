@@ -1,2 +1,4 @@
 #!/bin/sh
-find . -iname "*.d" | xargs xgettext --from-code=UTF-8 -o tl/template.pot -c --keyword=_ --keyword=__ --keyword=ngAutoRigMessage
+set -eu
+cd "$(dirname "$0")"
+exec python3 tools/generate-pot.py "$@"
