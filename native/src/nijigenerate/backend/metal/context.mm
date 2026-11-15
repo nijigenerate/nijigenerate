@@ -22,9 +22,11 @@ Context::Context(SDL_Window* window) : p(std::make_unique<Impl>()) {
         // Framebuffer fetch and ordered attachment access are Apple GPU features.
         advancedBlendSupported=advancedBlendCoherent=[p->device supportsFamily:MTLGPUFamilyApple4];
         p->queue=[p->device newCommandQueue];
-        p->view=SDL_Metal_CreateView(window);
-        if(!p->view) throw std::runtime_error(SDL_GetError());
-        p->layer=(__bridge CAMetalLayer*)SDL_Metal_GetLayer(p->view);
+        if (window) {
+            p->view=SDL_Metal_CreateView(window);
+            if(!p->view) throw std::runtime_error(SDL_GetError());
+            p->layer=(__bridge CAMetalLayer*)SDL_Metal_GetLayer(p->view);
+        }
         p->layer.device=p->device;
         p->layer.pixelFormat=MTLPixelFormatBGRA8Unorm;
         p->layer.framebufferOnly=YES;
@@ -62,6 +64,8 @@ void Context::idle() {
     }
 }
 void Context::resize() {
+    // Offline processing uses the same textures and compute queue without a drawable.
+    if (!p->window) return;
     SDL_GetWindowSizeInPixels(p->window,&p->width,&p->height);
     const auto size=CGSizeMake(p->width,p->height);
     if(p->width>0 && p->height>0 && !CGSizeEqualToSize(p->layer.drawableSize,size)) p->layer.drawableSize=size;

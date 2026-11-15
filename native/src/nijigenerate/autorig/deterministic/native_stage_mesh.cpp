@@ -3,6 +3,7 @@
 #include "detail/evidence.hpp"
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/commands/automesh/dynamic.hpp>
+#include <nijigenerate/viewport/vertex/automesh/grid.hpp>
 #include <nodes/part.hpp>
 #include <algorithm>
 #include <cmath>
@@ -33,7 +34,14 @@ Json meshParts(Json state, Json program, Task task) {
     NativeIntegerMap<std::uint64_t, bool> shoulders;
     for (auto pair : get(state, "shoulder_pairs", Json(core::settings::SettingsJsonArray{})).sourceArrayValue())
         if (pair.sourceIndexValue("matching").as_bool()) shoulders[ngRigUnsigned(pair.sourceIndexValue("target"))]=true;
+    // Both sides of a layered attachment need contour samples at welding scale.
+    for (auto pair : get(state, "surface_pairs", Json(core::settings::SettingsJsonArray{})).sourceArrayValue())
+        if (pair.sourceIndexValue("matching").as_bool()) {
+            shoulders[ngRigUnsigned(pair.sourceIndexValue("source"))]=true;
+            shoulders[ngRigUnsigned(pair.sourceIndexValue("target"))]=true;
+        }
     NativeIntegerMap<std::uint32_t, Json> beforeFrames;
+    compat::Slice<std::uint32_t> neckShadowParts;
     task->runOnMainThread([&] {
         for (auto carrier : program.sourceIndexValue("carriers").sourceArrayValue()) {
             auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(
@@ -41,6 +49,16 @@ Json meshParts(Json state, Json program, Task task) {
             enforceNative(bool(part),"Rig material disappeared before meshing",647);
             auto texture = part->textures[0];
             enforceNative(bool(texture),"Rig Part texture is missing",648);
+            const auto id = part->getUUID();
+            beforeFrames[id] = frame(part->localTransform);
+            // Drawing overlapping triangles on a Multiply layer applies the
+            // shadow twice. A rectangular grid covers the soft alpha once.
+            if (nativeString(carrier.sourceIndexValue("role")).view() == "neck" &&
+                part->blendMode == nicxlive::core::nodes::BlendMode::Multiply &&
+                !shoulders.contains(id)) {
+                neckShadowParts.append(id);
+                continue;
+            }
             const auto widthForSpacing = texture->width();
             const auto heightForSpacing = texture->height();
             float spacing = std::min(10.0f, std::max(1.0f,
@@ -74,23 +92,18 @@ Json meshParts(Json state, Json program, Task task) {
             const auto key = ngRigDigest(configuration).retainedString();
             if (auto existing = groups.find(key); existing != groups.end()) existing->second.ids.append(part->getUUID());
             else groups.try_emplace(key, MeshGroup{{part->getUUID()}, spacing, divisions, scales, shoulder});
-            const auto frameKey = part->getUUID();
-            const auto before = frame(part->localTransform);
-            beforeFrames[frameKey] = before;
         }
     });
     core::settings::SettingsJsonArray configurations;
-    for (auto [key, group] : groups) {
+    const auto applyMesh = [&]<class Processor>(const compat::Slice<std::uint32_t>& ids,
+        std::shared_ptr<Processor> processor) {
         ngRigCheckpoint(task);
         std::shared_ptr<commands::CommandResult> result;
-        auto processor = createNativeObject<RigPartMeshProcessor>(group.spacing, group.divisions,
-            group.scales, group.shoulder);
         compat::SharedDelegate<bool()> canceled = [task] { return task->isCanceled(); };
         task->runOnMainThread([&] {
             compat::Slice<NodeRef> parts;
-            for (auto id : group.ids) parts.append(project::incActivePuppet()->findNodeById(id));
-            using Apply = commands::automesh::dynamic::ApplyAutoMeshPT<
-                viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor>;
+            for (auto id : ids) parts.append(project::incActivePuppet()->findNodeById(id));
+            using Apply = commands::automesh::dynamic::ApplyAutoMeshPT<Processor>;
             result = commandSource(
                 [&] {
                     return createNativeObject<Apply>(processor, canceled);
@@ -101,9 +114,23 @@ Json meshParts(Json state, Json program, Task task) {
         });
         result = result->waitForCompletion();
         enforceNativeLazy(result->succeeded,[&] { return result->message; },680);
+    };
+    for (auto [key, group] : groups) {
+        std::shared_ptr<viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor> processor =
+            createNativeObject<RigPartMeshProcessor>(group.spacing, group.divisions, group.scales, group.shoulder);
+        applyMesh(group.ids, processor);
         configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(group.ids)}, {stringLiteralEvidence("min_distance"), group.spacing},
             {stringLiteralEvidence("div_per_part"), group.divisions}, {stringLiteralEvidence("scales"), values(group.scales)},
             {stringLiteralEvidence("proximal_shoulder_sampling"), group.shoulder}}));
+    }
+    if (!neckShadowParts.empty()) {
+        auto processor = createNativeObject<viewport::vertex::automesh::grid::GridAutoMeshProcessor>();
+        processor->xSegments = 12;
+        processor->ySegments = 12;
+        processor->ngPostParamWrite(compat::RetainedString::fromStaticLiteral("x_segments"));
+        applyMesh(neckShadowParts, processor);
+        configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(neckShadowParts)},
+            {stringLiteralEvidence("processor"), "Grid"}}));
     }
     task->runOnMainThread([&] {
         for (auto [id, before] : beforeFrames) {

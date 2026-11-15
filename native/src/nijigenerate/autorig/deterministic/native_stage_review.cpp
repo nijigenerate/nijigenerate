@@ -50,9 +50,14 @@ Json reviewModel(Task task) {
                 assignNative(item,"inherit_parent",bone->allowParentToTargets);
             }
             if(auto part=std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(node)) {
-                auto mesh=part->getMesh();assignNative(item,"vertices",mesh.vertices.size());assignNative(item,"vertex_bounds",reviewVertexBounds(mesh.vertices));
-                assignNative(item,"triangles",mesh.indices.size()/3);assignNative(item,"vertices_sha256",cellDigest(mesh.vertices));assignNative(item,"uv_sha256",cellDigest(mesh.uvs));
-                assignNative(item,"indices_sha256",cellDigest(mesh.indices));assignNative(item,"opacity",part->opacity);
+                auto projected=std::dynamic_pointer_cast<nicxlive::core::nodes::Projectable>(part);
+                const bool generated=projected&&projected->autoResizedMesh;
+                if (!generated) {
+                    auto mesh=part->getMesh();assignNative(item,"vertices",mesh.vertices.size());assignNative(item,"vertex_bounds",reviewVertexBounds(mesh.vertices));
+                    assignNative(item,"triangles",mesh.indices.size()/3);assignNative(item,"vertices_sha256",cellDigest(mesh.vertices));assignNative(item,"uv_sha256",cellDigest(mesh.uvs));
+                    assignNative(item,"indices_sha256",cellDigest(mesh.indices));
+                }
+                assignNative(item,"generated_mesh",generated);assignNative(item,"opacity",part->opacity);
                 core::settings::SettingsJsonArray masks,welds;
                 const auto sourceMasks=part->masks;
                 for(auto mask:sourceMasks) {auto mode=mask.mode==nicxlive::core::nodes::MaskingMode::Mask?compat::RetainedString::fromStaticLiteral("Mask"):
@@ -122,11 +127,11 @@ Json reviewModel(Task task) {
     });
     return items;
 }
-Json verifySourceFrames(Json state,Task task) {
+Json verifySourceFrames(Json state,Task task,bool collectFailures) {
     core::settings::SettingsJsonArray snapshots,checks;
     task->runOnMainThread([&] {auto puppet=project::incActivePuppet();for(auto material:indexNative(state,"materials").sourceArrayValue()) {
         auto part=std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(material,"uuid"))));
-        enforceNative(bool(part),"Source frame verification Part is missing",282);snapshots.append(rootTextureMapping(part));
+        enforceNative(bool(part),"Source frame verification Part is missing",282);snapshots.append(authoredRootTextureMapping(part));
     }});
     auto materials=indexNative(state,"materials").sourceArrayValue();
     for(std::size_t i=0;i<materials.size();++i) {
@@ -141,6 +146,7 @@ Json verifySourceFrames(Json state,Task task) {
                 {stringLiteralEvidence("source"),indexNative(material,"source_root_mapping")},{stringLiteralEvidence("actual"),snapshots[i]},
                 {stringLiteralEvidence("error"),core::settings::SettingsString(error.msg)}});
             task->previewJson("source-frame-mismatch",diagnostic);
+            if (collectFailures) { checks.append(diagnostic); continue; }
             const auto path=nativeString(indexNative(material,"path"));
             throw compat::ThrowableException(nativeText({path.view(),": ",error.msg.view()}),
                 compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/native.d"),295);

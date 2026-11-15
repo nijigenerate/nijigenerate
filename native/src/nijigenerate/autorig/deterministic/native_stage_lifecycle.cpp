@@ -45,7 +45,13 @@ Json ngRigNativeStage(compat::RetainedStringSlice stageValue,Json state,Json pro
       bool bodySucceeded=false;
       compat::ngRunWithScopeExit([&] {
         if(stage=="mesh-parts")state=meshParts(state,program,task);
-        else if(stage=="prepare-shoulders")assignNative(state,"shoulder_pairs",observation::ngRigPrepareShoulders(state,program,task));
+        else if(stage=="prepare-shoulders") {
+            assignNative(state,"shoulder_pairs",observation::ngRigPrepareShoulders(state,program,task));
+            auto surfacePairs=observation::ngRigPrepareLayeredEars(state,task).sourceArrayValue().duplicate();
+            for (const auto pair : observation::ngRigPrepareHipAttachments(state,program,task).sourceArrayValue())
+                surfacePairs.append(pair);
+            assignNative(state,"surface_pairs",surfacePairs);
+        }
         else if(stage=="prepare-source-groups")state=prepareSourceGroups(state,task);
         else if(stage=="register-source-uv")state=registerSourceUV(state,task);
         else if(stage=="prepare-feature-composites")state=prepareFeatureComposites(state,program,task);
@@ -72,7 +78,7 @@ Json ngRigNativeStage(compat::RetainedStringSlice stageValue,Json state,Json pro
         assignNative(state,"model_sha256",bytesDigest({snapshot.data(),snapshot.size()}));
         assignNative(state,"completed_stage",core::settings::SettingsString(stageValue));
         Json details=core::settings::SettingsJsonObject{};
-        for(auto key:{"prepared_groups","feature_composites","origin_composites","source_group_grids","shoulder_pairs","source_uv_registration","depth_validation","shape_corrections","fixed_foot_corrections"})
+        for(auto key:{"prepared_groups","feature_composites","origin_composites","source_group_grids","shoulder_pairs","surface_pairs","source_uv_registration","depth_validation","shape_corrections","fixed_foot_corrections"})
             if(auto value=state.sourceObjectRef().if_contains(key))assignNative(details,
                 compat::RetainedString::fromStaticView(key),review::ngRigReviewCompact(*value));
         auto resultReview=objectEvidence({{stringLiteralEvidence("stage"),core::settings::SettingsString(stageValue)},

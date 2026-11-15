@@ -169,7 +169,9 @@ Json RigStateStorage::restore(Json state) {
         const auto evaluatedSupport = support->second;
         for (const auto [key, points] : evaluatedSupport.points) {
             SettingsJsonArray rows;
-            if(points) for (const auto& point : *points) rows.append(SettingsJsonArray{Json(point[0]), Json(point[1])});
+            // Append a JSON point, not a slice: the slice overload concatenates coordinates.
+            if(points) for (const auto& point : *points)
+                rows.append(Json(SettingsJsonArray{Json(point[0]), Json(point[1])}));
             fields[SettingsString(key)] = rows;
         }
         for (const auto [key, runs] : evaluatedSupport.runs) {

@@ -18,6 +18,9 @@ compat::RetainedStringSlice ngRigMaterialFeature(compat::RetainedStringSlice,Str
 Strings ngRigMaterialRoleCandidates(compat::RetainedStringSlice);
 Point2 ngRigMeasuredSection(compat::Slice<Point2>,double,Point2 axis={0.,1.});
 Json ngRigClassifyMaterials(Json,Json,std::shared_ptr<framework::AutoRigTaskContext> context={});
+Json ngRigDetectExclusions(Json,Json,std::shared_ptr<framework::AutoRigTaskContext> context={});
+Json ngRigVerifyExclusions(Json,Json);
+Json ngRigDetectSurfaceExclusions(Json);
 Json ngRigDeriveEvidence(Json);
 class AlphaSupportIndex {
 public:

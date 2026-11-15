@@ -8,6 +8,7 @@
 #include <nijigenerate/compat/array_range_error.hpp>
 #include <nodes/projectable.hpp>
 #include <param/binding_impl.hpp>
+#include <set>
 
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
@@ -51,16 +52,45 @@ bool influenceRulesEqual(const ext::nodes::ExDepthInfluenceRule& left,
 Json verifyRig(Json state, Json program, Task task) {
     enforceNative(field(state, "program_sha256").as_string() == field(program, "content_sha256").as_string(),"Rig program ownership mismatch",1609);
     core::settings::SettingsJsonArray grids, localPoses, findings;
+    if (state.sourceObjectRef().if_contains("rig_exclusions")) {
+        const auto exclusionCheck = evidence::ngRigVerifyExclusions(state, program);
+        for (auto violation : exclusionCheck.sourceIndexValue("violations").sourceArrayValue())
+            findings.append(objectEvidence({{stringLiteralEvidence("check"), "rig_exclusion"},
+                {stringLiteralEvidence("detail"), violation}}));
+    }
     std::size_t boneCount = 0, keyCount = 0, intermediateCount = 0;
     const bool humanoid = stringGet(state, "kind", "humanoid") == "humanoid";
     framework::Text snapshotSignature;
-    auto sourceFrames = verifySourceFrames(state, task);
+    auto sourceFrames = verifySourceFrames(state, task, true);
+    for (auto check : sourceFrames.sourceArrayValue())
+        if (const auto error = check.sourceObjectRef().if_contains("error"))
+            findings.append(objectEvidence({{stringLiteralEvidence("part"),field(check,"part")},
+                {stringLiteralEvidence("check"),"source_uv"}, {stringLiteralEvidence("message"),*error}}));
     task->runOnMainThread([&] {
         auto puppet = project::incActivePuppet();
         snapshotSignature = editorSignature(puppet);
         auto root = std::dynamic_pointer_cast<ext::nodes::ExDepthRigRoot>(
             puppet->findNodeById(uuid(field(state, "rigRoot"))));
         enforceNative(bool(root),"Saved DepthRigRoot is missing",1619);
+        if (const auto exclusions = state.sourceObjectRef().if_contains("rig_exclusions")) {
+            std::set<std::uint32_t> generatedGrids;
+            for (auto target : field(state, "targets").sourceArrayValue())
+                generatedGrids.insert(uuid(field(target, "grid")));
+            for (auto source : get(state, "source_group_grids", absentArray()).sourceArrayValue())
+                generatedGrids.insert(uuid(field(source, "grid")));
+            for (auto part : field(*exclusions, "parts").sourceArrayValue()) {
+                auto node = puppet->findNodeById(uuid(part));
+                // Hidden source pruning may legitimately remove a source Part.
+                if (!node) continue;
+                for (auto parent = node->parentPtr(); parent; parent = parent->parentPtr())
+                    if (generatedGrids.contains(parent->getUUID())) {
+                        findings.append(objectEvidence({{stringLiteralEvidence("check"), "rig_exclusion_inheritance"},
+                            {stringLiteralEvidence("part"), part}, {stringLiteralEvidence("grid"), parent->getUUID()},
+                            {stringLiteralEvidence("message"), "Excluded Part inherits a generated deformation grid"}}));
+                        break;
+                    }
+            }
+        }
         boneCount = root->depthBones().size();
         enforceNative(boneCount == (humanoid ? field(program, "scaffold", "bones").sourceArrayValue().size() : 0),"Saved skeleton differs from the compiled rig kind",1620);
         if (humanoid) {
@@ -79,10 +109,15 @@ Json verifyRig(Json state, Json program, Task task) {
                 auto origin = puppet->findNodeById(uuid(field(originIds, nativeString(field(definition, "id")).view())));
                 enforceNative(origin && origin->parentPtr() && origin->parentPtr()->getUUID() ==
                     uuid(field(definition, "parent", "node")),"Saved material origin parent differs from the semantic plan",1635);
-                auto point = toRoot(origin, 0, 0);
+                auto point = toAuthoredRoot(origin, 0, 0);
                 auto expected = ngRigNumbers(field(definition, "origin"));
-                enforceNative(std::abs(point[0] - readNativeArray(expected,0,1638)) < .001 &&
-                    std::abs(point[1] - readNativeArray(expected,1,1638)) < .001,"Saved material origin differs from its anatomical joint",1638);
+                if (!(std::abs(point[0] - readNativeArray(expected,0,1638)) < .001 &&
+                    std::abs(point[1] - readNativeArray(expected,1,1638)) < .001))
+                    findings.append(objectEvidence({{stringLiteralEvidence("part"),origin->getUUID()},
+                        {stringLiteralEvidence("check"),"anatomical_origin"},
+                        {stringLiteralEvidence("message"),"Saved material origin differs from its anatomical joint"},
+                        {stringLiteralEvidence("actual"),array({point[0],point[1]})},
+                        {stringLiteralEvidence("expected"),field(definition,"origin")}}));
             }
             framework::Table<bool> checked;
             for (auto target : field(state, "targets").sourceArrayValue()) {
@@ -157,17 +192,27 @@ Json verifyRig(Json state, Json program, Task task) {
             if (node && !sameTextureMapping(textureMapping(node), field(composite, "mapping")))
                 task->previewJson("composite-mesh-mismatch", objectEvidence({{stringLiteralEvidence("uuid"), field(composite, "uuid")},
                     {stringLiteralEvidence("expected"), field(composite, "mapping")}, {stringLiteralEvidence("actual"), textureMapping(node)}}));
-            enforceNative(node && !node->autoResizedMesh && sameTextureMapping(textureMapping(node), field(composite, "mapping")),"Saved feature composite mesh changed",1710);
+            enforceNative(node && !node->autoResizedMesh && node->getMesh().isGrid() &&
+                sameTextureMapping(textureMapping(node), field(composite, "mapping")),
+                "Saved feature composite grid changed",1710);
         }
     });
     NativeIntegerMap<std::uint32_t, bool> inspectedGrids;
+    const auto shapeCorrections = get(state, "shape_corrections", Json{});
+    const auto refinement = get(shapeCorrections, "refined_mesh", Json{});
+    const auto sharedSkin = get(shapeCorrections, "shared_skin_parts", absentArray()).sourceArrayValue();
     for (auto target : field(state, "targets").sourceArrayValue()) {
         ngRigCheckpoint(task);
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
             auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(field(target, "part"))));
             enforceNative(bool(part),"Saved material is missing",1720);
-            enforceNative(sameTextureMapping(textureMapping(part), field(target, "mapping")),
+            auto expectedMapping = refinement.is_object() &&
+                field(refinement, "part") == field(target, "part") ? refinement : field(target, "mapping");
+            for (const auto id : sharedSkin)
+                if (id == field(target, "part"))
+                    expectedMapping = field(shapeCorrections, "shared_skin_mapping");
+            enforceNative(sameTextureMapping(textureMapping(part), expectedMapping),
                 "Saved Part geometry or UV mapping changed after meshing",1721);
             if (!humanoid) return;
             const auto gridId = uuid(field(target, "grid"));
@@ -176,8 +221,6 @@ Json verifyRig(Json state, Json program, Task task) {
             auto grid = std::dynamic_pointer_cast<nicxlive::core::nodes::Deformable>(puppet->findNodeById(gridId));
             auto mapped = std::dynamic_pointer_cast<ext::nodes::DepthMappedNode>(grid);
             enforceNative(part && grid && mapped,"Saved material or carrier is missing",1727);
-            enforceNative(sameTextureMapping(textureMapping(part), field(target, "mapping")),
-                "Saved Part geometry or UV mapping changed after meshing",1728);
             const auto depthCount = mapped->copyDepths().size();
             const auto vertexCount = grid->getVertices().size();
             enforceNative(depthCount == vertexCount,"Saved grid depth count mismatch",1729);
@@ -360,11 +403,36 @@ Json verifyRig(Json state, Json program, Task task) {
                     enforceNative(std::abs(actual[i].x - expected[i * 2]) < .0003 && std::abs(actual[i].y - expected[i * 2 + 1]) < .0003,"Saved cheek residual value changed",1862);
             }
         }
-        for (auto pairs = get(state, "shoulder_pairs", absentArray()); auto pair : pairs.sourceArrayValue()) {
+        auto attachmentPairs = get(state, "shoulder_pairs", absentArray()).sourceArrayValue().duplicate();
+        for (auto pair : get(state, "surface_pairs", absentArray()).sourceArrayValue()) attachmentPairs.append(pair);
+        for (auto pair : attachmentPairs) {
+            if (stringGet(pair,"kind")=="hip_attachment" &&
+                stringGet(pair,"status")!="applied_readback_verified" && stringGet(pair,"status")!="disabled_by_user")
+                findings.append(objectEvidence({{stringLiteralEvidence("part"),field(pair,"source")},
+                    {stringLiteralEvidence("check"),"hip_attachment"},
+                    {stringLiteralEvidence("message"),"Detected hip attachment has no verified Welding correspondence"}}));
+            if (stringGet(pair,"kind")=="layered_ear" &&
+                stringGet(pair,"status")!="applied_readback_verified" && stringGet(pair,"status")!="disabled_by_user")
+                findings.append(objectEvidence({{stringLiteralEvidence("part"),field(pair,"source")},
+                    {stringLiteralEvidence("check"),"layered_surface_attachment"},
+                    {stringLiteralEvidence("message"),"Detected layered ear has no verified Welding correspondence"}}));
             if (stringGet(pair, "status") != "applied_readback_verified") continue;
             auto source = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(field(pair, "source"))));
             auto target = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(field(pair, "target"))));
             enforceNative(source && target,"Saved shoulder link Part is missing",1870);
+            if (stringGet(pair,"kind")=="layered_ear") {
+                std::size_t driven=0,shared=0;
+                for (auto parameter : puppet->parameters) {
+                    if (!parameter->getName().view().starts_with("Physics::")) continue;
+                    const bool a=bool(parameter->getBinding(source,"deform"));
+                    const bool b=bool(parameter->getBinding(target,"deform"));
+                    driven+=a||b;shared+=a&&b;
+                }
+                if (driven && (driven!=1 || shared!=1))
+                    findings.append(objectEvidence({{stringLiteralEvidence("part"),field(pair,"source")},
+                        {stringLiteralEvidence("check"),"layered_surface_physics"},
+                        {stringLiteralEvidence("message"),"Joined ear surfaces do not share exactly one physics driver"}}));
+            }
             bool found = false;
             const auto links=source->weldedLinks;
             for (auto link : links) if (link.target.lock() == target) {
@@ -411,8 +479,9 @@ Json verifyRig(Json state, Json program, Task task) {
                 const auto offsets = ngRigNumbers(field(sample, "offsets"));
                 return geometry::ngRigTriangleMinimumRatio(vertices, triangles, offsets);
             }();
-            if (!nativeString(field(local, "parameter")).view().ends_with("::Blink"))
-                enforceNative(ratio >= .002,"Intermediate local control folded a triangle",1901);
+            // These are interior samples: even a closing aperture must retain
+            // its orientation until the fully closed endpoint.
+            enforceNative(ratio >= .002,"Intermediate local control folded a triangle",1901);
         } catch (const std::bad_alloc&) { throw; }
         catch (const compat::ThrowableException& error) {
             findings.append(objectEvidence({{stringLiteralEvidence("part"), field(local, "part")}, {stringLiteralEvidence("parameter"), field(local, "parameter")},

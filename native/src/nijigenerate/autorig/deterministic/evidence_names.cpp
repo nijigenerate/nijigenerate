@@ -14,13 +14,34 @@ std::string detail::nameTokens(compat::RetainedStringSlice name) {
     while(!name.empty()&&name.view().back()=='\0')name=name.slice(0,name.size()-1);
     while(!name.empty()&&(name.view()[0]=='*'||name.view()[0]=='#'||name.view()[0]==' '))name=name.slice(1,name.size());
     auto lower=io::imageexport::detail::lowerExtension(name);std::string result;
+    std::string normalized(lower.view());
+    // Vocabulary supplies candidates, never character identities or hierarchy requirements.
+    for (const auto& [source, target] : std::initializer_list<std::pair<std::string_view,std::string_view>>{
+        {"手のひら","hand"},{"人差し指","finger"},{"親指","thumb"},{"中指","finger"},
+        {"薬指","finger"},{"小指","finger"},{"後頭部","back_head"},{"後ろ髪","back_hair"},
+        {"前髪","front_hair"},{"横髪","side_hair"},{"髪飾り","headwear"},
+        {"下まつ毛","lower_eyelash"},{"まつ毛","eyelash"},{"まぶた","eyelid"},
+        {"眉毛","eyebrow"},{"目尻","eye_corner"},{"二重","lid_fold"},{"白目","sclera"},
+        {"瞳","iris"},{"上唇肌","upper_lip_skin"},{"下唇肌","lower_lip_skin"},
+        {"上唇","upper_lip"},{"下唇","lower_lip"},{"上歯","upper_teeth"},
+        {"下歯","lower_teeth"},{"口内","mouth"},{"舌","tongue"},{"鼻","nose"},
+        {"顔面","face"},{"胴体","torso"},{"胸","breast"},{"首","neck"},
+        {"腕上","upper_arm"},{"腕下","lower_arm"},{"脚上","upper_leg"},{"脚下","lower_leg"},
+        {"ニーソ","stocking"},{"脚","leg"},{"足","foot"},{"内耳","inner_ear"},{"耳","ear"},
+        {"ドレス裾","skirt"},{"ドレス","dress"},{"スカート","skirt"},{"袖","sleeve"},
+        {"襟","collar"},{"帯","belt"},{"しっぽ","tail"},{"ハイライト","_highlight"},
+        {"リボン","_ribbon"},{"ベルト","_belt"},{"紐","_cord"},{"影","_shadow"}}) {
+        for (std::size_t pos=0; (pos=normalized.find(source,pos))!=std::string::npos;) {
+            normalized.replace(pos,source.size(),target); pos+=target.size();
+        }
+    }
     // std.regex's \s is unicode.White_Space, not the C locale's whitespace class.
-    nicxlive::core::common::unicode::ReplacementUtf8Cursor cursor{lower.view()};
+    nicxlive::core::common::unicode::ReplacementUtf8Cursor cursor{normalized};
     while(!cursor.empty()) {
         const auto start=cursor.offset;auto c=cursor.take();bool white=(c>=9&&c<=13)||c==32||c==0x85||c==0xa0||c==0x1680||
             (c>=0x2000&&c<=0x200a)||c==0x2028||c==0x2029||c==0x202f||c==0x205f||c==0x3000;
         if(white||c==':'||c=='-'||c=='_') { if(result.empty()||result.back()!='_')result.push_back('_'); }
-        else result.append(lower.view().substr(start,cursor.offset-start));
+        else if(c!='\''&&c!='*'&&c!='#') result.append(std::string_view(normalized).substr(start,cursor.offset-start));
     }
     while(!result.empty()&&result.front()=='_')result.erase(0,1);
     while(!result.empty()&&result.back()=='_')result.pop_back();
@@ -47,22 +68,23 @@ compat::RetainedStringSlice detail::semanticRole(compat::RetainedStringSlice nam
     if(test("(^|_)(mouth|lip|tongue|teeth)(_|$)"))return featureLiteral("face_feature");
     for(const auto& parent:parents)if(test("^mouth(?:_composite)?$",parent))return featureLiteral("face_feature");
     if(test("(^|_)(eyebrow|brow|sclera|eyeball|iris|pupil|canthus|eye_corner|side_eyelash|eyelid|eyeline|lid|lash|eyelash|double_eyelid)(_|$)|(^|_)eye_(white|highlight|light)(_|$)|^nose(?:_[0-9]+)?$"))return featureLiteral("face_feature");
-    if(test("^(face|head_skin|head)(?:_[0-9]+)?$"))return featureLiteral("face");
+    if(test("^(face(?:_(?:base|skin|line))?|head_skin|head)(?:_[0-9]+)?$"))return featureLiteral("face");
     if(test("^neck(?:_[0-9]+)?$"))return featureLiteral("neck");
+    if(test("(^|_)(back_head|backhead|head_back|occiput)(_|$)"))return featureLiteral("hair_back");
     if(test("(^|_)(hair|bang|bangs|braid)(_|$)")){if(test("back"))return featureLiteral("hair_back");if(test("side|cheek|curl|braid"))return featureLiteral("hair_side");return featureLiteral("hair_front");}
     if(test("earring|earwear"))return featureLiteral("headwear");
     if(test("(^|_)(ear|ears)(_|$)"))return featureLiteral("ear");
     if(test("(^|_)(headwear|headband|cap|forehead|temple|head|hair)_(bow|ribbon|flower|watch|cross)|^(headwear|headband|cap)(_|$)"))return featureLiteral("headwear");
-    if(test("(^|_)(shoe|shoes|foot|footwear)(_|$)"))return featureLiteral("foot");
+    if(test("(^|_)(shoe|shoes|boot|boots|foot|footwear)(_|$)"))return featureLiteral("foot");
     if(test("(^|_)(hand|palm|finger|thumb)(_|$)"))return featureLiteral("hand");
     if(test("handwear"))return featureLiteral("arm");
     if(test("(^|_)(arm|arms|upperarm|forearm)(_|$)"))return featureLiteral("arm");
-    if(test("(^|_)(leg|legs|legwear|thigh|shin|pants|socks)(_|$)"))return featureLiteral("leg");
+    if(test("(^|_)(leg|legs|legwear|thigh|shin|pants|socks|stocking)(_|$)"))return featureLiteral("leg");
     if(test("(^|_)(sleeve|cuff|shoulder)(_|$)"))return featureLiteral("sleeve");
     if(test("tail"))return featureLiteral("tail");if(test("apron"))return featureLiteral("apron");
     if(test("skirt|bottomwear|train"))return test("back")?featureLiteral("skirt_back"):featureLiteral("skirt");
     if(test("corset|belt|waistwear"))return featureLiteral("waistwear");
-    if(test("clothes|topwear|bodice|collar|parker|pocket"))return featureLiteral("bodice");
+    if(test("clothes|topwear|bodice|collar|parker|pocket|breast|bust|dress|onepiece|one_piece"))return featureLiteral("bodice");
     if(test("(^|_)(body|torso|chest|pelvis)(_|$)"))return featureLiteral("torso");
     if(test("waist|hip"))return featureLiteral("pelvis_accessory");
     for(auto i=parents.rbegin();i!=parents.rend();++i){const auto& p=*i;
@@ -88,6 +110,13 @@ compat::RetainedStringSlice ngRigMaterialFeature(compat::RetainedStringSlice nam
         return featureLiteral("mouth");
     }
     if (test("(^|_)(eyebrow|brow)(_|$)")) return featureLiteral("brow");
+    bool eye = test("(^|_)eye(_|$)");
+    for (auto parent : ancestors)
+        if (matches(nameTokens(parent), "(^|_)eye(_|$)")) eye = true;
+    if ((eye || test("(^|_)(sclera|eyeball)(_|$)")) && test("(^|_)(shadow|shade)(_|$)"))
+        return featureLiteral("");
+    if (eye && test("(^|_)white(_|$)")) return featureLiteral("sclera");
+    if (eye && test("(^|_)(highlight|light)(_|$)")) return featureLiteral("iris");
     if (test("(^|_)(sclera|eyeball)(_|$)")) return featureLiteral("sclera");
     if (test("(^|_)(iris|pupil)(_|$)|(^|_)eye_(highlight|light)(_|$)")) return featureLiteral("iris");
     if (test("(^|_)(canthus|eye_corner|side_eyelash)(_|$)")) return featureLiteral("corner");

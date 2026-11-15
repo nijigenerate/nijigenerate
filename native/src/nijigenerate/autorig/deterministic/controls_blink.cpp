@@ -26,13 +26,15 @@ contracts::Point2 blinkDisplacement(std::string_view kind, contracts::Point2 poi
         delta = blink * (seam - bottom);
     } else if (kind == "fold") {
         delta = blink * (seam - top);
+    } else if (kind == "corner") {
+        // A connected canthus joins both rims. Preserve the painted thickness
+        // outside the aperture instead of collapsing every eyelash pixel.
+        const double band = std::clamp(point[1] - top, 0., std::max(0., bottom - top));
+        delta = blink * (seam - top - .98 * band);
     } else {
-        const double upper = std::max(0., bottom - top);
-        double band = point[1] - top;
-        // Source clamp bounds are [0,max(0,bottom-top)]; they cannot be reversed.
-        if (band < 0.) band = 0.;
-        else if (band > upper) band = upper;
-        delta = blink * (seam - top - band);
+        // Upper lashes and their separate strands follow the same contact rim
+        // by translation; their thickness must not be consumed by closure.
+        delta = blink * (seam - top);
     }
     return {0., delta};
 }

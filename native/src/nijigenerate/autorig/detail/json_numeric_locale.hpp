@@ -23,7 +23,7 @@ void* createNumericLocale(int category, const char* name);
 void freeNumericLocale(void* locale);
 double parseLocaleDouble(const char* text, char** end, void* locale);
 
-// Actual module version branches; the non-Windows branch creates no CRT locale.
+// Owned artifacts use a private C numeric locale without changing process state.
 void* createArtifactNumericLocale();
 void freeArtifactNumericLocale(void* locale);
 double restoreArtifactDouble(compat::RetainedStringSlice token, void* locale);

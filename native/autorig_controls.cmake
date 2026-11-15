@@ -20,6 +20,9 @@ if(TARGET nijigenerate_autorig_registered AND TARGET nijigenerate_quadratic AND 
     target_compile_features(nijigenerate_autorig_controls PUBLIC cxx_std_20)
     target_link_libraries(nijigenerate_autorig_controls PUBLIC nijigenerate_autorig_registered nijigenerate_quadratic)
     target_link_libraries(nijigenerate_autorig_controls PRIVATE nijigenerate_autorig_regex)
+    add_executable(nijigenerate_autorig_controls_replay EXCLUDE_FROM_ALL tools/autorig_controls_replay.cpp)
+    target_link_libraries(nijigenerate_autorig_controls_replay PRIVATE nijigenerate_autorig_controls
+        nijigenerate_autorig_evidence nijigenerate_autorig_program)
     if(MSVC)
         if(NOT TARGET Boost::multiprecision)
             find_package(Boost CONFIG REQUIRED COMPONENTS multiprecision)

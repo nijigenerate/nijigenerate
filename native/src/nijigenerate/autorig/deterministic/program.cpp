@@ -110,7 +110,9 @@ std::size_t sizeCast(double value){
     return static_cast<std::size_t>(value);
 }
 }
-Json ngRigCompileProgram(Json observation,Json evidenceValue) {
+Json ngRigCompileProgram(Json observation, Json evidenceValue,
+    std::optional<compat::RetainedStringSlice> observationDigest) {
+    const auto digest = observationDigest ? *observationDigest : ngRigObservationDigest(observation);
     auto rigKind=stringGet(evidenceValue,lit("kind"),lit("humanoid"));
     if(rigKind!=lit("humanoid")) {
         JsonArray targets;compat::Slice<double> sourceXs;
@@ -127,7 +129,7 @@ Json ngRigCompileProgram(Json observation,Json evidenceValue) {
         }
         enforce(!targets.empty(),lit("No active local rig materials"),35);
         auto result=object({{lit("schema_version"),lit("rig-native-program-d/1")},{lit("kind"),rigKind},{lit("carriers"),targets},{lit("rootId"),at(observation,lit("rootId"))},
-            {lit("source_sha256"),at(observation,lit("source_sha256"))},{lit("observation_sha256"),String(ngRigDigest(observation))},{lit("evidence_sha256"),String(ngRigDigest(evidenceValue))}});
+            {lit("source_sha256"),at(observation,lit("source_sha256"))},{lit("observation_sha256"),String(digest)},{lit("evidence_sha256"),String(ngRigDigest(evidenceValue))}});
         set(result,lit("content_sha256"),String(ngRigDigest(result)));return result;
     }
     auto prior=templates::ngRigHumanoidPrior(),scaffold=anatomy::ngRigSolveScaffold(evidenceValue,prior);
@@ -162,9 +164,12 @@ Json ngRigCompileProgram(Json observation,Json evidenceValue) {
         const auto chartSubject=str(at(grouping,lit("chart")));
         const auto chartSide=io::imageexport::detail::lowerExtension(side);
         auto chart=replaceSide(chartSubject,chartSide);
-        if(owner==lit("torso")&&chart==lit("neck"))chart=lit("body");
         if((starts(owner,lit("arm:"))||starts(owner,lit("leg:")))&&(chart==lit("hand")||chart==lit("foot")))chart=lit("skin");
         auto parent=at(observation,lit("rootId"));auto id=owner+lit("/")+chart+lit("@semantic");
+        // Side locks need independent depth surfaces. A clipped layer follows
+        // the same surface as its receiver.
+        if (role==lit("hair_side") && owner==lit("head"))
+            id=id+String(std::to_string(ngRigUnsigned(at(grouping,lit("source_order")))));
         materialDomains[ngRigUnsigned(at(material,lit("uuid")))]=id;materialSides[ngRigUnsigned(at(material,lit("uuid")))]=side;
         compat::Slice<double> matrix{1.,0.,0.,0.,1.,0.};
         const double inf=std::numeric_limits<double>::infinity();compat::Slice<double> bounds{inf,inf,-inf,-inf};
@@ -267,7 +272,7 @@ Json ngRigCompileProgram(Json observation,Json evidenceValue) {
     driver(lit("Body::Roll"),lit("Pelvis"),lit("transform.r.z"),lit("body_roll_degrees"),false,false);
     auto result=object({{lit("schema_version"),lit("rig-native-program-d/1")},{lit("scaffold"),scaffold},{lit("kind"),rigKind},{lit("native_depth_scale"),depthScale},
         {lit("domains"),assembled},{lit("native_drivers"),drivers},{lit("carriers"),carriers},{lit("rootId"),at(observation,lit("rootId"))},{lit("source_sha256"),at(observation,lit("source_sha256"))},
-        {lit("observation_sha256"),String(ngRigDigest(observation))},{lit("evidence_sha256"),String(ngRigDigest(evidenceValue))}});
+        {lit("observation_sha256"),String(digest)},{lit("evidence_sha256"),String(ngRigDigest(evidenceValue))}});
     result=registered::ngRigRegisterProgram(result,observation);
     const auto registeredCarriers=sourceArray(at(result,lit("carriers")));
     const auto registeredScaffold=at(result,lit("scaffold"));

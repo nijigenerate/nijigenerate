@@ -31,25 +31,22 @@ double parseLocaleDouble(const char* text, char** end, void* locale) {
 #endif
 }
 void* createArtifactNumericLocale() {
-#ifdef _WIN32
     auto locale = createNumericLocale(LC_NUMERIC, "C");
     if (!locale) throw compat::ThrowableException(copyArtifactMessage("Could not create JSON numeric locale"));
     return locale;
-#else
-    return nullptr;
-#endif
 }
 void freeArtifactNumericLocale(void* locale) {
     if (locale) freeNumericLocale(locale);
 }
 double restoreArtifactDouble(compat::RetainedStringSlice token, void* locale) {
-#ifdef _WIN32
+    // Parse directly to correctly rounded binary64. On Apple ARM, long double
+    // has no extra precision, so accumulating decimal digits and scaling them
+    // can change a serialized coordinate by one ULP and invalidate ownership.
     const auto text = allocateArtifactNumberText([&] { return std::string(token.view()); });
-    const double value = parseLocaleDouble(text.c_str(), nullptr, locale);
-#else
-    (void)locale;
-    const double value = static_cast<double>(parseSourceFloating<long double>(token.view()));
-#endif
+    char* end = nullptr;
+    const double value = parseLocaleDouble(text.c_str(), &end, locale);
+    if (end != text.c_str() + text.size())
+        throw compat::ThrowableException(copyArtifactMessage("Invalid JSON artifact number"));
     if (!std::isfinite(value))
         throw compat::ThrowableException(copyArtifactMessage("Nonfinite JSON artifact number"));
     return value;

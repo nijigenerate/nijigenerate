@@ -1467,6 +1467,10 @@ msgstr ""
 msgid "Capture source appearance for verification"
 msgstr "検証用に処理前の見た目を記録"
 
+#: native/src/nijigenerate/panels/autorig_panel.cpp
+msgid "Jaw contour correction blend"
+msgstr "顎の輪郭補正の混合率"
+
 #: source/nijigenerate/windows/settings.d:586
 msgid "Capturing shortcut..."
 msgstr "ショートカットを取得中..."

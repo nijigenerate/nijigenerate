@@ -81,7 +81,9 @@ Json prepareSourceGroups(Json state, Task task) {
                 if (candidate == feature) eye = true;
             onlyEyes = onlyEyes && eye; onlyMouth = onlyMouth && feature.starts_with("mouth");
         }
-        const auto desired = hasMaterial && (onlyEyes || onlyMouth) ?
+        // The feature stage meshes this existing projection surface in place.
+        // Converting it to Composite would make that stage add a second pass.
+        auto desired = hasMaterial && (onlyEyes || onlyMouth) ?
             compat::RetainedString::fromStaticLiteral("DynamicComposite") :
             get(group, "clipping_surface", false).as_bool() ? compat::RetainedString::fromStaticLiteral("Composite") :
                 compat::RetainedString::fromStaticLiteral("GridDeformer");
@@ -89,6 +91,20 @@ Json prepareSourceGroups(Json state, Task task) {
             auto node = project::incActivePuppet()->findNodeById(uuid(group.sourceIndexValue("uuid")));
             enforceNative(node && compat::ngRequireObject(node->parentPtr())->getUUID() == uuid(group.sourceIndexValue("parent")),
                 "Source group hierarchy changed",602);
+            const auto isSurface = [](std::string_view type) {
+                return type == "Composite" || type == "DynamicComposite";
+            };
+            if (node->typeId() == "Composite")
+                desired = compat::RetainedString::fromStaticLiteral("Composite");
+            // Source groups are visited parent first. Keep the outer render
+            // surface and retain the inner group as a transform-only node.
+            if (isSurface(desired.view()) || isSurface(node->typeId().view())) {
+                for (auto parent = node->parentPtr(); parent; parent = parent->parentPtr()) {
+                    if (!isSurface(parent->typeId().view())) continue;
+                    desired = compat::RetainedString::fromStaticLiteral("Node");
+                    break;
+                }
+            }
             const auto before = node->localTransform;
             NativeVector<std::uint32_t> children;
             for (auto childRange = node->childrenList(); auto child : childRange) children.push_back(child->getUUID());

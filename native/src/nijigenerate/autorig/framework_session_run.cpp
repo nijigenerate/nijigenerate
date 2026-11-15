@@ -151,6 +151,12 @@ void AutoRigSession::runTask(Text id, Table<bool>& visiting, bool force) {
                     for (const auto port : spec.outputs) if (port.required && !context->outputs.contains(str(port.id))) complete = false;
                     if (complete) { std::lock_guard lock(mutex_); committedOutputs[id] = context->outputs.duplicate(); }
                 }
+            } catch (const compat::ThrowableError& error) {
+                // A native range/assertion failure must not leave a finished worker
+                // advertised as a running task. Preserve its source location.
+                snapshot.state = AutoRigTaskState::Failed;
+                snapshot.message = Text(std::string(error.msg.view()) + " @ " +
+                    std::string(error.file.view()) + ":" + std::to_string(error.line));
             }
             { std::lock_guard lock(mutex_); snapshot.artifacts = aaAt(snapshots, id, 782).artifacts; }
             for (const auto& [key, artifact] : context->artifacts) {

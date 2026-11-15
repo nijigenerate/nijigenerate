@@ -16,9 +16,9 @@ struct ControlOrientationInput {
 };
 
 ControlOrientationInput prepareControlOrientation(compat::Slice<contracts::Point2> rest,
-    core::settings::SettingsJsonValue triangles, compat::Slice<double> offsets);
+    core::settings::SettingsJsonValue triangles, compat::Slice<double> offsets, double minimumRatio = .004);
 
-// The original post-solver body; the caller must provide the actual solver result.
+// Apply the solved normal-direction correction to the requested anatomical pose.
 compat::Slice<double> projectSolvedOrientation(compat::Slice<contracts::Point2> rest,
     compat::Slice<double> offsets, solver::quadratic::SolverResult result);
 

@@ -3,6 +3,21 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_autorig_framework
         AND TARGET nijigenerate_autorig_observation AND TARGET nijigenerate_autorig_evidence
         AND TARGET nijigenerate_autorig_controls AND TARGET nijigenerate_autorig_review
         AND TARGET nijigenerate_autorig_physics AND NOT TARGET nijigenerate_autorig_native)
+    add_executable(nijigenerate_autorig_saved_geometry_replay EXCLUDE_FROM_ALL
+        tools/autorig_saved_geometry_replay.cpp)
+    if(NIJIGENERATE_RENDERER STREQUAL "METAL")
+        add_executable(nijigenerate_autorig_model_batch EXCLUDE_FROM_ALL tools/autorig_model_batch.cpp)
+        target_link_libraries(nijigenerate_autorig_model_batch PRIVATE
+            nijigenerate_autorig_native nijigenerate_autorig_processor nijigenerate_autorig_workflow
+            nijigenerate_parameter_base nijigenerate_core_package nijigenerate_window_theme_settings
+            nijigenerate_command_scope_json nijigenerate_vertex_define_commands nijigenerate_palette_state)
+        # Keep the baseline executable stable while evaluating algorithm changes.
+        add_executable(nijigenerate_autorig_model_candidate EXCLUDE_FROM_ALL tools/autorig_model_batch.cpp)
+        get_target_property(_ng_autorig_batch_libraries nijigenerate_autorig_model_batch LINK_LIBRARIES)
+        target_link_libraries(nijigenerate_autorig_model_candidate PRIVATE ${_ng_autorig_batch_libraries})
+    endif()
+    target_link_libraries(nijigenerate_autorig_saved_geometry_replay PRIVATE
+        nijigenerate_autorig_native nijigenerate_core_package nijigenerate_window_theme_settings)
     add_library(nijigenerate_autorig_native STATIC
         src/nijigenerate/autorig/deterministic/native_commands.cpp
         src/nijigenerate/autorig/deterministic/native_grid_scales.cpp
@@ -12,6 +27,7 @@ if(TARGET nijigenerate_runtime_core AND TARGET nijigenerate_autorig_framework
         src/nijigenerate/autorig/deterministic/native_processor.cpp
         src/nijigenerate/autorig/deterministic/native_signature.cpp
         src/nijigenerate/autorig/deterministic/native_stage_build.cpp
+        src/nijigenerate/autorig/deterministic/native_rear_hair.cpp
         src/nijigenerate/autorig/deterministic/native_stage_cheek.cpp
         src/nijigenerate/autorig/deterministic/native_stage_context.cpp
         src/nijigenerate/autorig/deterministic/native_stage_controls.cpp

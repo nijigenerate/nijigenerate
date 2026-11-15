@@ -124,10 +124,11 @@ void reportImportFailure(TypeName&& readTypeName, Message&& readMessage) {
         body);
 }
 }
-template<class T> void incImport(core::settings::SettingsString file, IncImportSettings settings = {}) {
+template<class T> void incImport(core::settings::SettingsString file, IncImportSettings settings = {}, bool headless = false) {
     using namespace nicxlive::core::nodes;
     using Traits = ImportTraits<T>;
-    project::incNewProject();
+    if (headless) project::ngCreateHeadlessRegressionProject();
+    else project::incNewProject();
     try {
         T document = Traits::parseDocument(file.retainedString());
         auto layers = incBuildLayerLayout(document);
@@ -201,7 +202,7 @@ template<class T> void incImport(core::settings::SettingsString file, IncImportS
         auto activeProject = project::incActiveProject();
         if (!activeProject) compat::ngFailNullAccess(true);
         activeProject->puppet = puppet;
-        project::incFocusCamera(compat::ngRequireObject(project::incActivePuppet())->root);
+        if (!headless) project::incFocusCamera(compat::ngRequireObject(project::incActivePuppet())->root);
         project::incInitAnimationPlayer(puppet);
         auto importedMessage = detail::format("%s was imported...",
             {core::translation::ngFormatArgument(file)});
@@ -211,6 +212,7 @@ template<class T> void incImport(core::settings::SettingsString file, IncImportS
         core::tasks::ngSetStatus(core::translation::ngTranslateRetained(
             retainedMessage));
     } catch (const compat::ThrowableException& error) {
+        if (headless) throw;
         detail::reportImportFailure([] { return detail::DocumentName<T>::get(); }, [&] {
             return compat::ngRetainExceptionMessage(error);
         });

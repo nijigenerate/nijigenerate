@@ -7,6 +7,8 @@
 #include <nijigenerate/core/math/homogeneous.hpp>
 #include <nijigenerate/viewport/common/mesheditor/operations/impl.hpp>
 #include <nijigenerate/commands/node/welding_commands.hpp>
+#include <nijigenerate/actions/node_hierarchy_actions.hpp>
+#include <nijigenerate/core/actionstack.hpp>
 
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
@@ -14,6 +16,7 @@ using namespace review;
 Json weldShoulders(Json state, Task task) {
     const auto weldKind = compat::RetainedString::fromStaticLiteral("weld");
     auto pairs = get(state, "shoulder_pairs", core::settings::SettingsJsonArray{}).sourceArrayValue().duplicate();
+    for (auto pair : get(state, "surface_pairs", core::settings::SettingsJsonArray{}).sourceArrayValue()) pairs.append(pair);
     core::settings::SettingsJsonArray operations;
     auto settings = reviewSettings(task);
     for (auto pair : pairs) operations.append(objectEvidence({
@@ -62,8 +65,13 @@ Json weldShoulders(Json state, Task task) {
     for (auto& pair : pairs) {
         if (!ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair)) || !indexNative(pair, "matching").as_bool()) continue;
         ngRigCheckpoint(task);
-        compat::Slice<Point2> sourcePoints, targetPoints;
+        compat::Slice<Point2> sourcePoints, targetPoints, sourceInRoot, targetInRoot;
         Json beforeSource, beforeTarget;
+        const bool hipAttachment = stringGet(pair,"kind","") == "hip_attachment";
+        const auto region = hipAttachment ? ngRigNumbers(indexNative(pair,"seam_region")) : compat::Slice<double>{};
+        const auto inRegion = [&](Point2 p) {
+            return p[0]>=region[0] && p[0]<=region[2] && p[1]>=region[1] && p[1]<=region[3];
+        };
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
             auto source = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "source"))));
@@ -74,19 +82,23 @@ Json weldShoulders(Json state, Task task) {
                 auto point = core::math::ngTransformHomogeneousPoint(source->transform().matrix(),
                     {static_cast<float>(p[0]), static_cast<float>(p[1]), 0});
                 sourcePoints.append(Point2{point.x, point.y});
+                if (hipAttachment) sourceInRoot.append(toRoot(source,p[0],p[1]));
             }
             for (auto p : ngRigPoints(indexNative(beforeTarget, "vertices"))) {
                 auto point = core::math::ngTransformHomogeneousPoint(target->transform().matrix(),
                     {static_cast<float>(p[0]), static_cast<float>(p[1]), 0});
                 targetPoints.append(Point2{point.x, point.y});
+                if (hipAttachment) targetInRoot.append(toRoot(target,p[0],p[1]));
             }
         });
         compat::Slice<std::ptrdiff_t> indices;
         std::size_t count = 0;
         for (std::size_t i = 0; i < sourcePoints.size(); ++i) {
             if (i % 256 == 0) ngRigCheckpoint(task);
+            if (hipAttachment && !inRegion(sourceInRoot[i])) { indices.append(-1); continue; }
             auto p = sourcePoints[i]; double nearest = INFINITY; std::ptrdiff_t index = -1;
             for (std::size_t j = 0; j < targetPoints.size(); ++j) {
+                if (hipAttachment && !inRegion(targetInRoot[j])) continue;
                 auto q = targetPoints[j]; auto dx = p[0] - q[0], dy = p[1] - q[1];
                 double distance = dx * dx + dy * dy;
                 if (distance < nearest) { nearest = distance; index = static_cast<std::ptrdiff_t>(j); }
@@ -94,12 +106,18 @@ Json weldShoulders(Json state, Task task) {
             indices.append(nearest < 16 ? index : -1);
             if (nearest < 16) ++count;
         }
-        if (!count) { assignNative(pair, "status", "no_native_vertex_pairs"); continue; }
+        if (count < (hipAttachment ? 3u : 1u)) { assignNative(pair, "status", "no_native_vertex_pairs"); continue; }
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
             auto source = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "source"))));
             auto target = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "target"))));
-            commandSource(
+            if (hipAttachment) {
+                const auto retained=actions::node::Indices::retainedView(
+                    indices.retentionOwner(),indices.data(),indices.size());
+                core::actionstack::incActionPush(std::allocate_shared<actions::node::DrawableAddWeldingAction>(
+                    nicxlive::core::d_runtime::SourceAllocator<actions::node::DrawableAddWeldingAction>{},
+                    source,target,retained,0.f));
+            } else commandSource(
                 [&] {
                     return createNativeObject<commands::node::welding::AddWeldingCommand>(target, 0);
                 },
@@ -136,7 +154,14 @@ Json weldShoulders(Json state, Task task) {
         assignNative(pair, "indices", indexValues); assignNative(pair, "weight", 0.); assignNative(pair, "paired_vertices", count);
         assignNative(pair, "mesh_arrays_unchanged", true); assignNative(pair, "status", "applied_readback_verified");
     }
-    assignNative(state, "shoulder_pairs", pairs);
+    core::settings::SettingsJsonArray shoulders, surfaces;
+    for (auto pair : pairs) {
+        const auto kind=get(pair,"kind","").as_string().view();
+        if (kind == "layered_ear" || kind == "hip_attachment") surfaces.append(pair);
+        else shoulders.append(pair);
+    }
+    assignNative(state, "shoulder_pairs", shoulders);
+    assignNative(state, "surface_pairs", surfaces);
     return state;
 }
 }

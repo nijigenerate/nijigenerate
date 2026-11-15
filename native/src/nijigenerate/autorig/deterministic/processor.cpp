@@ -7,6 +7,9 @@
 #include "storage.hpp"
 #include "review.hpp"
 #include "templates.hpp"
+#include <nijigenerate/core/settings_json_string.hpp>
+#include <nijigenerate/compat/phobos_file_write.hpp>
+#include <nijigenerate/compat/phobos_file_directory.hpp>
 #include <nijigenerate/compat/throwable.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/compat/phobos_monotime.hpp>
@@ -160,6 +163,25 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         compat::ngRequireObject(context)->publishJson("state", snapshot);
         return;
     }
+    if (taskId == "detect-rig-exclusions") {
+        auto store = storage::ngRigStateStorage(context);
+        auto state = compat::ngRequireObject(store)->restore(compat::ngRequireObject(context)->input("state").json);
+        state = evidence::ngRigDetectExclusions(state, compat::ngRequireObject(context)->input("options").json, context);
+        compat::ngRequireObject(context)->publishJson("targets", state.sourceIndexValue("rig_exclusions"));
+        compat::ngRequireObject(context)->publishJson("review", review::ngRigClassificationReview(state, Json{}));
+        compat::ngRequireObject(context)->publishJson("state", compat::ngRequireObject(store)->snapshot(state, true));
+        return;
+    }
+    if (taskId == "verify-rig-exclusions") {
+        auto store = storage::ngRigStateStorage(context);
+        auto state = compat::ngRequireObject(store)->restore(compat::ngRequireObject(context)->input("state").json);
+        auto program = compat::ngRequireObject(context)->input("program").json;
+        const auto report = evidence::ngRigVerifyExclusions(state, program);
+        compat::ngRequireObject(context)->publishJson("report", report);
+        compat::ngRequireObject(context)->publishJson("state", compat::ngRequireObject(context)->input("state").json);
+        require(report.sourceIndexValue("passed").as_bool(), "Excluded Part occurs in the basic rig program", 200);
+        return;
+    }
     if (taskId == "compile-rig") {
         const auto start = compat::SourceMonotonicClock::now();
         const auto phase = [&](Text name) {
@@ -171,13 +193,26 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         phase(text("restore-input"));
         auto store = storage::ngRigStateStorage(context);
         auto state = compat::ngRequireObject(store)->restore(compat::ngRequireObject(context)->input("state").json);
+        const auto compileOptions = compat::ngRequireObject(context)->input("options").json;
+        if (ngRigGet(compileOptions, key("capture_observation"), false).as_bool()) {
+            const auto path = compat::ngRequireObject(context)->previewPath("source-observation", ".json");
+            compat::phobos::ngMkdirRecurse(path.view().substr(0, path.view().find_last_of("/\\")));
+            compat::phobos::ngFileWrite(path, core::settings::ngSettingsJsonString(state));
+            compat::ngRequireObject(context)->publishPreview("source-observation", path, "application/json");
+        }
         phase(text("classify-materials"));
-        auto observation = evidence::ngRigClassifyMaterials(state, compat::ngRequireObject(context)->input("options").json, context);
+        const auto exclusions = ngRigGet(state, key("rig_exclusions"), Json(Object{}));
+        const bool resolved = ngRigGet(exclusions, key("validated"), false).as_bool()
+            && core::settings::ngSettingsJsonString(ngRigGet(state, key("options"), Json(Object{})))
+                == core::settings::ngSettingsJsonString(compileOptions);
+        auto observation = resolved ? state : evidence::ngRigDetectExclusions(state, compileOptions, context);
         ngRigCheckpoint(context);
         phase(text("derive-evidence"));
         auto measured = evidence::ngRigDeriveEvidence(observation);
+        compat::ngRequireObject(context)->previewJson("anatomical-evidence", measured);
         phase(text("compile-program"));
-        auto compiled = program::ngRigCompileProgram(observation, measured);
+        auto compiled = program::ngRigCompileProgram(observation, measured,
+            measured.sourceIndexValue("observation_sha256").as_string());
         compat::ngRequireObject(context)->publishJson("review", review::ngRigClassificationReview(observation, compiled));
         state = observation; state.sourceIndexAssignSlot(key("evidence")) = measured;
         phase(text("retain-artifacts"));
@@ -196,6 +231,14 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
             // Retain the immutable owner throughout the native-stage call.
             auto stage = nativeStage_;
             auto programInput = compat::ngRequireObject(context)->input("program").json;
+            if (taskId == "apply-shape-corrections" && ngRigGet(ngRigGet(state, key("options"), Json{}),
+                    key("capture_observation"), false).as_bool()) {
+                const auto path = compat::ngRequireObject(context)->previewPath("cheek-input", ".json");
+                compat::phobos::ngMkdirRecurse(path.view().substr(0, path.view().find_last_of("/\\")));
+                compat::phobos::ngFileWrite(path, core::settings::ngSettingsJsonString(
+                    object({{"state", state}, {"program", programInput}})));
+                compat::ngRequireObject(context)->publishPreview("cheek-input", path, "application/json");
+            }
             auto model = compat::ngRequireObject(context)->input("model").borrowTaskBlob();
             result = stage(taskId, state, programInput, model, context);
             if (taskId == "compile-domain-layout") {
@@ -209,6 +252,13 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
                 result.sourceIndexAssignSlot(key("finish_stages")) = Json(attempts);
             }
         } catch (const compat::ThrowableException& error) {
+            if (taskId == "apply-rig-controls" && ngRigGet(ngRigGet(state, key("options"), Json{}),
+                    key("capture_observation"), false).as_bool()) {
+                const auto path = compat::ngRequireObject(context)->previewPath("control-input", ".json");
+                compat::phobos::ngMkdirRecurse(path.view().substr(0, path.view().find_last_of("/\\")));
+                compat::phobos::ngFileWrite(path, core::settings::ngSettingsJsonString(state));
+                compat::ngRequireObject(context)->publishPreview("control-input", path, "application/json");
+            }
             if (!entry.retainFailureOutputs || compat::ngRequireObject(context)->isCanceled()) throw;
             auto attempts = ngRigGet(state, text("finish_stages"), Json(Array{})).sourceArrayValue().duplicate();
             attempts.append(object({{"stage", Json(taskId)}, {"succeeded", Json(false)}, {"error", Json(core::settings::SettingsString(error.msg))}}));

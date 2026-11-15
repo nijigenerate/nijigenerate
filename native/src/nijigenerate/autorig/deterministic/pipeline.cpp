@@ -23,6 +23,11 @@ compat::Slice<AutoRigTaskSpec> ngRigPipelineTasks() {
     result[1] = AutoRigTaskSpec{s("compile-rig"), ngAutoRigMessage(s("Derive evidence and compile rig")), {},
         {state, materials, port("options", AutoRigValueKind::Json)},
         {program, state, port("evidence", AutoRigValueKind::Json)}, {}};
+    result.append(AutoRigTaskSpec{s("detect-rig-exclusions"), ngAutoRigMessage(s("Detect basic rig exclusions")), {},
+        {state, port("options", AutoRigValueKind::Json)},
+        {state, port("targets", AutoRigValueKind::Json)}, {}});
+    result.append(AutoRigTaskSpec{s("verify-rig-exclusions"), ngAutoRigMessage(s("Verify basic rig exclusions")), {},
+        {state, program}, {state, port("report", AutoRigValueKind::Json)}, {}});
     // The original map's enumeration is unspecified; every entry is retained once.
     auto stage = [](auto&& id, auto&& label) {
         return std::pair{s(id), ngAutoRigMessage(s(label))};
@@ -32,8 +37,8 @@ compat::Slice<AutoRigTaskSpec> ngRigPipelineTasks() {
         stage("mesh-parts", "Prepare Part meshes"), stage("build-native-rig", "Build anatomical rig"),
         stage("prepare-source-groups", "Prepare source groups and facial composites"),
         stage("prepare-feature-composites", "Mesh eye and mouth mechanism composites"),
-        stage("prepare-shoulders", "Measure proximal shoulder contours"),
-        stage("weld-shoulders", "Connect matching native shoulder meshes"),
+        stage("prepare-shoulders", "Detect shoulder seams and joined ear surfaces"),
+        stage("weld-shoulders", "Weld matching anatomical attachment meshes"),
         stage("register-source-uv", "Register source texture placement"),
         stage("validate-depth-inputs", "Validate stored and effective depth"),
         stage("apply-shape-corrections", "Apply fixed-foot and near-cheek corrections"),
@@ -52,7 +57,8 @@ compat::Slice<AutoRigTaskSpec> ngRigPipelineTasks() {
             entry.retainFailureOutputs = true;
     }
     for (auto& entry : result) {
-        entry.ownsActionBoundary = entry.id.view() != "compile-rig";
+        entry.ownsActionBoundary = entry.id.view() != "compile-rig" && entry.id.view() != "detect-rig-exclusions"
+            && entry.id.view() != "verify-rig-exclusions";
         entry.outputs.append(port("review", AutoRigValueKind::Json, false));
         if (entry.id.view() == "apply-rig-controls" || entry.id.view() == "weld-shoulders")
             entry.inputs.append(port("review", AutoRigValueKind::Json, false));
@@ -74,7 +80,9 @@ AutoRigWorkflowSpec ngRigModelWorkflow(compat::RetainedString provider) {
     result.outputs[0] = port("model", AutoRigValueKind::Blob);
     result.outputs[1] = port("report", AutoRigValueKind::Json);
     const std::pair<compat::RetainedStringSlice, compat::RetainedStringSlice> steps[]{
-        {s("source"), s("observe-model")}, {s("compile"), s("compile-rig")},
+        {s("source"), s("observe-model")}, {s("exclusions"), s("detect-rig-exclusions")},
+        {s("compile"), s("compile-rig")},
+        {s("exclusion-check"), s("verify-rig-exclusions")},
         {s("groups"), s("prepare-source-groups")}, {s("shoulders"), s("prepare-shoulders")},
         {s("mesh"), s("mesh-parts")}, {s("uv"), s("register-source-uv")},
         {s("composites"), s("prepare-feature-composites")}, {s("layout"), s("compile-domain-layout")},
@@ -89,11 +97,15 @@ AutoRigWorkflowSpec ngRigModelWorkflow(compat::RetainedString provider) {
     }
     result.inputBindings = {{s("options"), s("source"), s(""), s("options")}};
     result.inputBindings.append(AutoRigWorkflowInputBinding{s("options"), s("compile"), s(""), s("options")});
+    result.inputBindings.append(AutoRigWorkflowInputBinding{s("options"), s("exclusions"), s(""), s("options")});
     auto connect = [&](auto&& source, auto&& output, auto&& target, auto&& input) {
         result.connections.append(AutoRigWorkflowConnection{s(source), s(output), s(target), s(""), s(input)});
     };
-    connect("source", "state", "compile", "state"); connect("source", "materials", "compile", "materials");
-    connect("compile", "state", "groups", "state"); connect("source", "model", "groups", "model");
+    connect("source", "state", "exclusions", "state");
+    connect("exclusions", "state", "compile", "state"); connect("source", "materials", "compile", "materials");
+    connect("compile", "state", "exclusion-check", "state");
+    connect("compile", "program", "exclusion-check", "program");
+    connect("exclusion-check", "state", "groups", "state"); connect("source", "model", "groups", "model");
     for (auto step : {s("groups"), s("shoulders"), s("mesh"), s("uv"), s("composites"), s("layout")})
         connect("compile", "program", step, "program");
     for (auto step : {s("build"), s("weld"), s("controls"), s("depth"), s("bake"), s("corrections"), s("physics"), s("verify")})

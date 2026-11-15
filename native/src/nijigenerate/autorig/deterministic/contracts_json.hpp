@@ -149,11 +149,7 @@ inline compat::RetainedStringSlice ngRigCanonical(core::settings::SettingsJsonVa
     return detail::allocateContractStorage([&] { return compat::RetainedString(std::move(output)); });
 }
 
-inline compat::RetainedStringSlice ngRigDigest(core::settings::SettingsJsonValue value) {
-    const auto canonical = ngRigCanonical(value);
-    detail::Sha256 digest;
-    digest.put(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(canonical.data()), canonical.size()));
-    const auto bytes = digest.finish();
+inline compat::RetainedStringSlice ngRigDigestHex(const std::array<std::uint8_t, 32>& bytes) {
     constexpr char hex[] = "0123456789ABCDEF";
     std::array<char, 64> output{};
     for (std::size_t i = 0; i < bytes.size(); ++i) {
@@ -161,6 +157,97 @@ inline compat::RetainedStringSlice ngRigDigest(core::settings::SettingsJsonValue
         output[2 * i + 1] = hex[bytes[i] & 15];
     }
     return detail::copyContractMessage(std::string_view(output.data(), output.size()));
+}
+
+inline compat::RetainedStringSlice ngRigDigest(core::settings::SettingsJsonValue value) {
+    const auto canonical = ngRigCanonical(value);
+    detail::Sha256 digest;
+    digest.put({reinterpret_cast<const std::uint8_t*>(canonical.data()), canonical.size()});
+    return ngRigDigestHex(digest.finish());
+}
+
+namespace detail {
+
+// Lengths and scalar values use a fixed byte order. Object keys are sorted,
+// and the byte tags distinguish otherwise identical values of different types.
+class ObservationDigest {
+public:
+    void add(const core::settings::SettingsJsonValue& value) {
+        if (value.is_object()) {
+            const auto& object = value.sourceObjectRef();
+            std::vector<std::string_view> keys;
+            for (const auto& member : object)
+                allocateContractStorage([&] { keys.push_back(member.name.view()); });
+            std::sort(keys.begin(), keys.end());
+            putNumber('o', keys.size());
+            for (auto key : keys) {
+                putString(key);
+                add(object.at(key));
+            }
+        } else if (value.is_array()) {
+            const auto entries = value.sourceArrayValue();
+            putNumber('a', entries.size());
+            for (const auto& entry : entries) add(entry);
+        } else if (value.is_string()) {
+            putString(value.as_string().view());
+        } else if (value.is_double()) {
+            putNumber('d', std::bit_cast<std::uint64_t>(ngRigNumber(value)));
+        } else if (value.is_int64()) {
+            const auto integer = value.as_int64();
+            putNumber(integer < 0 ? 'i' : 'u', static_cast<std::uint64_t>(integer));
+        } else if (value.is_uint64()) {
+            putNumber('u', value.as_uint64());
+        } else {
+            putByte(value.is_bool() ? (value.as_bool() ? 't' : 'f') : 'n');
+        }
+    }
+
+    compat::RetainedStringSlice finish() {
+        flush();
+        return ngRigDigestHex(digest_.finish());
+    }
+
+private:
+    void flush() {
+        digest_.put({buffer_.data(), size_});
+        size_ = 0;
+    }
+
+    void putByte(std::uint8_t byte) {
+        if (size_ == buffer_.size()) flush();
+        buffer_[size_++] = byte;
+    }
+
+    void putNumber(std::uint8_t tag, std::uint64_t number) {
+        if (size_ + 9 > buffer_.size()) flush();
+        buffer_[size_++] = tag;
+        for (unsigned shift = 0; shift < 64; shift += 8)
+            buffer_[size_++] = static_cast<std::uint8_t>(number >> shift);
+    }
+
+    void putString(std::string_view value) {
+        putNumber('s', value.size());
+        if (value.size() > buffer_.size() - size_) {
+            flush();
+            digest_.put({reinterpret_cast<const std::uint8_t*>(value.data()), value.size()});
+        } else if (!value.empty()) {
+            std::copy(value.begin(), value.end(), buffer_.begin() + size_);
+            size_ += value.size();
+        }
+    }
+
+    Sha256 digest_;
+    std::array<std::uint8_t, 4096> buffer_{};
+    std::size_t size_ = 0;
+};
+
+} // namespace detail
+
+inline compat::RetainedStringSlice ngRigObservationDigest(core::settings::SettingsJsonValue value) {
+    detail::ObservationDigest digest;
+    digest.add(core::settings::SettingsString(compat::RetainedString::fromStaticLiteral("rig-observation-binary/1")));
+    digest.add(value);
+    return digest.finish();
 }
 
 } // namespace nijigenerate::autorig::deterministic::contracts

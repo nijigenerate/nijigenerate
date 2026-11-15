@@ -108,10 +108,18 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
     auto materials = read(state, "materials").as_array(), targets = read(state, "targets").as_array();
     IdMap<Json> materialById;
     for (const auto material : materials) materialById[contracts::ngRigUnsigned(read(material, "uuid"))] = material;
+    const auto apertureSurface = [&](Json material) {
+        if (feature(material)!="sclera") return false;
+        const auto* receiver=material.sourceObjectRef().if_contains("receiver");
+        if (!receiver) return true;
+        const auto host=materialById.find(contracts::ngRigUnsigned(*receiver));
+        return host==materialById.end() || feature(host->second)!="sclera";
+    };
     const auto supports = [&](std::string_view kind, std::string_view side, bool landmarks = false) {
         Slice<Point2> points;
         for (const auto target : targets) {
             auto material = readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 205);
+            if (kind=="sclera" && !apertureSurface(material)) continue;
             if (feature(material) == kind && (side.empty() || read(target, "side").as_string().view() == side)) {
                 const auto* landmark = material.sourceObjectRef().if_contains("landmark_cloud");
                 points.append(contracts::ngRigPoints(!landmarks || landmark == nullptr ?
@@ -178,11 +186,42 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
                     offsets.append(matrix[0] * world[0] + matrix[1] * world[1]);
                     offsets.append(matrix[2] * world[0] + matrix[3] * world[1]);
                 }
-                if (!name.ends_with("::Blink")) offsets = ngRigProjectControlOrientation(
-                    contracts::ngRigPoints(read(read(target, "mapping"), "vertices")),
-                    read(read(target, "mapping"), "triangles"), offsets, context);
+                const bool collapsedAperture = name.ends_with("::Blink") && kind == "sclera" && vx == 1.;
+                if (!collapsedAperture) {
+                    try {
+                        // The vertical constraint is anatomical, not the Part's Y axis.
+                        // A tilted mouth can be infeasible if its normal is frozen in X.
+                        const double determinant = matrix[0]*matrix[3]-matrix[1]*matrix[2];
+                        enforce(std::abs(determinant)>1e-12, "Singular local control frame", 256);
+                        const std::array<double,4> a{
+                            (frame.tangent[0]*matrix[3]-frame.tangent[1]*matrix[2])/determinant,
+                            (-frame.tangent[0]*matrix[1]+frame.tangent[1]*matrix[0])/determinant,
+                            (frame.normal[0]*matrix[3]-frame.normal[1]*matrix[2])/determinant,
+                            (-frame.normal[0]*matrix[1]+frame.normal[1]*matrix[0])/determinant};
+                        Slice<Point2> rest;
+                        Slice<double> requested;
+                        for (auto p : contracts::ngRigPoints(read(read(target,"mapping"),"vertices")))
+                            rest.append(Point2{a[0]*p[0]+a[1]*p[1],a[2]*p[0]+a[3]*p[1]});
+                        for (std::size_t i=0;i<offsets.size();i+=2) {
+                            requested.append(a[0]*offsets[i]+a[1]*offsets[i+1]);
+                            requested.append(a[2]*offsets[i]+a[3]*offsets[i+1]);
+                        }
+                        const auto projected = ngRigProjectControlOrientation(rest,
+                            read(read(target,"mapping"),"triangles"), requested, context);
+                        const double inverse = 1/(a[0]*a[3]-a[1]*a[2]);
+                        for (std::size_t i=0;i<offsets.size();i+=2) {
+                            offsets[i]=(a[3]*projected[i]-a[1]*projected[i+1])*inverse;
+                            offsets[i+1]=(-a[2]*projected[i]+a[0]*projected[i+1])*inverse;
+                        }
+                    }
+                    catch (const compat::ThrowableException& error) {
+                        const auto message = name + " / " + string(read(material,"name")) +
+                            " key(" + std::to_string(x) + "," + std::to_string(y) + "): " + std::string(error.msg.view());
+                        throw compat::ThrowableException(contracts::detail::copyContractMessage(message), error.file, error.line);
+                    }
+                }
                 for (auto& offset : offsets) offset = std::round(offset * 100000) / 100000;
-                if (!name.ends_with("::Blink")) enforce(geometry::ngRigTriangleMinimumRatio(
+                if (!collapsedAperture) enforce(geometry::ngRigTriangleMinimumRatio(
                     contracts::ngRigPoints(read(read(target, "mapping"), "vertices")),
                     read(read(target, "mapping"), "triangles"), offsets) >= .002,
                     "Rounded local control has a folded triangle", 263);
@@ -227,15 +266,17 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         auto upperContact = aperture.upper.duplicate(), lowerContact = aperture.lower.duplicate();
         std::uint64_t whiteOwner = 0;
         for (const auto target : targets) if (read(target, "side").as_string().view() == side &&
-                feature(readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 305)) == "sclera") {
+                apertureSurface(readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 305))) {
             whiteOwner = contracts::ngRigUnsigned(read(target, "part")); break;
         }
         auto downClose = controls_detail::contactProfile(
             contracts::ngRigPoints(read(readControlMap(materialById, whiteOwner, 306), "cloud")), eye, true);
         Slice<double> flatClose, expressionOffset, smileClose;
         for (std::size_t i = 0; i < downClose.size(); ++i) {
-            const double down = downClose[i], t = static_cast<double>(i) / (downClose.size() - 1);
-            const double flat = downClose[0] * (1 - t) + downClose[downClose.size() - 1] * t;
+            const double down = downClose[i];
+            // The eye frame already carries the observed canthus inclination.
+            // Unequal lower-rim thickness at its ends must not tilt it again.
+            const double flat = (downClose[0] + downClose[downClose.size() - 1]) / 2;
             flatClose.append(flat); expressionOffset.append(.3 * (down - flat)); smileClose.append(flat - .3 * (down - flat));
         }
         smileClose = controls_detail::endpointCubic(smileClose);
@@ -256,14 +297,23 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         if (hasReference) raiseInnerCorner(eye.local(reference)[0] < 0);
         bool upperContainsLower = false;
         std::uint64_t upperOwner = 0;
-        std::size_t greatest = 0;
+        double bestContact = std::numeric_limits<double>::infinity();
         for (const auto target : targets) if (read(target, "side").as_string().view() == side &&
                 feature(readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 331)) == "upper") {
             auto cloud = contracts::ngRigPoints(read(readControlMap(materialById,
                 contracts::ngRigUnsigned(read(target, "part")), 332), "cloud"));
-            std::size_t score = 0;
-            for (const auto p : cloud) if (std::abs(eye.local(p)[0]) <= eye.width / 2) ++score;
-            if (score > greatest) { greatest = score; upperOwner = contracts::ngRigUnsigned(read(target, "part")); }
+            double score = 0.;
+            // Prefer a surface that continuously meets the opening, regardless
+            // of its layer name, size, opacity or disconnected shadow islands.
+            for (std::size_t i = 0; i < aperture.axis.size(); ++i) {
+                double distance = eye.width;
+                for (const auto p : cloud) {
+                    const auto q = eye.local(p);
+                    distance = std::min(distance, std::hypot(q[0] - aperture.axis[i], q[1] - aperture.upper[i]));
+                }
+                score += distance;
+            }
+            if (score < bestContact) { bestContact = score; upperOwner = contracts::ngRigUnsigned(read(target, "part")); }
         }
         if (upperOwner) {
             Slice<Point2> above, below;
@@ -274,7 +324,9 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
                 if (p[1] <= middle) above.append(original);
                 else if (std::abs(p[0]) <= eye.width / 2) { below.append(original); low = std::min(low, p[0]); high = std::max(high, p[0]); }
             }
-            upperContact = controls_detail::contactProfile(above, eye, true);
+            // Shaded overlays can contain more pixels than the actual lid.
+            // Their disconnected islands must not define every lash's motion.
+            upperContact = aperture.upper.duplicate();
             upperContainsLower = below.size() > 1 && high - low > eye.width * .25;
             if (upperContainsLower) lowerContact = controls_detail::contactProfile(below, eye, false);
         }
@@ -291,8 +343,10 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
         const double height = percentile(heights, .5);
         const auto blinkName = "Eye::" + side + "::Blink";
         mechanism(blinkName, {0., .25, .5, .75, 1.}, {-1., 0., 1.}, {"sclera", "upper", "lower", "corner", "fold"}, side, eye,
-            [&](std::string_view kind, Point2 p, double blink, double expression, Json) {
-                return controls_detail::blinkDisplacement(kind, p, blink, expression, eye, aperture,
+            [&](std::string_view kind, Point2 p, double blink, double expression, Json material) {
+                const bool joinedRims = kind == "upper" && upperContainsLower &&
+                    contracts::ngRigUnsigned(read(material, "uuid")) == upperOwner;
+                return controls_detail::blinkDisplacement(joinedRims ? "corner" : kind, p, blink, expression, eye, aperture,
                     flatClose, smileClose, expressionOffset, upperContact, lowerContact);
             });
         if (!mechanisms.empty() && read(mechanisms[mechanisms.size() - 1], "name").as_string().view() == blinkName)
@@ -307,11 +361,7 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
             [&](std::string_view, Point2, double x, double y, Json) { return controls_detail::irisDisplacement(x, y, eye, height); });
         mechanism("Eyebrow::" + side, {-1., -.5, 0., .5, 1.}, {-1., 0., 1.}, {"brow"}, side, eye,
             [&](std::string_view, Point2 p, double x, double y, Json) { return controls_detail::eyebrowDisplacement(p, x, y, eye); });
-        std::uint64_t owner = 0;
-        for (const auto target : targets) if (read(target, "side").as_string().view() == side &&
-                feature(readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 391)) == "sclera") {
-            owner = contracts::ngRigUnsigned(read(target, "part")); break;
-        }
+        const auto owner = whiteOwner;
         for (const auto target : targets) if (read(target, "side").as_string().view() == side &&
                 feature(readControlMap(materialById, contracts::ngRigUnsigned(read(target, "part")), 394)) == "iris")
             masks.append(record({{"part", read(target, "part")}, {"source", Json(owner)}}));

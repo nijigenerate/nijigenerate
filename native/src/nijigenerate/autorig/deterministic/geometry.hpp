@@ -15,6 +15,10 @@ core::settings::SettingsJsonValue ngRigSourceUVRegistration(core::settings::Sett
     core::settings::SettingsJsonValue current);
 core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Point2> grid,
     std::size_t columns, double minimumRatio = 1e-8, compat::Slice<contracts::Point2> rest = {});
+double ngRigRepairGridOrientation(compat::Slice<contracts::Point2> grid,
+    std::size_t columns, compat::Slice<contracts::Point2> rest);
+double ngRigRepairGridInterpolation(compat::Slice<compat::Slice<contracts::Point2>> keys,
+    std::size_t nx, std::size_t ny, std::size_t columns, compat::Slice<contracts::Point2> rest);
 contracts::Point3 ngRigClosestTriangleWeights(contracts::Point2 p, contracts::Point2 a,
     contracts::Point2 b, contracts::Point2 c);
 compat::Slice<contracts::Point2> ngRigUVGrid(compat::Slice<double> xs, compat::Slice<double> ys);

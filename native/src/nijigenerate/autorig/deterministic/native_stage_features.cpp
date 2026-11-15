@@ -3,10 +3,8 @@
 #include "detail/evidence.hpp"
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/commands/node/node_commands.hpp>
-#include <nijigenerate/commands/automesh/dynamic.hpp>
-#include <nijigenerate/viewport/vertex/automesh/grid.hpp>
 #include <nodes/projectable.hpp>
-#include <limits>
+#include <cmath>
 
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
@@ -34,93 +32,86 @@ Json prepareFeatureComposites(Json state, Json program, Task task) {
         compat::Slice<std::uint32_t> targets;
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
-            auto first = puppet->findNodeById(ids[0]);
-            NodeRef commonComposite;
-            for (auto candidate = first->parentPtr(); candidate && candidate != puppet->root; candidate = candidate->parentPtr()) {
-                if (candidate->typeId() != "DynamicComposite") continue;
-                bool featureGroup = false;
-                for (auto source : state.sourceIndexValue("prepared_groups").sourceArrayValue())
-                    if (uuid(source.sourceIndexValue("uuid")) == candidate->getUUID() &&
-                        source.sourceIndexValue("feature").as_string().view() == (name.view()=="Mouth" ? "mouth" : "eye")) featureGroup = true;
-                if (!featureGroup) continue;
-                bool common = true;
-                for (auto id : ids) {
-                    bool contained = false;
-                    for (auto cursor = puppet->findNodeById(id); cursor; cursor = cursor->parentPtr())
-                        if (cursor == candidate) contained = true;
-                    common = common && contained;
-                }
-                if (common) { commonComposite = candidate; break; }
+            NativeIntegerMap<std::uint32_t, compat::Slice<std::uint32_t>> partitions;
+            for (auto id : ids) {
+                const auto part = puppet->findNodeById(id);
+                NodeRef surface;
+                for (auto parent = part->parentPtr(); parent && parent != puppet->root; parent = parent->parentPtr())
+                    if (parent->typeId() == "Composite" || parent->typeId() == "DynamicComposite")
+                        surface = parent;
+                // A feature may span several parents, for example when lashes
+                // and the clipped iris live in different PSD groups.
+                if (!surface) partitions[part->parentPtr()->getUUID()].append(id);
+                else if (surface->typeId() == "DynamicComposite") targets.append(surface->getUUID());
             }
-            if (commonComposite) targets.append(commonComposite->getUUID());
-            else {
-                NativeIntegerMap<std::uint32_t, compat::Slice<std::uint32_t>> partitions;
-                for (auto id : ids) partitions[puppet->findNodeById(id)->parentPtr()->getUUID()].append(id);
-                for (auto [parentId, parts] : partitions) {
-                    auto parent = puppet->findNodeById(parentId);
-                    using namespace commands::node::node;
-                    auto composite = createSourceNode(
-                        [&] {
-                            return createNativeObject<AddNodeCommandT<true>>(compat::RetainedString::fromStaticLiteral("DynamicComposite"),
-                                compat::RetainedString::fromStaticLiteral("::Mechanism"));
-                        },
-                        [&] {
-                            return editorContext({parent});
-                        });
-                    composite->setName(nativeText({name.view(),"::Composite"}).toNullableString());
-                    compat::Slice<NodeRef> selected;
-                    for (auto id : parts) selected.append(puppet->findNodeById(id));
-                    commandSource(
-                        [&] {
-                            return createNativeObject<MoveNodeCommand>(composite, 0, true);
-                        },
-                        [&] {
-                            return editorContext(selected);
-                        });
-                    targets.append(composite->getUUID());
-                }
+            for (auto [parentId, parts] : partitions) {
+                auto parent = puppet->findNodeById(parentId);
+                using namespace commands::node::node;
+                auto composite = createSourceNode(
+                    [&] {
+                        return createNativeObject<AddNodeCommandT<true>>(compat::RetainedString::fromStaticLiteral("DynamicComposite"),
+                            compat::RetainedString::fromStaticLiteral("::Mechanism"));
+                    },
+                    [&] {
+                        return editorContext({parent});
+                    });
+                composite->setName(nativeText({name.view(),"::Composite"}).toNullableString());
+                compat::Slice<NodeRef> selected;
+                for (auto id : parts) selected.append(puppet->findNodeById(id));
+                commandSource(
+                    [&] {
+                        return createNativeObject<MoveNodeCommand>(composite, 0, true);
+                    },
+                    [&] {
+                        return editorContext(selected);
+                    });
+                targets.append(composite->getUUID());
             }
             puppet->root->build(); puppet->update();
         });
-        const double infinity = std::numeric_limits<double>::infinity();
-        std::array<double, 4> bounds{infinity, infinity, -infinity, -infinity};
-        for (auto material : state.sourceIndexValue("materials").sourceArrayValue()) {
-            if (std::find(ids.begin(), ids.end(), uuid(material.sourceIndexValue("uuid"))) == ids.end()) continue;
-            for (auto p : ngRigPoints(material.sourceIndexValue("cloud"))) {
-                bounds[0] = dmin(bounds[0], p[0]); bounds[1] = dmin(bounds[1], p[1]);
-                bounds[2] = dmax(bounds[2], p[0]); bounds[3] = dmax(bounds[3], p[1]);
-            }
-        }
-        const double width = bounds[2] - bounds[0], height = dmax(1., bounds[3] - bounds[1]);
-        const float margin = static_cast<float>(name.view()=="Mouth" ? dmax(.25, .135 * width / height) :
-            dmax(.18, 1 + .08 * width / height));
         for (auto id : targets) {
             if (meshed.contains(id)) continue;
             ngRigCheckpoint(task);
-            using Grid = viewport::vertex::automesh::grid::GridAutoMeshProcessor;
-            auto processor = createNativeObject<Grid>();
-            processor->maskThreshold = 1; processor->xSegments = 10; processor->ySegments = 10; processor->margin = margin;
-            processor->ngPostParamWrite(compat::RetainedString::fromStaticLiteral("margin"));
-            compat::SharedDelegate<bool()> canceled = [task] { return task->isCanceled(); };
-            std::shared_ptr<commands::CommandResult> result;
-            task->runOnMainThread([&] {
-                result = commandSource(
-                    [&] {
-                        return createNativeObject<commands::automesh::dynamic::ApplyAutoMeshPT<Grid>>( processor, canceled);
-                    },
-                    [&] {
-                        return editorContext({project::incActivePuppet()->findNodeById(id)});
-                    });
-            });
-            result = result->waitForCompletion(); enforceNativeLazy(result->succeeded,[&] { return result->message; },807);
             task->runOnMainThread([&] {
                 auto composite = std::dynamic_pointer_cast<nicxlive::core::nodes::Projectable>(
                     project::incActivePuppet()->findNodeById(id));
-                enforceNative(composite && !composite->autoResizedMesh,"Feature composite did not retain its native generated mesh",810);
+                enforceNative(bool(composite), "Missing feature composite", 807);
+                // The auto-sized target already covers its children at neutral.
+                // Subdivide it in local space; transient GPU alpha is not input art.
+                if (composite->autoResizedMesh) composite->createSimpleMesh();
+                const auto& source = composite->getMesh();
+                enforceNative(!source.vertices.empty(), "Feature composite has no neutral extent", 808);
+                auto lo = source.vertices.at(0), hi = lo;
+                for (const auto p : source.vertices) {
+                    lo.x = std::min(lo.x, p.x); lo.y = std::min(lo.y, p.y);
+                    hi.x = std::max(hi.x, p.x); hi.y = std::max(hi.y, p.y);
+                }
+                enforceNative(hi.x > lo.x && hi.y > lo.y, "Feature composite extent is degenerate", 809);
+                nicxlive::core::nodes::MeshData mesh;
+                mesh.origin = source.origin;
+                mesh.gridAxes.resize(2);
+                constexpr unsigned segments = 10;
+                for (unsigned i = 0; i <= segments; ++i) {
+                    const auto t = static_cast<float>(i) / segments;
+                    mesh.gridAxes[0].push_back(std::lerp(lo.y, hi.y, t));
+                    mesh.gridAxes[1].push_back(std::lerp(lo.x, hi.x, t));
+                }
+                enforceNative(mesh.regenerateGrid(), "Feature grid could not be generated", 810);
+                composite->autoResizedMesh = false;
+                composite->normalizeUV(&mesh);
+                composite->rebuffer(mesh);
+                enforceNative(!composite->autoResizedMesh && composite->getMesh().isGrid(),
+                    "Feature composite did not retain a fixed grid", 811);
                 core::settings::SettingsJsonArray parts;
-                for (auto part : ids) parts.append(Json(part));
+                for (auto part : ids)
+                    for (auto parent = project::incActivePuppet()->findNodeById(part)->parentPtr();
+                         parent; parent = parent->parentPtr())
+                        if (parent == composite) {
+                            parts.append(Json(part));
+                            break;
+                        }
                 composites.append(objectEvidence({{stringLiteralEvidence("uuid"), id}, {stringLiteralEvidence("name"),core::settings::SettingsString(name)}, {stringLiteralEvidence("parts"), Json(parts)},
-                    {stringLiteralEvidence("mapping"), textureMapping(composite)}, {stringLiteralEvidence("margin"), margin}, {stringLiteralEvidence("segments"), 10}}));
+                    {stringLiteralEvidence("mapping"), textureMapping(composite)}, {stringLiteralEvidence("segments"), segments}}));
             });
             meshed[id]=true;
         }

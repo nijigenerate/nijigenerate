@@ -9,6 +9,7 @@
 #include <limits>
 #include <utility>
 #include <string_view>
+#include <vector>
 
 namespace nijigenerate::autorig::deterministic::geometry {
 namespace {
@@ -174,6 +175,123 @@ core::settings::SettingsJsonValue ngRigSourceUVRegistration(core::settings::Sett
     result[compat::RetainedString::fromStaticLiteral("shift")] = SettingsJsonValue(shiftJson);
     result[compat::RetainedString::fromStaticLiteral("source_affine")] = SettingsJsonValue(affineJson);
     return SettingsJsonValue(result);
+}
+
+double ngRigRepairGridOrientation(compat::Slice<contracts::Point2> grid,
+    std::size_t columns, compat::Slice<contracts::Point2> rest) {
+    ngRigValidateGrid(rest, columns, 0);
+    if (grid.size() != rest.size())
+        throw compat::ThrowableException{contracts::detail::copyContractMessage("Orientation correction grid dimensions differ"),
+            compat::RetainedString::fromStaticLiteral("native/autorig/geometry_json.cpp"), 0};
+    try { ngRigValidateGrid(grid, columns, .08, rest); return 0; }
+    catch (const compat::ThrowableException&) {}
+    const auto original = grid.duplicate();
+    std::vector<std::array<std::size_t, 3>> triangles;
+    for (std::size_t y = 0; y + 1 < rest.size() / columns; ++y)
+        for (std::size_t x = 0; x + 1 < columns; ++x) {
+            const auto a = y * columns + x, b = a + 1, c = a + columns, d = c + 1;
+            for (const auto triangle : {std::array{a,b,c}, std::array{a,b,d},
+                    std::array{a,d,c}, std::array{b,d,c}}) triangles.push_back(triangle);
+        }
+    // Reserve area for interpolation between independently projected angle keys.
+    // A key-only 3% margin can collapse below the 2% verification limit in between.
+    // Project only violated area constraints. This keeps the authored motion and
+    // corrects local silhouette compression rather than reducing the control angle.
+    for (unsigned iteration = 0; iteration < 500; ++iteration) {
+        double minimum = 1;
+        for (const auto indices : triangles) {
+            const auto a = grid[indices[0]], b = grid[indices[1]], c = grid[indices[2]];
+            const double reference = detail::cross(detail::sub(rest[indices[1]], rest[indices[0]]),
+                detail::sub(rest[indices[2]], rest[indices[0]]));
+            const double area = detail::cross(detail::sub(b,a), detail::sub(c,a));
+            minimum = std::min(minimum, area / reference);
+            if (area >= .1 * reference) continue;
+            const std::array<contracts::Point2,3> gradient{{
+                {b[1]-c[1],c[0]-b[0]}, {c[1]-a[1],a[0]-c[0]}, {a[1]-b[1],b[0]-a[0]}}};
+            double denominator = 0;
+            for (const auto g : gradient) denominator += g[0]*g[0] + g[1]*g[1];
+            if (!(denominator > 0) || !std::isfinite(denominator)) break;
+            const double step = (.1 * reference - area) / denominator;
+            for (std::size_t i = 0; i < 3; ++i) for (std::size_t axis = 0; axis < 2; ++axis)
+                grid[indices[i]][axis] += step * gradient[i][axis];
+        }
+        if (minimum > .099) break;
+    }
+    ngRigValidateGrid(grid, columns, .095, rest);
+    double maximum = 0;
+    for (std::size_t i = 0; i < grid.size(); ++i)
+        maximum = std::max(maximum, std::hypot(grid[i][0]-original[i][0], grid[i][1]-original[i][1]));
+    const auto span = detail::sub(rest[rest.size()-1], rest[0]);
+    if (maximum > .1 * std::min(span[0],span[1]))
+        throw compat::ThrowableException{contracts::detail::copyContractMessage("Projected grid requires excessive orientation correction"),
+            compat::RetainedString::fromStaticLiteral("native/autorig/geometry_json.cpp"), 0};
+    return maximum;
+}
+
+double ngRigRepairGridInterpolation(compat::Slice<compat::Slice<contracts::Point2>> keys,
+    std::size_t nx, std::size_t ny, std::size_t columns, compat::Slice<contracts::Point2> rest) {
+    if (nx < 2 || ny < 2) return 0;
+    if (keys.size() != nx * ny) throw std::runtime_error("Interpolation key dimensions differ");
+    std::vector<compat::Slice<contracts::Point2>> original;
+    std::vector<bool> locked;
+    for (auto key : keys) {
+        if (key.size() != rest.size()) throw std::runtime_error("Interpolation grid dimensions differ");
+        original.push_back(key.duplicate());
+        bool neutral = true;
+        for (std::size_t i = 0; i < rest.size(); ++i)
+            if (std::hypot(key[i][0]-rest[i][0], key[i][1]-rest[i][1]) > .001) neutral = false;
+        locked.push_back(neutral);
+    }
+    struct Triangle { std::array<std::size_t,3> vertices; double area; };
+    std::vector<Triangle> triangles;
+    for (std::size_t y = 0; y + 1 < rest.size()/columns; ++y)
+        for (std::size_t x = 0; x + 1 < columns; ++x) {
+            const auto a=y*columns+x,b=a+1,c=a+columns,d=c+1;
+            for (auto ids : {std::array{a,b,c},std::array{a,b,d},std::array{a,d,c},std::array{b,d,c}})
+                triangles.push_back({ids,detail::cross(detail::sub(rest[ids[1]],rest[ids[0]]),
+                    detail::sub(rest[ids[2]],rest[ids[0]]))});
+        }
+    // Project area constraints in the interpolated pose back to its four keys.
+    // Keep neutral exact and leave every already-safe vertex unchanged.
+    bool converged=false;
+    for (unsigned iteration=0; iteration<100; ++iteration) {
+        double minimum=1;
+        for (std::size_t x=0;x+1<nx;++x) for (std::size_t y=0;y+1<ny;++y)
+            for (unsigned u=0;u<=8;++u) for (unsigned v=0;v<=8;++v) {
+                const double fx=u/8.,fy=v/8.;
+                const std::array<std::size_t,4> ids{x*ny+y,(x+1)*ny+y,x*ny+y+1,(x+1)*ny+y+1};
+                const std::array<double,4> weights{(1-fx)*(1-fy),fx*(1-fy),(1-fx)*fy,fx*fy};
+                double weightNorm=0;
+                for(std::size_t k=0;k<4;++k)if(!locked[ids[k]])weightNorm+=weights[k]*weights[k];
+                for (const auto& triangle : triangles) {
+                    std::array<contracts::Point2,3> p{contracts::Point2{0,0},contracts::Point2{0,0},contracts::Point2{0,0}};
+                    for(std::size_t t=0;t<3;++t)for(std::size_t k=0;k<4;++k)for(std::size_t a=0;a<2;++a)
+                        p[t][a]+=weights[k]*keys[ids[k]][triangle.vertices[t]][a];
+                    const double area=detail::cross(detail::sub(p[1],p[0]),detail::sub(p[2],p[0]));
+                    if(!std::isfinite(area)||!(triangle.area>0))throw std::runtime_error("Invalid interpolation grid area");
+                    minimum=std::min(minimum,area/triangle.area);
+                    if(area>=.04*triangle.area)continue;
+                    const std::array<contracts::Point2,3> gradient{{
+                        {p[1][1]-p[2][1],p[2][0]-p[1][0]},
+                        {p[2][1]-p[0][1],p[0][0]-p[2][0]},
+                        {p[0][1]-p[1][1],p[1][0]-p[0][0]}}};
+                    double norm=0;for(auto g:gradient)norm+=g[0]*g[0]+g[1]*g[1];
+                    if(norm*weightNorm<=0)throw std::runtime_error("Locked interpolation constraint is degenerate");
+                    const double step=(.04*triangle.area-area)/(norm*weightNorm);
+                    for(std::size_t k=0;k<4;++k)if(!locked[ids[k]])
+                        for(std::size_t t=0;t<3;++t)for(std::size_t a=0;a<2;++a)
+                            keys[ids[k]][triangle.vertices[t]][a]+=step*weights[k]*gradient[t][a];
+                }
+            }
+        if(minimum>.035){converged=true;break;}
+    }
+    if(!converged)throw std::runtime_error("Interpolation orientation correction did not converge");
+    double maximum=0;
+    for(std::size_t k=0;k<keys.size();++k)for(std::size_t i=0;i<rest.size();++i)
+        maximum=std::max(maximum,std::hypot(keys[k][i][0]-original[k][i][0],keys[k][i][1]-original[k][i][1]));
+    const auto span=detail::sub(rest[rest.size()-1],rest[0]);
+    if(maximum>.1*std::min(span[0],span[1]))throw std::runtime_error("Excessive interpolation orientation correction");
+    return maximum;
 }
 
 core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Point2> grid,

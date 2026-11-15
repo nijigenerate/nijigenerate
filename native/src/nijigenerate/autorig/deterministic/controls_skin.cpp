@@ -80,22 +80,9 @@ compat::Slice<bool> cheekSupport(compat::Slice<contracts::Point2> world,
         allowed.append(side * (q[0] - profile.midline(q[1])) > 0 &&
             q[1] >= profile.temple && q[1] <= profile.y[profile.y.size() - 1]);
     }
-    const auto near = allowed.duplicate();
-    for (const auto triangle : triangles.as_array()) {
-        auto indices = contracts::ngRigNumbers(triangle);
-        bool outside = false;
-        for (const double index : indices) if (!near[sourceControlIndex(index)]) outside = true;
-        const double levels[3]{profile.eye, profile.mouth, profile.y[profile.y.size() - 1]};
-        const std::array<std::size_t, 2> edges[3]{{0, 1}, {1, 2}, {2, 0}};
-        for (const double level : levels) for (const auto edge : edges) {
-            const auto p = points[sourceControlIndex(indices[edge[0]])];
-            const auto q = points[sourceControlIndex(indices[edge[1]])];
-            if (level < std::min(p[1], q[1]) || level > std::max(p[1], q[1])) continue;
-            const double t = std::abs(q[1] - p[1]) > 1e-12 ? (level - p[1]) / (q[1] - p[1]) : 0;
-            if (side * (p[0] + t * (q[0] - p[0]) - profile.midline(level)) <= 0) outside = true;
-        }
-        if (outside) for (const double index : indices) allowed[sourceControlIndex(index)] = false;
-    }
+    // The correction fades to zero at the feature midline. Excluding every
+    // vertex of a triangle that crosses it erodes the usable cheek boundary.
+    (void)triangles;
     return allowed;
 }
 

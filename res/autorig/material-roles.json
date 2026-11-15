@@ -5,7 +5,7 @@
   "rules": [
     {"id":"face", "pattern":"^(face|head)(?:_skin)?$", "owner":"head", "chart":"face", "usage":"anatomy"},
     {"id":"face_feature", "pattern":"^(sclera|iris|pupil|eye|lash|eyelash|lid|brow|eyebrow|nose|mouth|lip)(_|$)", "owner":"head", "chart":"face", "usage":"feature"},
-    {"id":"neck", "pattern":"^neck$", "owner":"torso", "chart":"neck", "usage":"anatomy"},
+    {"id":"neck", "pattern":"^neck$", "owner":"torso", "chart":"body", "usage":"anatomy"},
     {"id":"torso", "pattern":"^(body|torso|chest|chest_skin|pelvis)$", "owner":"torso", "chart":"body", "usage":"anatomy"},
     {"id":"bodice", "pattern":"^(bodice|collar)(_|$)", "owner":"torso", "chart":"topwear_front", "usage":"covering"},
     {"id":"waistwear", "pattern":"^corset(_|$)", "owner":"torso", "chart":"topwear_waist", "usage":"covering"},
@@ -32,7 +32,7 @@
   "decorator_prefixes": ["shadow_", "shade_", "highlight_", "pattern_", "outline_"],
   "receivers": [
     {"pattern":"(^|_)face$", "owner":"head", "chart":"face"},
-    {"pattern":"(^|_)neck$", "owner":"torso", "chart":"neck"},
+    {"pattern":"(^|_)neck$", "owner":"torso", "chart":"body"},
     {"pattern":"(^|_)leg_(?P<side>l|r|left|right)$", "owner":"leg:{side}", "chart":"skin"},
     {"pattern":"(^|_)train_(?P<side>l|r|left|right)$", "owner":"torso", "chart":"skirt_back:{side}"}
   ],

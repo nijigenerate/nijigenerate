@@ -318,6 +318,35 @@ Json ngRigPhysicsStructure(Json state,Json program,PhysicsAssets& assets,std::sh
             arrayAt(candidates,selected,321).sourceIndexReference("targets",retainedTargets).as_array().append(id);
             auto row=arrayAt(inventory,physicsMapValue(inventoryIndex,id,322),322);set(row,"decision","carried");set(row,"reason","Primary observed receiver field");set(row,"carrier",at(arrayAt(candidates,selected,323),"id"));}
     }
+    // Joined ear surfaces need one driver and one spatial displacement field.
+    for (auto pair : get(state,"surface_pairs",Array{}).sourceArrayValue()) {
+        if (at(pair,"kind").as_string().view()!="layered_ear" || !get(pair,"matching",false).as_bool()) continue;
+        std::size_t sourceIndex=SIZE_MAX,targetIndex=SIZE_MAX;
+        for (std::size_t i=0;i<candidates.size();++i) {
+            if (at(candidates[i],"profile").as_string().view()!="ear") continue;
+            for (auto id : at(candidates[i],"targets").sourceArrayValue()) {
+                if (id==at(pair,"source")) sourceIndex=i;
+                if (id==at(pair,"target")) targetIndex=i;
+            }
+        }
+        if (sourceIndex==SIZE_MAX || targetIndex==SIZE_MAX || sourceIndex==targetIndex) continue;
+        auto host=candidates[targetIndex];
+        auto targets=at(host,"targets").sourceArrayValue().duplicate();
+        for (auto id : at(candidates[sourceIndex],"targets").sourceArrayValue()) targets.append(id);
+        set(host,"targets",targets);
+        Slice<Point2> cloud;
+        for (auto id : targets) cloud.appendRange(physicsMapValue(assets,ngRigUnsigned(id),330).points);
+        const auto head=physicsMapValue(joints,jsonLiteral("head_top"),330);
+        const auto axis=unit(sub(head,physicsMapValue(joints,jsonLiteral("neck_base"),330)));
+        Slice<double> distances,projections;
+        for (auto p : cloud) { distances.append(norm(sub(p,head))); projections.append(dot(p,axis)); }
+        const auto root=section(cloud,distances,.05,false),free=section(cloud,projections,.95,true);
+        set(host,"fixed",point(root));set(host,"free",point(free));
+        set(host,"length",ngRigPhysicsFrame(root,free).length);set(host,"shared_attachment",true);
+        Array retained;
+        for (std::size_t i=0;i<candidates.size();++i) if(i!=sourceIndex)retained.append(i==targetIndex?host:candidates[i]);
+        candidates=retained;
+    }
     Slice<std::size_t> fronts;
     for(std::size_t i=0;i<candidates.size();++i){
         auto spec=candidates[i];

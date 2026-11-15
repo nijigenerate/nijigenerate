@@ -153,8 +153,22 @@ Json ngAutoRigWorkflowDiagnostics(std::shared_ptr<AutoRigWorkflowRun> run) {
             for (const auto artifact : compat::ngRequireObject(compat::ngRequireObject(run)->session())->task(id).artifacts)
                 if (artifact.preview && artifact.portId == "compile-profile") profile.append(artifact.value().json);
             if (!profile.empty()) result["compile_profile"] = profile;
+            for (const auto artifact : compat::ngRequireObject(compat::ngRequireObject(run)->session())->task(id).artifacts) {
+                if (artifact.preview && artifact.portId == "anatomical-evidence")
+                    result["anatomical_evidence"] = artifact.value().json;
+                if (artifact.preview && artifact.portId == "source-observation")
+                    result["source_observation_path"] = core::settings::SettingsString(artifact.storagePath);
+            }
+            const auto session = compat::ngRequireObject(run)->session();
+            if (!compat::ngRequireObject(session)->isBusy() && compat::ngRequireObject(session)->hasOutput(id, "review")) {
+                const auto review = compat::ngRequireObject(session)->output(id, "review").json;
+                if (review.is_object()) result["classification_review"] = review;
+            }
         }
         if (step.id.view() != "verify" || compat::ngRequireObject(compat::ngRequireObject(run)->session())->isBusy()) continue;
+        for (const auto artifact : compat::ngRequireObject(compat::ngRequireObject(run)->session())->task(id).artifacts)
+            if (artifact.preview && artifact.portId == "source-frame-mismatch")
+                result["source_frame_mismatch"] = artifact.value().json;
         bool reportPort = false;
         for (const auto output : compat::ngRequireObject(compat::ngRequireObject(run)->session())->taskSpec(id).outputs)
             if (output.id.view() == "report" && output.kind == AutoRigValueKind::Json) reportPort = true;
@@ -163,7 +177,7 @@ Json ngAutoRigWorkflowDiagnostics(std::shared_ptr<AutoRigWorkflowRun> run) {
         if (!report.is_object()) continue;
         const auto& reportObject=detail::jsonObjectRef(report);
         core::settings::SettingsJsonObject summary;
-        for (const auto key : {"passed", "error", "readback_verified", "finish_stages", "all_finish_stages_succeeded", "numerical_stages_passed", "rig_complete"})
+        for (const auto key : {"passed", "error", "readback_verified", "finish_stages", "all_finish_stages_succeeded", "numerical_stages_passed", "rig_complete", "visual_review_required", "source_uv_readback", "bones", "baked_keys", "intermediate_samples"})
             if (const auto entry = reportObject.if_contains(key)) summary[key] = *entry;
         if (const auto findings = reportObject.if_contains("numerical_findings"); findings && findings->is_array()) {
             auto entries = findings->as_array(); summary["numerical_findings_count"] = static_cast<std::uint64_t>(entries.size());

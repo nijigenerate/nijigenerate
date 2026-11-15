@@ -9,6 +9,8 @@ using Context = std::shared_ptr<framework::AutoRigTaskContext>;
 Json ngRigEyelashTopology(Json, Point2, Point2, Context context = {});
 Json ngRigAlphaContour(Json, Context context = {}, bool nominalPixelFrame = false);
 Json ngRigPrepareShoulders(Json, Json, Context context = {});
+Json ngRigPrepareHipAttachments(Json, Json, Context context = {});
+Json ngRigPrepareLayeredEars(Json, Context context = {});
 Json ngRigAlphaRuns(compat::ConstSlice<std::uint8_t>, std::uint8_t);
 double ngRigAlphaCoverage(Json, compat::Slice<Point2>,
     compat::RetainedStringSlice support = compat::RetainedString::fromStaticLiteral("alpha_runs_128"),

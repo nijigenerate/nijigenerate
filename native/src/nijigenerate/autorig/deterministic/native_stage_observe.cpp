@@ -47,6 +47,9 @@ Json observeModel(Json options,Task task) {
             auto alpha=viewport::vertex::automesh::common::getAlphaInput(part);enforceNative(alpha.img&&alpha.w>0&&alpha.h>0,"Part has no readable alpha texture",473);
             width=static_cast<std::size_t>(alpha.w);height=static_cast<std::size_t>(alpha.h);pixels=alpha.img->data().duplicate();
             auto mapping=textureMapping(part);compat::Slice<Point2> world;for(auto p:ngRigPoints(indexNative(mapping,"vertices")))world.append(toRoot(part,p[0],p[1]));
+            for (auto point : world) enforceNativeLazy(std::isfinite(point[0]) && std::isfinite(point[1]), [&] {
+                return nativeText({"Nonfinite source coordinates for Part: ", part->getName().view()});
+            }, 478);
             rootMesh=objectEvidence({{stringLiteralEvidence("vertices"),ngRigPointsJson(world)},{stringLiteralEvidence("uv"),indexNative(mapping,"uv")},{stringLiteralEvidence("triangles"),indexNative(mapping,"triangles")}});
             const double inf=std::numeric_limits<double>::infinity();std::array<double,4> bounds{inf,inf,-inf,-inf};
             for(auto p:world)for(std::size_t i=0;i<2;++i){bounds[i]=dmin(bounds[i],p[i]);bounds[i+2]=dmax(bounds[i+2],p[i]);}
@@ -68,6 +71,16 @@ Json observeModel(Json options,Task task) {
                 {stringLiteralEvidence("texture_sha256"),bytesDigest({pixels.data(),pixels.size()})}});
             core::settings::SettingsJsonArray ancestorsJson,idsJson;for(auto s:ancestors)ancestorsJson.append(s);for(auto v:ancestorIds)idsJson.append(v);
             assignNative(record,"ancestors",ancestorsJson);assignNative(record,"ancestor_ids",idsJson);assignNative(record,"parent",part->parentPtr()->getUUID());
+            std::vector<double> drawOrder{part->zSortNoOffset()};
+            for (auto node = part->parentPtr(); node && node != puppet->root; node = node->parentPtr()) {
+                const auto type = node->typeId();
+                if (type == "Composite" || type == "DynamicComposite")
+                    drawOrder.push_back(node->zSortNoOffset());
+            }
+            core::settings::SettingsJsonArray sortPath;
+            for (auto value = drawOrder.rbegin(); value != drawOrder.rend(); ++value)
+                sortPath.append(*value);
+            assignNative(record,"draw_order_zsort_path",sortPath);
             const auto rootInverse=core::math::source_matrix::inverse(puppet->root->transform().matrix());
             const auto parentMatrix=part->parentPtr()->transform().matrix();
             const auto matrix=rootInverse*parentMatrix;
@@ -83,7 +96,17 @@ Json observeModel(Json options,Task task) {
         assignNative(record,"alpha_runs_128",ngRigAlphaRuns(pixels,128));auto strongAlpha=pixels.duplicate();
         for(std::size_t pixel=0;pixel<strongAlpha.size()/4;++pixel)if(strongAlpha[pixel*4+3]<=128)strongAlpha[pixel*4+3]=0;
         assignNative(record,"draw_order_cloud",ngRigPointsJson(ngRigTextureSupport(strongAlpha,width,height,rootMesh,10000,task)));
-        if(evidence::ngRigMaterialFeature(indexNative(record,"name").as_string()).view()=="sclera") {
+        std::size_t opaque = 0, pale = 0;
+        for (std::size_t i = 0; i < pixels.size(); i += 4) {
+            const unsigned alpha = pixels[i+3];
+            if (alpha <= 128) continue;
+            ++opaque;
+            const auto low = std::min({pixels[i], pixels[i+1], pixels[i+2]});
+            const auto high = std::max({pixels[i], pixels[i+1], pixels[i+2]});
+            if (255u*low > 140u*alpha && 255u*(high-low) < 70u*alpha) ++pale;
+        }
+        assignNative(record,"pale_alpha_fraction",opaque ? double(pale)/opaque : 0.);
+        if (opaque && double(pale)/opaque > .5) {
             auto mainPatch=ngRigLargestAlphaComponent(pixels,width,height,task);assignNative(record,"landmark_cloud",ngRigPointsJson(ngRigTextureSupport(mainPatch,width,height,rootMesh,40000,task)));
         }
         assignNative(record,"opaque_perimeter_coverage",ngRigAlphaPerimeterCoverage(pixels,width,height));
@@ -92,7 +115,7 @@ Json observeModel(Json options,Task task) {
     evidence::ngRigPropagateClippingVisibility(materials);evidence::ngRigResolveGroupReceivers(materials,groups);evidence::ngRigPropagateClippingVisibility(materials);
     auto result=objectEvidence({{stringLiteralEvidence("schema_version"),"rig-model-observation-d/1"},{stringLiteralEvidence("rootId"),rootId},{stringLiteralEvidence("materials"),materials},{stringLiteralEvidence("groups"),groups},{stringLiteralEvidence("options"),options}});
     task->runOnMainThread([&]{auto puppet=project::incActivePuppet();enforceNative(puppet&&puppet->root->getUUID()==rootId&&editorSignature(puppet)==signature,"Imported model changed while CPU snapshots were being acquired",537);});
-    assignNative(result,"source_sha256",core::settings::SettingsString(ngRigDigest(result)));
+    assignNative(result,"source_sha256",core::settings::SettingsString(ngRigObservationDigest(result)));
     if(get(options,"render",false).as_bool())assignNative(result,"neutral_render",
         renderFrame(task,compat::RetainedString::fromStaticLiteral("source-neutral")));
     return result;

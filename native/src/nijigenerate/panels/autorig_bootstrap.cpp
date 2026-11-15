@@ -3,6 +3,8 @@
 #include "detail/autorig_sessions.hpp"
 #include "detail/autorig_dispatch.hpp"
 #include <nijigenerate/autorig/deterministic/processor.hpp>
+#include <nijigenerate/autorig/patterns/core.hpp>
+#include <nijigenerate/autorig/patterns/processor.hpp>
 #include <nijigenerate/autorig/deterministic/editor.hpp>
 #include <nijigenerate/autorig/deterministic/native.hpp>
 #include <nijigenerate/commands/base.hpp>
@@ -97,6 +99,9 @@ std::shared_ptr<::nijigenerate::autorig::framework::AutoRigSessionManager> ngAut
                             stage, state, program, model, context);
                     }});
             }));
+        for (const auto& pattern : ::nijigenerate::autorig::patterns::ngPatternSpecs())
+            detail::sharedSessions->registerProcessor(
+                std::make_shared<::nijigenerate::autorig::patterns::StructuralPatternProcessor>(pattern.id));
         detail::sharedSessions->registerProcessorAlias(
             compat::RetainedString::fromStaticLiteral("deterministic-rig"),
             compat::RetainedString::fromStaticLiteral("anime-front-view-rig"));

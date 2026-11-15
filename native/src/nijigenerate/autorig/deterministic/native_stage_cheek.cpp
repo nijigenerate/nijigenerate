@@ -7,6 +7,8 @@
 #include <nijigenerate/commands/model/set_deform_binding_commands.hpp>
 #include <param/binding_impl.hpp>
 #include <serde_json.hpp>
+#include <algorithm>
+#include <cmath>
 
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
@@ -14,13 +16,10 @@ namespace {
 compat::RetainedStringSlice skeletonDigest(NodeRef node) {
     return ngRigDigest(serializedJson(node));
 }
+
 }
 Json applyCheekCorrections(Json state, Json program, Task task) {
-    // Registered native curves remain the original workflow's leg authority.
-    auto feet = program.sourceObjectRef().if_contains("reference_template") ? objectEvidence({
-        {stringLiteralEvidence("operations"), core::settings::SettingsJsonArray{}}, {stringLiteralEvidence("applicable"), false},
-        {stringLiteralEvidence("reason"), "Registered native curves; original workflow has no fixed-foot override"}}) :
-        controls::ngRigCompileFixedFootCorrections(state, program, task);
+    auto feet = controls::ngRigCompileFixedFootCorrections(state, program, task);
     for (auto operation : indexNative(feet, "operations").sourceArrayValue()) {
         ngRigCheckpoint(task);
         auto offsets = nativeNumbers(indexNative(operation, "values"));
@@ -44,19 +43,81 @@ Json applyCheekCorrections(Json state, Json program, Task task) {
     }
     settleDepthRefresh(task);
     assignNative(state, "fixed_foot_corrections", feet);
+    assignNative(state,"rear_hair_silhouettes",applyRearCap(state, program, task));
     auto report = controls::ngRigCompileCheekCorrections(state, program, task);
     if (!indexNative(report, "applicable").as_bool()) { assignNative(state, "shape_corrections", report); return state; }
+    if (const auto refined = report.sourceObjectRef().if_contains("refined_mesh"))
+        task->runOnMainThread([&] {
+            auto puppet = project::incActivePuppet();
+            auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(
+                puppet->findNodeById(uuid(indexNative(*refined,"part"))));
+            enforceNative(bool(part),"Missing face skin for ridge mesh",1408);
+            auto mesh = part->getMesh().copy();
+            const auto original = ngRigUnsigned(indexNative(*refined,"original_count"));
+            enforceNative(mesh.vertices.size()==original,"Face mesh changed before ridge refinement",1408);
+            const auto vertices = ngRigPoints(indexNative(*refined,"vertices"));
+            const auto uv = ngRigPoints(indexNative(*refined,"uv"));
+            for (std::size_t i=original;i<vertices.size();++i)
+                mesh.add({static_cast<float>(vertices[i][0]),static_cast<float>(vertices[i][1])},
+                         {static_cast<float>(uv[i][0]),static_cast<float>(uv[i][1])});
+            mesh.indices.resize(0);
+            for (const auto& face : indexNative(*refined,"triangles").sourceArrayValue())
+                for (const auto index : ngRigNumbers(face)) mesh.indices.push_back(static_cast<std::uint16_t>(index));
+            mesh.gridAxes = {};
+            part->rebuffer(mesh);
+        });
     NativeIntegerMap<std::uint64_t, bool> bound;
+    NativeIntegerMap<std::uint64_t, bool> ridgeFollowers;
+    NativeIntegerMap<std::uint64_t, bool> coincidentSkin;
     for (auto operation : indexNative(report, "operations").sourceArrayValue())
         for (auto value : ngRigNumbers(indexNative(operation, "values")))
-            if (value != 0) bound[ngRigUnsigned(indexNative(operation, "part"))]=true;
+            if (value != 0) {
+                const auto id = ngRigUnsigned(indexNative(operation,"part"));
+                bound[id] = true;
+                const auto kind = stringGet(operation,"kind","");
+                if (kind=="hair_ridge" || kind=="skin_outline") ridgeFollowers[id] = true;
+                if (kind=="coincident_skin") coincidentSkin[id] = true;
+                break;
+            }
     compat::RetainedStringSlice rootSignature;
+    core::settings::SettingsJsonArray sharedSkinParts;
     task->runOnMainThread([&] {
         auto puppet = project::incActivePuppet(); auto parameter = parameterByName(puppet, "Face::Yaw-Pitch");
         enforceNative(bool(parameter),"Cheek correction parameter is missing",1410);
+        const auto skinId = uuid(indexNative(report, "skin"));
+        if (!coincidentSkin.empty()) {
+            const auto skin = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(skinId));
+            enforceNative(bool(skin),"Missing skin for shared cheek mesh",1411);
+            const auto mesh = skin->getMesh();
+            for (const auto id : coincidentSkin.keys()) {
+                const auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(
+                    puppet->findNodeById(static_cast<std::uint32_t>(id)));
+                enforceNative(bool(part),"Missing coincident skin Part",1411);
+                bool hasDeformation = false;
+                for (const auto control : puppet->parameters)
+                    hasDeformation |= bool(control->getBinding(part, "deform"));
+                const auto origin = part->getMesh().origin;
+                if (hasDeformation || origin.x != mesh.origin.x || origin.y != mesh.origin.y) {
+                    bound.erase(id);
+                    continue;
+                }
+                // The source texture coordinates and part frames coincide. Use the
+                // same triangles so both painted rims follow the same interpolation.
+                part->rebuffer(mesh.copy());
+                sharedSkinParts.append(id);
+            }
+            if (!sharedSkinParts.empty()) {
+                assignNative(report, "shared_skin_parts", sharedSkinParts);
+                assignNative(report, "shared_skin_mapping", textureMapping(skin));
+            }
+        }
         for (auto [id, unused] : bound) {
             auto part = puppet->findNodeById(static_cast<std::uint32_t>(id));
-            enforceNative(part && !parameter->getBinding(part, "deform"),"Cheek correction would overwrite an existing Part angle binding",1413);
+            enforceNative((id == skinId || ridgeFollowers.contains(id) || coincidentSkin.contains(id)) &&
+                std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(part),
+                "Invalid face ridge correction Part",1413);
+            enforceNative(!parameter->getBinding(part, "deform"),
+                "Cheek correction would overwrite an existing Part angle binding",1413);
         }
         rootSignature = skeletonDigest(puppet->findNodeById(uuid(indexNative(state, "rigRoot"))));
     });

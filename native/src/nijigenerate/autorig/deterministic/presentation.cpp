@@ -389,8 +389,9 @@ compat::Slice<RigReviewTable> ngRigReviewTables(Value report, RigReviewMaterialN
         tables.append(table);
     }
     if (auto details = findMember(object(report), "details"))
-        if (auto pairs = findMember(object(*details), "shoulder_pairs")) {
-            auto table = makeTable("Shoulder welding", {
+        for (auto key : {"shoulder_pairs", "surface_pairs"})
+        if (auto pairs = findMember(object(*details), key)) {
+            auto table = makeTable("Attachment welding", {
                 retainedMessage("Source"),
                 retainedMessage("Target"),
                 retainedMessage("Result"),

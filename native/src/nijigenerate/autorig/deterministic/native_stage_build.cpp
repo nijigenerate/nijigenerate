@@ -1,4 +1,5 @@
 #include "detail/native_stage.hpp"
+#include "detail/hair_surface.hpp"
 #include "native_grid_scales.hpp"
 #include "registered.hpp"
 #include <nijigenerate/project.hpp>
@@ -117,6 +118,18 @@ template<class Values> Json valuesJson(const Values& values) {JsonArray out;for(
 }
 Json buildRig(Json state,Json program,Task task) {
     Json result=state;const bool humanoid=stringGet(program,"kind","humanoid")=="humanoid";
+    std::optional<hair_surface::Shell> hairShell;
+    if (const auto shell=program.sourceObjectRef().if_contains("front_hair_shell"))
+        hairShell=hair_surface::decode(*shell);
+    const auto sampledHair=[&](const Json& target, compat::Slice<Point2> world, double scale) {
+        compat::Slice<double> depth;
+        if (!hairShell) return depth;
+        const auto gap=target.sourceObjectRef().if_contains("hair_shell_offset");
+        if (!gap) return depth;
+        const double offset=ngRigNumber(*gap);
+        for (const auto p : world) depth.append((hairShell->depth(p)+offset)/scale);
+        return depth;
+    };
     task->runOnMainThread([&] {
         auto puppet=project::incActivePuppet();
         auto root=createSourceNode(
@@ -266,6 +279,7 @@ Json buildRig(Json state,Json program,Task task) {
                     }
                 }
                 assignNative(target,"grid",grid->getUUID());
+                assignNative(target,"grid_dynamic",std::dynamic_pointer_cast<nicxlive::core::nodes::GridDeformer>(grid)->dynamic);
             }
             assignNative(target,"mapping",textureMapping(std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(part)));
             compat::Slice<Point2> world;for(auto p:ngRigPoints(indexNative(indexNative(target,"mapping"),"vertices")))world.append(toRoot(part,p[0],p[1]));
@@ -319,9 +333,15 @@ Json buildRig(Json state,Json program,Task task) {
                     const auto width=readNativeArray(xs,xs.size()-1,1085)-x0;
                     const auto height=readNativeArray(ys,ys.size()-1,1085)-y0;
                     enforceNative(width>0&&height>0,"Semantic surface has degenerate bounds",1086);
-                    for(auto& point:points){auto frame=ngRigNumbers(indexNative(target,"parent_to_root"));
-                        point[0]-=readNativeArray(frame,2,1089);point[1]-=readNativeArray(frame,5,1089);}
-                    auto sampled=registered::ngRigSampleRegisteredDepth(xs,ys,ngRigNumbers(indexNative(target,"depth")),points);
+                    const auto scale=ngRigNumber(indexNative(program,"native_depth_scale"));
+                    auto sampled=sampledHair(target,points,scale);
+                    if (sampled.empty()) {
+                        const auto frame=ngRigNumbers(indexNative(target,"parent_to_root"));
+                        for (auto& point : points) {
+                            point[0]-=readNativeArray(frame,2,1089);point[1]-=readNativeArray(frame,5,1089);
+                        }
+                        sampled=registered::ngRigSampleRegisteredDepth(xs,ys,ngRigNumbers(indexNative(target,"depth")),points);
+                    }
                     auto depth=createNativeObject<SetDepthsCommand>();depth->target=node;
                     for(auto v:sampled){enforceNative(std::isfinite(v),"Imported group surface depth is nonfinite",1096);depth->depths.append(static_cast<float>(v));}
                     commandSource(
@@ -345,6 +365,20 @@ Json buildRig(Json state,Json program,Task task) {
             }
             assignNative(state,"source_group_grids",sourceGrids);
         }
+        // Reparented parts must not keep the old composite's offscreen matrices.
+        // Invalidate emptied composites too, otherwise their cached eyes remain visible.
+        const auto refreshRendering = [&](auto&& self, NodeRef node) -> void {
+            for (auto children = node->childrenList(); auto child : children) self(self, child);
+            if (auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(node)) {
+                part->clearOffscreenModelMatrix();
+                part->clearOffscreenRenderMatrix();
+            }
+            if (auto composite = std::dynamic_pointer_cast<nicxlive::core::nodes::Projectable>(node)) {
+                composite->scanParts();
+                composite->notifyChange(composite, nicxlive::core::nodes::NotifyReason::AttributeChanged);
+            }
+        };
+        refreshRendering(refreshRendering, puppet->root);
         puppet->root->build();puppet->rescanNodes();assignNative(result,"kind",core::settings::SettingsString(
             ngRigString(program,stringLiteralEvidence("kind"),stringLiteralEvidence("humanoid"))));
         Json originIds=core::settings::SettingsJsonObject{};for(auto [name,node]:origins)assignNative(originIds,name,node->getUUID());
@@ -376,8 +410,9 @@ Json buildRig(Json state,Json program,Task task) {
                 project::incActivePuppet()->findNodeById(id));auto data=serializedJson(grid);
                 boundsX=ngRigNumbers(indexNative(data,"grid_axis_x"));boundsY=ngRigNumbers(indexNative(data,"grid_axis_y"));});
             enforceNative(boundsX.size()==2&&boundsY.size()==2&&boundsX[1]>boundsX[0]&&boundsY[1]>boundsY[0],"Grid AutoMesh returned degenerate alpha bounds",1145);
-            processor->scaleX=advanced(ngRigNumbers(indexNative(target,"xs")),boundsX);
-            processor->scaleY=advanced(ngRigNumbers(indexNative(target,"ys")),boundsY);applyGrid();Json generated;
+            const bool headSurface = stringGet(target,"owner","") == "head";
+            processor->scaleX=advanced(ngRigNumbers(indexNative(target,"xs")),boundsX,headSurface);
+            processor->scaleY=advanced(ngRigNumbers(indexNative(target,"ys")),boundsY,headSurface);applyGrid();Json generated;
             task->runOnMainThread([&] {
                 auto grid=std::dynamic_pointer_cast<nicxlive::core::nodes::GridDeformer>(project::incActivePuppet()->findNodeById(id));
                 auto data=serializedJson(grid);auto xs=ngRigNumbers(indexNative(data,"grid_axis_x")),ys=ngRigNumbers(indexNative(data,"grid_axis_y"));
@@ -385,6 +420,8 @@ Json buildRig(Json state,Json program,Task task) {
                 const auto sourceVertices=grid->getVertices();
                 for(std::size_t i=0;i<sourceVertices.size();++i){auto p=sourceVertices.at(i);local.append(Point2(p.x,p.y));world.append(toRoot(grid,p.x,p.y));}
                 auto values=[&] {
+                    auto hair=sampledHair(target,world,1.);
+                    if (!hair.empty()) return hair;
                     const auto sampleXs=ngRigNumbers(indexNative(target,"xs"));
                     const auto sampleYs=ngRigNumbers(indexNative(target,"ys"));
                     const auto sampleDepths=ngRigNumbers(indexNative(target,"depth_model_units"));
@@ -411,13 +448,18 @@ Json buildRig(Json state,Json program,Task task) {
             for(auto source:get(state,"source_group_grids",JsonArray{}).sourceArrayValue()) {
                 auto node=std::dynamic_pointer_cast<nicxlive::core::nodes::Deformable>(puppet->findNodeById(uuid(indexNative(source,"grid"))));
                 for(auto target:indexNative(result,"targets").sourceArrayValue())if(uuid(indexNative(target,"grid"))==uuid(indexNative(source,"surface"))) {
-                    auto frame=ngRigNumbers(indexNative(target,"parent_to_root"));compat::Slice<Point2> points;
+                    const auto frame=ngRigNumbers(indexNative(target,"parent_to_root"));
+                    compat::Slice<Point2> points;
                     const auto sourceVertices=node->getVertices();
-                    for(std::size_t i=0;i<sourceVertices.size();++i){auto v=sourceVertices.at(i);auto p=toRoot(node,v.x,v.y);
-                        const auto pointX=p[0]-readNativeArray(frame,2,1187);
-                        const auto pointY=p[1]-readNativeArray(frame,5,1187);
-                        points.append(Point2{pointX,pointY});}
+                    for(std::size_t i=0;i<sourceVertices.size();++i){const auto v=sourceVertices.at(i);
+                        points.append(toRoot(node,v.x,v.y));}
                     auto values=[&] {
+                        auto hair=sampledHair(target,points,ngRigNumber(indexNative(program,"native_depth_scale")));
+                        if (!hair.empty()) return hair;
+                        for (auto& p : points) {
+                            p[0]-=readNativeArray(frame,2,1187);
+                            p[1]-=readNativeArray(frame,5,1187);
+                        }
                         const auto sampleXs=ngRigNumbers(indexNative(target,"xs"));
                         const auto sampleYs=ngRigNumbers(indexNative(target,"ys"));
                         const auto sampleDepths=ngRigNumbers(indexNative(target,"depth"));

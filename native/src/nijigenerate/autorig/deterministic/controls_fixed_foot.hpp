@@ -25,6 +25,7 @@ core::settings::SettingsJsonValue fixedFootKey(core::settings::SettingsJsonValue
     std::size_t index, double angle, std::array<contracts::Point2, 3> joints,
     contracts::Point2 pelvis, contracts::Point2 axis, contracts::Point3 stations,
     compat::Slice<double> xs, compat::Slice<double> ys, compat::Slice<double> matrix,
-    double determinant, compat::RetainedStringSlice side);
+    double determinant, compat::RetainedStringSlice side,
+    const std::array<contracts::Point2, 3>* nativeDisplacement = nullptr);
 
 } // namespace nijigenerate::autorig::deterministic::controls_detail

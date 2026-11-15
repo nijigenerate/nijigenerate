@@ -85,8 +85,15 @@ void ChartFrame::install(Json spec,const Landmarks& landmarks) {
             const auto canonicalArea=area(centers);
             return observedArea/canonicalArea;
         };
-        enforce(std::isfinite(ratio()) && ratio()>1e-4,
-            "Folded semantic correspondence; no model-specific fallback",89);
+        enforceLazy(std::isfinite(ratio()) && ratio()>1e-4,[&] {
+            const auto describe=[&](std::size_t index) {
+                const auto name=index<labels.size()?std::string(indexed(labels,index,89).as_string().view()):
+                    std::string("boundary[")+std::to_string(index-labels.size())+"]";
+                const auto point=indexed(observed,index,89);
+                return name+"=("+std::to_string(point[0])+","+std::to_string(point[1])+")";
+            };
+            return std::string("Folded semantic correspondence: ")+describe(a)+", "+describe(b)+", "+describe(c);
+        },89);
     }
     auto system=ngRigZeroMatrix(n+3,n+3),right=ngRigZeroMatrix(n+3,2);
     for(std::size_t i=0;i<n;++i) {
@@ -208,6 +215,14 @@ Landmarks ngRigFacialLandmarks(Json observation) {
     for(auto m:at(observation,"materials").sourceArrayValue())if(!at(m,"static").as_bool()) {
         if(at(m,"role").as_string().view()=="face")for(auto p:ngRigPoints(at(m,"cloud")))faceXs.append(p[0]);
         const auto feature=ngRigString(m,text("feature"),text(""));
+        // Decorations inherit blink deformation, but do not define the aperture.
+        if (feature.view()=="sclera") if (const auto receiver=m.sourceObjectRef().if_contains("receiver")) {
+            bool decoration=false;
+            for(auto host:at(observation,"materials").sourceArrayValue())
+                if(at(host,"uuid")==*receiver && ngRigString(host,text("feature"),text("")).view()=="sclera")
+                    decoration=true;
+            if(decoration) continue;
+        }
         if(!feature.empty())features[feature].append(ngRigPoints(ngRigGet(m,text("landmark_cloud"),at(m,"cloud"))));
     }
     const auto featurePoints = [&](const char* key) -> compat::Slice<Point2> {

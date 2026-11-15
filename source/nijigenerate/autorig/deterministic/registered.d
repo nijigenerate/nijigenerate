@@ -193,7 +193,7 @@ private string componentRole(JSONValue domain) {
 /** Apply the original single anatomical template, without runtime Python or new libraries. */
 JSONValue ngRigRegisterProgram(JSONValue program, JSONValue observation) {
     enum source=import("autorig/reference-humanoid.registered.json");
-    enforce(sha256Of(source).toHexString=="908B217553C870EA81B81902893AAB43B8D487871814127F048338989E865D71",
+    enforce(sha256Of(source).toHexString=="C7DA02A179F7B5223CA9D0892B8D50329B62CDC8F71E31799C342A1D5DD01AF7",
         "Embedded anatomical template differs from the original registered resource");
     auto common=parseJSON(source);
     enforce(common["template_count"].integer==1 && !common["character_selection"].boolean,
