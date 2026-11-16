@@ -60,7 +60,8 @@ struct Ridge {
 inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
     std::array<Point3,4> joints, std::span<const Point3> lowerSection,
     std::span<const Point2> rawProjection, std::span<const double> projection, int side,
-    Point2 posedUpper, Point2 posedChin, double tolerance) {
+    Point2 posedUpper, Point2 posedChin, double tolerance,
+    std::optional<Point2> paintedEar = {}) {
     if (mesh.size()!=rowCount*reference::columns || projection.size()!=8) return {};
     const auto q=project(joints[0],projection), e=project(joints[1],projection), j=project(joints[3],projection);
     const double length=posedChin[1]-posedUpper[1];
@@ -76,7 +77,7 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
         return result.frame.section({xy[0]+upper*(posedUpper[0]-q[0])+lower*(posedChin[0]-j[0]),
             xy[1]+upper*(posedUpper[1]-q[1])+lower*(posedChin[1]-j[1])});
     };
-    const Point2 upper{0.,0.}, ear=result.frame.section(e), chin=result.frame.section(posedChin);
+    const Point2 upper{0.,0.}, ear=result.frame.section(paintedEar.value_or(e)), chin=result.frame.section(posedChin);
     auto jaw=screen(joints[2]);
     result.originalJaw=result.frame.world(jaw);
     const double step=std::max(tolerance,1e-6);
@@ -170,8 +171,17 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
     if (lowerSection.size()>=2) {
         const auto blue=blueChinPath(mesh,rawProjection,lowerSection.back(),joints[1]);
         if (!blue.empty()) {
+            // Retarget the projected depth section as a whole. Moving only
+            // its first point would leave a kink just below the ear.
+            const auto alignLower = [&](Point2 p) {
+                if (!paintedEar) return p;
+                const auto pose = std::clamp((p[1]-e[1])/(j[1]-e[1]),0.,1.);
+                const auto blend = ease(pose);
+                return Point2{p[0]+std::lerp((*paintedEar)[0]-e[0],posedChin[0]-j[0],blend),
+                    std::lerp((*paintedEar)[1],posedChin[1],pose)};
+            };
             auto append=[&](Point3 p) {
-                const auto q=project(p,projection);
+                const auto q=alignLower(project(p,projection));
                 double distance=0.;
                 if (!result.lower.empty()) {
                     distance=std::hypot(q[0]-result.lower.back()[0],q[1]-result.lower.back()[1]);
@@ -185,7 +195,7 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
             for (const auto p : blue) append(p);
             const double length=result.cumulative.back();
             if (result.lower.size()>2 && length>0.) {
-                const auto jawPoint=project(joints[2],projection);
+                const auto jawPoint=alignLower(project(joints[2],projection));
                 auto nearest=std::ranges::min_element(result.lower,{},[&](Point2 p) {
                     return std::hypot(p[0]-jawPoint[0],p[1]-jawPoint[1]);
                 });

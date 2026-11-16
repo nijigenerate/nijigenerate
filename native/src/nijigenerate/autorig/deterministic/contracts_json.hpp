@@ -174,7 +174,15 @@ class ObservationDigest {
 public:
     void add(const core::settings::SettingsJsonValue& value) {
         if (value.is_object()) {
-            const auto& object = value.sourceObjectRef();
+            const auto& object = value.as_object();
+            if (object.isOrdered()) {
+                putNumber('O', object.size());
+                for (const auto& member : object) {
+                    putString(member.name.view());
+                    add(member.item);
+                }
+                return;
+            }
             std::vector<std::string_view> keys;
             for (const auto& member : object)
                 allocateContractStorage([&] { keys.push_back(member.name.view()); });

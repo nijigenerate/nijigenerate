@@ -466,8 +466,11 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         for(std::size_t i=0;i<z.size();++i) indexed(z,i,373)+=(bodyZ-armZ)*indexed(weights,i,373)/anchor;
         set(*arm->second,"depth_model_units",numbersJson(z));
     }
-    // The face and rear-hair depth are established before fitting the head.
+    // Seed the fitted head's placement and establish rear-hair depth.
+    // A successfully fitted head supplies the final facial depth below.
     const double faceWidth = faceBounds[2]-faceBounds[0];
+    const double yaw = headYaw.is_null() ? 30. : ngRigNumber(headYaw);
+    const double tanYaw = std::tan(yaw*std::numbers::pi/180.);
     for (auto domain : at(program,"domains").sourceArrayValue()) {
         auto& surface = aa(registered,at(domain,"id").as_string().view(),399);
         const auto role = at(surface,"reference_component").as_string();
@@ -478,8 +481,6 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         // At strong yaw, too large a depth change per unit of horizontal
         // distance reverses the screen order of adjacent samples. Spread
         // the relief before projection, leaving the neutral XY grid intact.
-        const double yaw = headYaw.is_null() ? 30. : ngRigNumber(headYaw);
-        const double tanYaw = std::tan(yaw*std::numbers::pi/180.);
         if (tanYaw > .65)
             limitHeadRelief(depth,ngRigNumbers(at(surface,"xs")),ngRigNumbers(at(surface,"ys")),
                 .68/tanYaw,.49);
@@ -492,6 +493,7 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         set(surface,"depth_model_units",numbersJson(depth));
     }
     std::optional<hair_surface::Shell> hairShell;
+    std::vector<contracts::Point3> facialDepthMesh;
     struct SideHairLayer {
         Json* surface;
         compat::Slice<double> drawOrder;
@@ -563,7 +565,10 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         auto crown=fit.point(head_template::crown.front());
         double neckCenter=x, neckWidth=sections.front()[1]*w;
         double neckFront=fit.depth(sections.front()[2]), neckBackDepth=fit.depth(sections.front()[3]);
+        const double templateNeckCenterZ=std::midpoint(neckFront,neckBackDepth);
+        const double neckHalfDepth=.5*(neckFront-neckBackDepth);
         double neckJunctionY=top+head_surface_reference::nape[1]*h;
+        std::optional<contracts::Point3> neckReference;
         if (!neckMaterial.is_null()) {
             const auto neckContour=observation::ngRigAlphaContour(neckMaterial);
             const auto neckOutline=ngRigPoints(at(neckContour,"points"));
@@ -604,6 +609,18 @@ Json ngRigRegisterProgram(Json program, Json observation) {
                 const auto skinFrame=ngRigNumbers(at(skin,"parent_to_root"));
                 const auto skinXs=ngRigNumbers(at(skin,"xs")), skinYs=ngRigNumbers(at(skin,"ys"));
                 const auto skinDepths=ngRigNumbers(at(skin,"depth_model_units"));
+                const double pixel=ngRigNumber(at(neckContour,"pixel_step"));
+                double upperLeft=inf, upperRight=-inf;
+                for (const auto p : neckOutline)
+                    if (std::abs(p[1]-neckJunctionY)<=pixel) {
+                        upperLeft=std::min(upperLeft,p[0]);
+                        upperRight=std::max(upperRight,p[0]);
+                    }
+                const Point2 attachment{upperRight>upperLeft ? std::midpoint(upperLeft,upperRight) : neckCenter,
+                    neckJunctionY};
+                const double front=sample(skinXs,skinYs,skinDepths,
+                    sub(attachment,{skinFrame[2],skinFrame[5]}));
+                neckReference=contracts::Point3{attachment[0],attachment[1],front-neckHalfDepth};
                 for (const auto& domain : at(program,"domains").sourceArrayValue()) {
                     if (at(domain,"owner").as_string().view()!="torso") continue;
                     const auto chart=at(domain,"chart").as_string().view();
@@ -648,13 +665,7 @@ Json ngRigRegisterProgram(Json program, Json observation) {
             rightJaw[2]+=neckSkin-jawZ;
         }
         const auto savePoint = [](const contracts::Point3& p) {return array({p[0],p[1],p[2]});};
-        set(program,"head_anatomical_fit",array({fit.centerX,fit.faceTop,fit.width,fit.height,
-            fit.depthOrigin,fit.depthScale}));
-        set(program,"head_anatomical_landmarks",object({
-            objectField("left_ear",savePoint(leftEar)),objectField("right_ear",savePoint(rightEar)),
-            objectField("left_jaw",savePoint(leftJaw)),objectField("right_jaw",savePoint(rightJaw)),
-            objectField("crown",savePoint(crown)),objectField("neck_front",neckFront),
-            objectField("neck_back",neckBackDepth)}));
+        contracts::Point3 headOffset{0.,0.,0.};
         const auto eyes=aa(landmarks,"head",402);
         const auto leftEye=aa(eyes,"eye_l_outer",402), rightEye=aa(eyes,"eye_r_outer",402);
         const auto anatomicalFrame=head_surface::alignedFrame(leftEye,rightEye);
@@ -666,8 +677,29 @@ Json ngRigRegisterProgram(Json program, Json observation) {
             const auto& bottom=painted.back();
             const auto chinPoint=anatomicalFrame.model({std::midpoint(bottom.bounds[0],bottom.bounds[1]),
                 bottom.y,0.});
-            if (const auto fitted=head_surface::fit(painted,anatomicalFrame,eyeRow,
+            if (auto fitted=head_surface::fit(painted,anatomicalFrame,eyeRow,
                 sampleFace({chinPoint[0],chinPoint[1]}),{neckRow[0],neckRow[1],neckBackDepth})) {
+                const contracts::Point3 fallbackPivot{fitted->nape[0],fitted->nape[1],
+                    std::midpoint(neckFront,fitted->nape[2])};
+                const auto pivot=neckReference.value_or(fallbackPivot);
+                if (neckReference) {
+                    // The reference origin comes from the standard 3D neck
+                    // section, before the torso field supplies its own
+                    // limits. Using that field on both sides cancels the
+                    // depth correction when the head turns.
+                    // The fitted surface is already registered to the artwork
+                    // in X and Y. The neck sets the pose pivot independently.
+                    headOffset[2]=pivot[2]-templateNeckCenterZ;
+                    fitted->translate(headOffset);
+                    for (const auto& domain : at(program,"domains").sourceArrayValue()) {
+                        if (at(domain,"owner").as_string().view()!="head") continue;
+                        auto& surface=aa(registered,at(domain,"id").as_string().view(),402);
+                        auto depths=ngRigNumbers(at(surface,"depth_model_units"));
+                        for (auto& z : depths) z+=headOffset[2];
+                        set(surface,"depth_model_units",numbersJson(depths));
+                    }
+                }
+                facialDepthMesh=fitted->mesh;
                 const auto savePoints = [&](const std::vector<contracts::Point3>& points) {
                     SettingsJsonArray result;
                     for (const auto p : points) result.append(savePoint(p));
@@ -766,11 +798,6 @@ Json ngRigRegisterProgram(Json program, Json observation) {
                     }
                 }
                 if (!neckMaterial.is_null()) {
-                    // The rotation is about the interior of the fixed upper
-                    // neck, not the back surface of the nape. Keep the head's
-                    // original rest axes and express the pivot in root units.
-                    const contracts::Point3 pivot{fitted->nape[0], fitted->nape[1],
-                        std::midpoint(neckFront,fitted->nape[2])};
                     auto updated = at(scaffold,"bones").sourceArrayValue().duplicate();
                     for (auto& bone : updated) {
                         if (at(bone,"id").as_string().view()!="Head") continue;
@@ -785,6 +812,18 @@ Json ngRigRegisterProgram(Json program, Json observation) {
                 }
             }
         }
+        const auto placed=[&](contracts::Point3 p) {
+            for (std::size_t i=0; i<3; ++i) p[i]+=headOffset[i];
+            return savePoint(p);
+        };
+        set(program,"head_anatomical_fit",array({fit.centerX+headOffset[0],fit.faceTop+headOffset[1],
+            fit.width,fit.height,fit.depthOrigin+headOffset[2],fit.depthScale}));
+        set(program,"head_anatomical_landmarks",object({
+            objectField("left_ear",placed(leftEar)),objectField("right_ear",placed(rightEar)),
+            objectField("left_jaw",placed(leftJaw)),objectField("right_jaw",placed(rightJaw)),
+            objectField("crown",placed(crown)),
+            objectField("neck_front",neckReference ? (*neckReference)[2]+neckHalfDepth : neckFront),
+            objectField("neck_back",neckReference ? (*neckReference)[2]-neckHalfDepth : neckBackDepth)}));
         for (const auto& domain : at(program,"domains").sourceArrayValue()) {
             if (at(domain,"chart").as_string().view()!="neck") continue;
             auto& surface=aa(registered,at(domain,"id").as_string().view(),401);
@@ -891,6 +930,57 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         for (const auto p : ngRigPoints(at(surface,"points"))) depths.append(hairShell->depth(p)+offset);
         set(surface,"depth_model_units",numbersJson(depths));
         set(surface,"hair_shell_offset",offset);
+    }
+    // Hair layers already have their own fitted surface and placement.
+    // Apply facial relief after that placement so padded face samples cannot
+    // shift an entire side-hair layer.
+    const auto& headLandmarks=aa(landmarks,"head",402);
+    const auto mouthCenter=aa(headLandmarks,"mouth",402);
+    const auto mouthAxis=sub(aa(headLandmarks,"mouth_l",402),aa(headLandmarks,"mouth_r",402));
+    const auto mouthWidth=norm(mouthAxis);
+    Point2 mouthRadius{.5*mouthWidth,0.};
+    for (const auto& material : at(observation,"materials").sourceArrayValue()) {
+        if (at(material,"static").as_bool() || at(material,"role").as_string().view()!="face_feature")
+            continue;
+        const auto feature=ngRigGet(material,literalKey("feature"),Json(literalKey(""))).as_string().view();
+        if (!feature.starts_with("mouth")) continue;
+        const auto b=ngRigNumbers(at(material,"bounds"));
+        for (std::size_t axis=0;axis<2;++axis)
+            mouthRadius[axis]=std::max({mouthRadius[axis],mouthCenter[axis]-b[axis],b[axis+2]-mouthCenter[axis]});
+    }
+    if (!facialDepthMesh.empty()) for (const auto& domain : at(program,"domains").sourceArrayValue()) {
+        auto& surface=aa(registered,at(domain,"id").as_string().view(),401);
+        if (at(surface,"reference_component").as_string().view()!="face") continue;
+        const auto xs=ngRigNumbers(at(surface,"xs")),ys=ngRigNumbers(at(surface,"ys"));
+        const auto frame=ngRigNumbers(at(surface,"parent_to_root"));
+        const auto mouthLocal=sub(mouthCenter,{frame[2],frame[5]});
+        const auto neutralDepth=ngRigNumbers(at(surface,"depth_model_units"));
+        const bool mouthValid=mouthWidth>1e-6 && mouthRadius[1]>1e-6;
+        const double mouthDepth=mouthValid ? head_surface::frontDepthAt(facialDepthMesh,mouthCenter) : 0.;
+        const double mouthReference=mouthValid ? sample(xs,ys,neutralDepth,mouthLocal) : 0.;
+        compat::Slice<double> depths;
+        for (const auto p : ngRigPoints(at(surface,"points"))) {
+            double z=head_surface::frontDepthAt(facialDepthMesh,p);
+            if (mouthValid) {
+                const auto offset=sub(p,mouthCenter);
+                const double distance=std::max(std::abs(offset[0])/mouthRadius[0],
+                    std::abs(offset[1])/mouthRadius[1]);
+                const double weight=1.-head_surface::ease(distance-1.);
+                if (weight>0.) {
+                    // Preserve the template's local depth differences across all
+                    // mouth layers at the fitted surface's depth at the center.
+                    const auto local=sub(p,{frame[2],frame[5]});
+                    const double mouth=mouthDepth+sample(xs,ys,neutralDepth,local)-mouthReference;
+                    z=std::lerp(z,mouth,weight);
+                }
+            }
+            depths.append(z);
+        }
+        // The shared grid also carries the eyes and mouth. Apply the same
+        // bound to the final fitted relief that the initial face field uses.
+        if (tanYaw > .65)
+            limitHeadRelief(depths,xs,ys,.68/tanYaw,.49);
+        set(surface,"depth_model_units",numbersJson(depths));
     }
     const auto scale=dmax(1.,dmax(extent[2]-extent[0],extent[3]-extent[1])*.42/2.9);
     for(auto& carrier:at(program,"carriers").sourceArrayValue()) {

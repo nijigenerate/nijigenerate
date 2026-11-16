@@ -94,6 +94,52 @@ template<class Visit> void visitTriangles(Visit&& visit) {
     }
 }
 
+// Sample the fixed facial surface along the front view's depth axis. Grid
+// padding does not belong to the visible face; extend the closest rim depth
+// there instead of sampling the back of the head.
+inline double frontDepthAt(std::span<const Point3> mesh, Point2 p) {
+    double front = -std::numeric_limits<double>::infinity();
+    visitTriangles([&](const Triangle& triangle) {
+        if (!triangle.skin) return;
+        const auto [ia, ib, ic] = triangle.vertices;
+        const auto a = mesh[ia], b = mesh[ib], c = mesh[ic];
+        const double ux=b[0]-a[0], uy=b[1]-a[1], vx=c[0]-a[0], vy=c[1]-a[1];
+        const double det=ux*vy-uy*vx;
+        if (std::abs(det)<1e-10) return;
+        const double x=p[0]-a[0], y=p[1]-a[1];
+        const double u=(x*vy-y*vx)/det, v=(ux*y-uy*x)/det;
+        if (u>=-1e-8 && v>=-1e-8 && u+v<=1.+1e-8)
+            front=std::max(front,a[2]+u*(b[2]-a[2])+v*(c[2]-a[2]));
+    });
+    if (std::isfinite(front)) return front;
+
+    double closest = std::numeric_limits<double>::infinity();
+    const auto edge = [&](std::size_t ia, std::size_t ib) {
+        const auto a=mesh[ia], b=mesh[ib];
+        const double dx=b[0]-a[0], dy=b[1]-a[1];
+        const double length=dx*dx+dy*dy;
+        const double t=length>1e-10 ?
+            std::clamp(((p[0]-a[0])*dx+(p[1]-a[1])*dy)/length,0.,1.) : 0.;
+        const double x=p[0]-a[0]-t*dx, y=p[1]-a[1]-t*dy;
+        const double distance=x*x+y*y;
+        if (distance>=closest) return;
+        closest=distance;
+        front=std::lerp(a[2],b[2],t);
+    };
+    constexpr auto first=reference::faceFirst*reference::columns;
+    constexpr auto last=reference::faceLast*reference::columns;
+    constexpr auto right=reference::faceColumns-1;
+    for (std::size_t col=0; col<right; ++col) {
+        edge(first+col,first+col+1);
+        edge(last+col,last+col+1);
+    }
+    for (std::size_t row=first; row<last; row+=reference::columns) {
+        edge(row,row+reference::columns);
+        edge(row+right,row+reference::columns+right);
+    }
+    return front;
+}
+
 inline Point3 standardPoint(std::size_t row, std::size_t col) {
     const auto i = (row*reference::columns+col)*3;
     return {reference::packed[i]/16000., reference::packed[i+1]/16000., reference::packed[i+2]/16000.};
@@ -110,6 +156,22 @@ struct Fit {
     std::array<std::vector<Point3>,2> lowerEarLine;
     std::array<Point3,2> ear{}, jaw{}, upper{};
     Point3 chin{}, nape{};
+
+    void translate(Point3 offset) {
+        const auto move = [&](Point3& p) {
+            for (std::size_t i=0; i<3; ++i) p[i]+=offset[i];
+        };
+        for (auto& p : mesh) move(p);
+        for (std::size_t i=0; i<2; ++i) {
+            for (auto& p : earLine[i]) move(p);
+            for (auto& p : lowerEarLine[i]) move(p);
+            move(ear[i]);
+            move(jaw[i]);
+            move(upper[i]);
+        }
+        move(chin);
+        move(nape);
+    }
 };
 
 inline std::vector<Point3> depthSection(std::span<const Point3> mesh, double y, double z, int side,

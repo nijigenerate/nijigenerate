@@ -1,6 +1,5 @@
 #include <nijigenerate/autorig/deterministic/storage.hpp>
-#include <nijigenerate/autorig/json.hpp>
-#include <nijigenerate/core/settings_json_string.hpp>
+#include <nijigenerate/autorig/detail/framework_runtime.hpp>
 #include <nijigenerate/compat/throwable.hpp>
 #include <nijigenerate/compat/native_access_fault.hpp>
 #include <nijigenerate/compat/range_error.hpp>
@@ -68,12 +67,12 @@ compat::RetainedString finish(contracts::detail::Sha256& digest) {
 }
 }
 compat::RetainedString RigStateStorage::retain(compat::RetainedString name, Json value) {
-    auto serialized = core::settings::ngSettingsJsonString(value);
-    const auto encoded = contracts::detail::allocateContractStorage([&] {
-        return compat::RetainedString(std::move(serialized));
-    });
-    contracts::detail::Sha256 hash; hashText(hash, encoded.view()); auto id = finish(hash);
-    if (!artifacts.contains(id)) artifacts[id] = encoded;
+    const auto id = ngRigObservationDigest(value).retainedString();
+    if (!artifacts.contains(id)) {
+        Artifact stored;
+        stored.value = framework::detail::copyJson(value, &stored.bytes);
+        artifacts[id] = std::move(stored);
+    }
     names[id] = name; return id;
 }
 Json RigStateStorage::materialMetadata(Json material, bool freshSource) {
@@ -139,7 +138,7 @@ Json RigStateStorage::snapshot(Json state, bool freshSource) {
     for (const auto member : objectOf(values)) {
         bool runtimeField = false;
         for (const auto key : runtimeKeys) if (member.key() == key) runtimeField = true;
-        if (runtimeField) runtime[member.name] = member.item;
+        if (runtimeField) runtime[member.name] = framework::detail::copyJson(member.item);
         else references[member.name] = SettingsString(retain(member.name.retainedString(),member.item));
     }
     runtime["storage_schema"] = "rig-native-state-d/2"; runtime["artifact_refs"] = references; return runtime;
@@ -150,16 +149,16 @@ Json RigStateStorage::restore(Json state) {
     enforce(ngRigString(state, compat::RetainedString::fromStaticLiteral("storage_schema"),
         compat::RetainedString::emptyLiteral()).view() ==
         "rig-native-state-d/2", "Unsupported native rig state storage",102);
-    auto result = shallowObject(state); auto& object = objectOf(result);
+    auto result = framework::detail::copyJson(state); auto& object = objectOf(result);
     object.erase("artifact_refs"); object.erase("storage_schema");
     auto sourceReferences = jsonField(state,"artifact_refs");
     for (const auto member : objectOf(sourceReferences)) {
-        const auto encoded = artifacts.find(member.item.as_string().retainedString());
-        if(encoded==artifacts.end()) {
+        const auto archived = artifacts.find(member.item.as_string().retainedString());
+        if (archived == artifacts.end()) {
             const auto message = concatenate("Missing native rig artifact: ",member.key());
             throw compat::ThrowableException(contracts::detail::copyContractMessage(message.view()),sourceFile,109);
         }
-        object[member.name] = json::ngParseAutoRigJson(encoded->second);
+        object[member.name] = framework::detail::copyJson(archived->second.value);
     }
     if (auto materials = object.if_contains("materials")) for (auto& material : materials->as_array()) {
         const auto token=jsonField(material,"_source_support").as_string().retainedString();
@@ -191,15 +190,15 @@ Json RigStateStorage::artifact(Json state, compat::RetainedString name) {
         const auto message = concatenate("Missing native rig artifact reference: ",name.view());
         throw compat::ThrowableException(contracts::detail::copyContractMessage(message.view()),sourceFile,134);
     }
-    return json::ngParseAutoRigJson(tableValue(artifacts,reference->as_string().retainedString(),135));
+    return framework::detail::copyJson(tableValue(artifacts,reference->as_string().retainedString(),135).value);
 }
 Json RigStateStorage::memoryInfo() {
     [[maybe_unused]] const auto receiverLifetime = weak_from_this().lock();
     std::lock_guard lock(mutex_); std::uint64_t jsonBytes = 0, cpuBytes = 0; SettingsJsonArray entries;
-    const auto evaluatedArtifacts = artifacts;
-    for (const auto [id, value] : evaluatedArtifacts) {
-        jsonBytes += value.size(); SettingsJsonObject entry;
-        entry["id"] = SettingsString(id); entry["name"] = SettingsString(tableValue(names,id,145)); entry["bytes"] = Json(static_cast<std::uint64_t>(value.size()));
+    for (const auto& [id, archived] : artifacts) {
+        jsonBytes += archived.bytes; SettingsJsonObject entry;
+        entry["id"] = SettingsString(id); entry["name"] = SettingsString(tableValue(names,id,145));
+        entry["bytes"] = Json(static_cast<std::uint64_t>(archived.bytes));
         entries.append(entry);
     }
     const auto evaluatedSupports = supports;

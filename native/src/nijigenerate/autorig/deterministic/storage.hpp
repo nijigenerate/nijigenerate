@@ -25,7 +25,12 @@ class RigStateStorage : public framework::AutoRigWorkspace,
     };
     std::recursive_mutex mutex_;
     TextTable<Support> supports;
-    TextTable<Text> artifacts, names;
+    struct Artifact {
+        Json value;
+        std::size_t bytes{};
+    };
+    TextTable<Artifact> artifacts;
+    TextTable<Text> names;
     nicxlive::core::common::ResourceKeyMap<std::uint64_t,Text,UnsignedHash,
         std::equal_to<std::uint64_t>> currentSupports;
     Text retain(Text name, Json value);

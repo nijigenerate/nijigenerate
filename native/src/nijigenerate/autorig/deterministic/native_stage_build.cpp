@@ -121,8 +121,31 @@ Json buildRig(Json state,Json program,Task task) {
     std::optional<hair_surface::Shell> hairShell;
     if (const auto shell=program.sourceObjectRef().if_contains("front_hair_shell"))
         hairShell=hair_surface::decode(*shell);
-    const auto sampledHair=[&](const Json& target, compat::Slice<Point2> world, double scale) {
+    NativeIntegerMap<std::uint32_t,Json> registeredFaceFields;
+    for (const auto carrier : indexNative(program,"carriers").sourceArrayValue())
+        if (stringGet(carrier,"reference_component","")=="face")
+            registeredFaceFields[uuid(indexNative(carrier,"part"))]=carrier;
+    const auto sampledSurface=[&](const Json& target, compat::Slice<Point2> world, double scale) {
         compat::Slice<double> depth;
+        const auto face=registeredFaceFields.find(uuid(indexNative(target,"part")));
+        if (face!=registeredFaceFields.end()) {
+            // After AutoMesh, the working target holds the generated axes.
+            // Sample the original registered field with its matching axes.
+            const auto& field=face->second;
+            const auto frame=ngRigNumbers(indexNative(field,"parent_to_root"));
+            const double determinant=frame[0]*frame[4]-frame[1]*frame[3];
+            enforceNative(std::abs(determinant)>1e-10,"Singular face depth frame",1096);
+            compat::Slice<Point2> samples;
+            for (const auto p : world) {
+                const double x=p[0]-frame[2], y=p[1]-frame[5];
+                samples.append(Point2{(frame[4]*x-frame[1]*y)/determinant,
+                    (frame[0]*y-frame[3]*x)/determinant});
+            }
+            depth=registered::ngRigSampleRegisteredDepth(ngRigNumbers(indexNative(field,"xs")),
+                ngRigNumbers(indexNative(field,"ys")),ngRigNumbers(indexNative(field,"depth_model_units")),samples);
+            for (auto& value : depth) value/=scale;
+            return depth;
+        }
         if (!hairShell) return depth;
         const auto gap=target.sourceObjectRef().if_contains("hair_shell_offset");
         if (!gap) return depth;
@@ -334,7 +357,7 @@ Json buildRig(Json state,Json program,Task task) {
                     const auto height=readNativeArray(ys,ys.size()-1,1085)-y0;
                     enforceNative(width>0&&height>0,"Semantic surface has degenerate bounds",1086);
                     const auto scale=ngRigNumber(indexNative(program,"native_depth_scale"));
-                    auto sampled=sampledHair(target,points,scale);
+                    auto sampled=sampledSurface(target,points,scale);
                     if (sampled.empty()) {
                         const auto frame=ngRigNumbers(indexNative(target,"parent_to_root"));
                         for (auto& point : points) {
@@ -420,8 +443,8 @@ Json buildRig(Json state,Json program,Task task) {
                 const auto sourceVertices=grid->getVertices();
                 for(std::size_t i=0;i<sourceVertices.size();++i){auto p=sourceVertices.at(i);local.append(Point2(p.x,p.y));world.append(toRoot(grid,p.x,p.y));}
                 auto values=[&] {
-                    auto hair=sampledHair(target,world,1.);
-                    if (!hair.empty()) return hair;
+                    auto sampled=sampledSurface(target,world,1.);
+                    if (!sampled.empty()) return sampled;
                     const auto sampleXs=ngRigNumbers(indexNative(target,"xs"));
                     const auto sampleYs=ngRigNumbers(indexNative(target,"ys"));
                     const auto sampleDepths=ngRigNumbers(indexNative(target,"depth_model_units"));
@@ -454,8 +477,8 @@ Json buildRig(Json state,Json program,Task task) {
                     for(std::size_t i=0;i<sourceVertices.size();++i){const auto v=sourceVertices.at(i);
                         points.append(toRoot(node,v.x,v.y));}
                     auto values=[&] {
-                        auto hair=sampledHair(target,points,ngRigNumber(indexNative(program,"native_depth_scale")));
-                        if (!hair.empty()) return hair;
+                        auto sampled=sampledSurface(target,points,ngRigNumber(indexNative(program,"native_depth_scale")));
+                        if (!sampled.empty()) return sampled;
                         for (auto& p : points) {
                             p[0]-=readNativeArray(frame,2,1187);
                             p[1]-=readNativeArray(frame,5,1187);

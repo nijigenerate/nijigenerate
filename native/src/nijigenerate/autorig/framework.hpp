@@ -148,7 +148,7 @@ struct AutoRigValue {
 private:
     compat::Slice<std::uint8_t> mutableBytes;
     std::shared_ptr<const NativeBlobPayload> nativePayload;
-    Text encodedJson;
+    std::size_t jsonByteLength{};
     static AutoRigValue jsonSnapshot(Json value);
     std::size_t blobByteLength() const;
     friend class AutoRigTaskContext;

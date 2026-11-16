@@ -125,7 +125,9 @@ std::optional<double> jawAngleRow(const SkinProfile& profile, int side, double s
 
 } // namespace
 
-Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<framework::AutoRigTaskContext> context) {
+static Json compileCheekCorrections(Json state, Json program,
+    const std::shared_ptr<framework::AutoRigTaskContext>& context,
+    bool measureReference) {
     Array operations, observations;
     if (contracts::ngRigString(state, compat::RetainedString::fromStaticLiteral("kind"),
             compat::RetainedString::fromStaticLiteral("humanoid")).view() != "humanoid")
@@ -313,59 +315,59 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
     anchors.append(toRoot({profile.right[profile.right.size()-1],chin}));
     anchors.append(toRoot({curve(profile.y,profile.left,profile.temple),profile.temple}));
     anchors.append(toRoot({curve(profile.y,profile.right,profile.temple),profile.temple}));
-    // Give the sampled painted edge its own vertices. Splitting the owning
-    // triangle preserves the neutral geometry and its affine UV interpolation.
-    using Triangle = std::array<std::size_t,3>;
-    std::vector<Triangle> refinedTriangles;
-    for (const auto& triangle : skinTriangles.as_array()) {
-        const auto ids = contracts::ngRigNumbers(triangle);
-        refinedTriangles.push_back({sourceControlIndex(ids[0]),sourceControlIndex(ids[1]),sourceControlIndex(ids[2])});
-    }
     const auto originalCount = skinWorld.size();
-    skinWorld = skinWorld.duplicate();
-    skinLocal = skinLocal.duplicate();
-    auto skinUV = contracts::ngRigPoints(read(read(skinTarget,"mapping"),"uv"));
-    const auto addRidgeVertex = [&](Point2 section) {
-        const Point2 world = toRoot(section);
-        for (std::size_t i=0;i<refinedTriangles.size();++i) {
-            const auto triangle = refinedTriangles[i];
-            const auto weights = controls_detail::barycentric(world,skinWorld[triangle[0]],
-                skinWorld[triangle[1]],skinWorld[triangle[2]]);
-            // An edge shared by two triangles needs a different split.
-            if (!(weights[0]>1e-5 && weights[1]>1e-5 && weights[2]>1e-5)) continue;
-            Point2 local{0.,0.}, uv{0.,0.};
-            for (std::size_t j=0;j<3;++j)
-                for (std::size_t axis=0;axis<2;++axis) {
-                    local[axis] += weights[j]*skinLocal[triangle[j]][axis];
-                    uv[axis] += weights[j]*skinUV[triangle[j]][axis];
-                }
-            const auto vertex = skinWorld.size();
-            if (vertex >= std::numeric_limits<std::uint16_t>::max()) return;
-            skinWorld.append(world);
-            skinLocal.append(local);
-            skinUV.append(uv);
-            refinedTriangles[i] = {triangle[0],triangle[1],vertex};
-            refinedTriangles.push_back({triangle[1],triangle[2],vertex});
-            refinedTriangles.push_back({triangle[2],triangle[0],vertex});
-            break;
+    if (measureReference) {
+        // Evaluate the original correction with its original contour sampling.
+        // The temporary triangles are used only for that evaluation. The
+        // reference is transferred to the authored Part in the second pass.
+        using Triangle = std::array<std::size_t,3>;
+        std::vector<Triangle> samplingTriangles;
+        for (const auto& triangle : skinTriangles.as_array()) {
+            const auto ids = contracts::ngRigNumbers(triangle);
+            samplingTriangles.push_back({sourceControlIndex(ids[0]),sourceControlIndex(ids[1]),sourceControlIndex(ids[2])});
         }
-    };
-    if (skinUV.size() == originalCount) {
-        for (const auto& outline : contourSamples)
-            for (const auto& sample : outline)
-                if (sample.section[1]>profile.temple && sample.section[1]<chin)
-                    addRidgeVertex(sample.section);
-        for (std::size_t i=0; i<contourSamples.size(); ++i)
-            for (const double y : {profile.temple,chin,jawRows[i].value_or(std::midpoint(profile.temple,chin))}) {
-                const auto& curveSide = i == 0 ? profile.left : profile.right;
-                addRidgeVertex({curve(profile.y,curveSide,y),y});
+        skinWorld = skinWorld.duplicate();
+        skinLocal = skinLocal.duplicate();
+        const auto splitSamplingTriangle = [&](Point2 section) {
+            const Point2 world = toRoot(section);
+            for (std::size_t i=0;i<samplingTriangles.size();++i) {
+                const auto triangle = samplingTriangles[i];
+                const auto weights = controls_detail::barycentric(world,skinWorld[triangle[0]],
+                    skinWorld[triangle[1]],skinWorld[triangle[2]]);
+                // An edge shared by two triangles needs a different split.
+                if (!(weights[0]>1e-5 && weights[1]>1e-5 && weights[2]>1e-5)) continue;
+                Point2 local{0.,0.};
+                for (std::size_t j=0;j<3;++j)
+                    for (std::size_t axis=0;axis<2;++axis) {
+                        local[axis] += weights[j]*skinLocal[triangle[j]][axis];
+                    }
+                const auto vertex = skinWorld.size();
+                if (vertex >= std::numeric_limits<std::uint16_t>::max()) return;
+                skinWorld.append(world);
+                skinLocal.append(local);
+                samplingTriangles[i] = {triangle[0],triangle[1],vertex};
+                samplingTriangles.push_back({triangle[1],triangle[2],vertex});
+                samplingTriangles.push_back({triangle[2],triangle[0],vertex});
+                break;
             }
-        addRidgeVertex(chinTip);
+        };
+        if (read(read(skinTarget,"mapping"),"uv").sourceArrayValue().size() == originalCount) {
+            for (const auto& outline : contourSamples)
+                for (const auto& sample : outline)
+                    if (sample.section[1]>profile.temple && sample.section[1]<chin)
+                        splitSamplingTriangle(sample.section);
+            for (std::size_t i=0; i<contourSamples.size(); ++i)
+                for (const double y : {profile.temple,chin,jawRows[i].value_or(std::midpoint(profile.temple,chin))}) {
+                    const auto& curveSide = i == 0 ? profile.left : profile.right;
+                    splitSamplingTriangle({curve(profile.y,curveSide,y),y});
+                }
+            splitSamplingTriangle(chinTip);
+        }
+        Array samplingIndices;
+        for (const auto& t : samplingTriangles)
+            samplingIndices.append(Json(Array{Json(t[0]),Json(t[1]),Json(t[2])}));
+        skinTriangles = Json(samplingIndices);
     }
-    Array refinedIndices;
-    for (const auto& t : refinedTriangles)
-        refinedIndices.append(Json(Array{Json(t[0]),Json(t[1]),Json(t[2])}));
-    skinTriangles = Json(refinedIndices);
     Slice<bool> pinned; pinned.resize(skinWorld.size(), false);
     struct AnchorConstraint {
         std::array<std::size_t, 3> vertices;
@@ -471,7 +473,11 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
     };
     std::vector<HairTarget> hairTargets;
     std::vector<Json> skinOutlines;
-    std::vector<std::uint64_t> coincidentSkin;
+    struct SkinFollower {
+        std::uint64_t id;
+        std::vector<ContourSample> samples;
+    };
+    std::vector<SkinFollower> coincidentSkin;
     const auto skinMaterial = readControlMap(materials, skin, 704);
     const double faceWidth = curve(profile.y,profile.right,profile.eye)-
         curve(profile.y,profile.left,profile.eye);
@@ -498,7 +504,24 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             read(material,"alpha_runs_128") == read(skinMaterial,"alpha_runs_128") &&
             read(targets[id],"origin") == read(skinTarget,"origin") &&
             read(targets[id],"root_to_local_direction") == read(skinTarget,"root_to_local_direction")) {
-            coincidentSkin.push_back(id);
+            SkinFollower follower{id, {}};
+            for (const auto world : contracts::ngRigPoints(read(targets[id], "world"))) {
+                ContourSample sample{world};
+                for (const auto& triangle : skinTriangles.as_array()) {
+                    const auto ids = contracts::ngRigNumbers(triangle);
+                    const std::array vertices{sourceControlIndex(ids[0]), sourceControlIndex(ids[1]),
+                        sourceControlIndex(ids[2])};
+                    const auto weights = controls_detail::barycentric(world, skinWorld[vertices[0]],
+                        skinWorld[vertices[1]], skinWorld[vertices[2]]);
+                    if (!(weights[0] >= -1e-7 && weights[1] >= -1e-7 && weights[2] >= -1e-7)) continue;
+                    sample.vertices = vertices;
+                    sample.weights = weights;
+                    sample.mapped = true;
+                    break;
+                }
+                follower.samples.push_back(sample);
+            }
+            coincidentSkin.push_back(std::move(follower));
             continue;
         }
         if (sameGrid && role!="hair_front" && role!="hair_side") {
@@ -572,6 +595,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
         Point2 temple, chin, seam, upper, lower;
     };
     std::map<std::size_t,YawRidge> yawRidges;
+    std::map<std::size_t,Point2> earSourcesByYaw;
     const auto fittedLandmarks=program.sourceObjectRef().if_contains("head_anatomical_landmarks");
     std::vector<Json> skinKeys;
     for (const auto& key : keys)
@@ -590,7 +614,9 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
         enforce(norm > 1e-12, "Degenerate viewing-depth axis", 731);
         const double slope = (depthAxis[0] * profile.frame.tangent[0] + depthAxis[1] * profile.frame.tangent[1]) / norm;
         const auto value = contracts::ngRigPoint(read(key, "value"));
-        const auto yaw = sourceControlIndex(contracts::ngRigNumbers(read(key,"key"))[0]);
+        const auto axisKey = contracts::ngRigNumbers(read(key, "key"));
+        const std::array poseKey{sourceControlIndex(axisKey[0]), sourceControlIndex(axisKey[1])};
+        const auto yaw = poseKey[0];
         const auto base = yawRidges.find(yaw);
         const bool pitch = !neutralPitch(key);
         const int side = base != yawRidges.end() ? base->second.side :
@@ -731,7 +757,8 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             }
         }
         const auto& ear = earsBySide[side < 0 ? 0 : 1];
-        if (!pitch && side && jawRow && ear.id) {
+        const auto lockedEar = earSourcesByYaw.find(yaw);
+        if (side && ear.id && (!pitch || lockedEar != earSourcesByYaw.end())) {
             for (const auto earKey : keys) {
                 if (read(earKey,"grid") != read(ear.target,"grid") || read(earKey,"key") != read(key,"key")) continue;
                 const auto axesX = contracts::ngRigNumbers(read(ear.target,"xs"));
@@ -756,7 +783,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                 };
                 std::map<std::array<long,2>, EarBoundaryPoint> boundary;
                 const double earStep = ear.step;
-                for (const auto p : ear.attachment) {
+                const auto poseAttachment = [&](Point2 p) -> std::optional<Point2> {
                     for (const auto& triangle : triangles) {
                         const auto indices = contracts::ngRigNumbers(triangle);
                         const std::array vertex{sourceControlIndex(indices[0]),sourceControlIndex(indices[1]),
@@ -768,14 +795,24 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                         for (std::size_t j=0;j<3;++j)
                             for (std::size_t axis=0;axis<2;++axis)
                                 attachment[axis] += w[j]*posedEar[vertex[j]][axis];
-                        const auto restCell = [&](std::size_t axis) {
-                            return std::lround((p[axis]-ear.attachment[0][axis])/earStep);
-                        };
-                        boundary.try_emplace({restCell(0),restCell(1)},EarBoundaryPoint{p,attachment});
-                        if (consider(attachment,attachment[1]==posedM[1],earContact,horizontalEar,earDistance))
-                            earEvidence = record({{"source",point(p)}});
-                        break;
+                        return attachment;
                     }
+                    return {};
+                };
+                if (pitch) {
+                    earContact = poseAttachment(lockedEar->second);
+                    if (earContact) earEvidence = record({{"source",point(lockedEar->second)}});
+                    break;
+                }
+                for (const auto p : ear.attachment) {
+                    const auto attachment = poseAttachment(p);
+                    if (!attachment) continue;
+                    const auto restCell = [&](std::size_t axis) {
+                        return std::lround((p[axis]-ear.attachment[0][axis])/earStep);
+                    };
+                    boundary.try_emplace({restCell(0),restCell(1)},EarBoundaryPoint{p,*attachment});
+                    if (consider(*attachment,(*attachment)[1]==posedM[1],earContact,horizontalEar,earDistance))
+                        earEvidence = record({{"source",point(p)}});
                 }
                 for (const auto& [cell, a] : boundary) {
                     for (const auto& [dx,dy] : std::array<std::array<int,2>,4>{{{1,0},{0,1},{1,1},{-1,1}}}) {
@@ -793,6 +830,8 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                 break;
             }
         }
+        if (earContact && !pitch)
+            earSourcesByYaw.emplace(yaw,contracts::ngRigPoint(read(earEvidence,"source")));
         enforce(pitch || !side || !jawRow || earContact || neckContact,
             "Detected jaw angle has no ear or neck contact",751);
         std::optional<Point2> seam;
@@ -872,14 +911,16 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
         const head_surface::ProjectedSkin redFace(rawHead,side);
         const auto registeredRidge=side && !fittedMesh.empty() ? head_surface::projectedRidge(
             fittedMesh,fittedJoints[sideIndex],
-            lowerSections[sideIndex],rawHead,poseProjection,side,posedTemple,posedChin,2.*step) :
+            lowerSections[sideIndex],rawHead,poseProjection,side,posedTemple,posedChin,2.*step,earContact) :
             std::optional<head_surface::Ridge>{};
         const bool useHeadTemplate=side && (fittedLandmarks || registeredRidge);
         const double legacyEarRow=std::lerp(profile.temple,seamRow,
             std::clamp((modelEar[1]-.38)/(modelJaw[1]-.38),.22,.81));
         const auto fittedEar=fittedJoints[sideIndex][1];
-        const double templateEarRow=registeredRidge ? std::clamp(
-            profile.frame.local({fittedEar[0],fittedEar[1]})[1],profile.temple+.10*span,
+        const auto earSource = earContact ? contracts::ngRigPoint(read(earEvidence,"source")) :
+            Point2{fittedEar[0],fittedEar[1]};
+        const double templateEarRow=registeredRidge || earContact ? std::clamp(
+            profile.frame.local(earSource)[1],profile.temple+.10*span,
             std::max(profile.temple+.10*span,seamRow-step)) : legacyEarRow;
         const std::array<double,4> sourceRows{profile.temple,templateEarRow,seamRow,chin};
         std::array<Point2,4> anchors{};
@@ -890,6 +931,14 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                 {"upper",point(anchors[0])},{"ear_attachment",point(anchors[1])},
                 {"jaw_angle",point(anchors[2])},{"original_jaw",point(registeredRidge->originalJaw)},
                 {"chin",point(anchors[3])}});
+            if (earContact) neckJunction.sourceIndexAssignSlot("ear_contact_source") = point(earSource);
+            Array guide;
+            for (std::size_t segment=0; segment<3; ++segment) {
+                Array samples;
+                for (int i=0; i<=32; ++i) samples.append(point(registeredRidge->at(segment,i/32.)));
+                guide.append(Json(samples));
+            }
+            neckJunction.sourceIndexAssignSlot("guide") = Json(guide);
             if (!registeredRidge->lower.empty())
                 neckJunction.sourceIndexAssignSlot("lower_depth_end")=point(registeredRidge->depthEnd);
         } else if (useHeadTemplate) {
@@ -903,6 +952,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             };
             anchors={posedTemple,fittedPoint(side<0 ? "left_ear" : "right_ear"),
                 fittedPoint(side<0 ? "left_jaw" : "right_jaw"),posedChin};
+            if (earContact) anchors[1] = *earContact;
             // Artwork contacts can be above or below their source rows.
             // Parameterize those contacts along the posed temple-chin axis.
             const Point2 axial{poseDX/poseLength,poseDY/poseLength};
@@ -969,6 +1019,8 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             return quadratic(*seam,lowerHandle,posedChin,
                 std::clamp((section[1]-seamRow)/(chin-seamRow),0.,1.));
         };
+        const auto anchoredEar = earContact && useHeadTemplate ? earContact :
+            registeredRidge ? std::optional{registeredRidge->anchors[1]} : std::nullopt;
         if (seam && !useHeadTemplate) {
             neckJunction.sourceIndexAssignSlot("temple") = point(posedTemple);
             neckJunction.sourceIndexAssignSlot("upper_handle") = point(upperHandle);
@@ -1023,6 +1075,14 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             std::vector<Point2> inherited;
             inherited.reserve(outline.size());
             for (const auto& sample : outline) inherited.push_back(inheritedPoint(sample));
+            const bool fixedEar = anchoredEar.has_value();
+            Point2 earShift{0.,0.};
+            if (fixedEar) {
+                const auto at = std::ranges::find(outline,templateEarRow,
+                    [](const auto& sample) { return sample.section[1]; });
+                const auto current = inherited[static_cast<std::size_t>(at-outline.begin())];
+                earShift = {(*anchoredEar)[0]-current[0],(*anchoredEar)[1]-current[1]};
+            }
             for (std::size_t i=0; i<outline.size(); ++i) {
                 const auto& sample = outline[i];
                 const double y = sample.section[1];
@@ -1031,8 +1091,17 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                     continue;
                 }
                 const auto current = inherited[i];
-                const auto wanted = targetContour(sample.section,
+                auto wanted = targetContour(sample.section,
                     useHeadTemplate ? projected(sample.section) : current);
+                if (fixedEar && y==templateEarRow) wanted = *anchoredEar;
+                if (fixedEar && y>templateEarRow) {
+                    // Both ends of the blend share E. Ease the attachment
+                    // displacement out along the original outline toward J.
+                    const double weight = smootherStep((chin-y)/(chin-templateEarRow));
+                    for (std::size_t axis=0; axis<2; ++axis)
+                        wanted[axis] = std::lerp(current[axis]+weight*earShift[axis],
+                            wanted[axis],jawRidgeBlend);
+                }
                 Point2 residual{strength*(wanted[0]-current[0]),strength*(wanted[1]-current[1])};
                 if (!useHeadTemplate) {
                     // Samples run from the temple toward the chin. Rotating
@@ -1058,18 +1127,73 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                 }
                 // Samples on the inherited outline and the fitted ridge share
                 // the source rows of J, M and E even after projection.
-                const double blend = std::lerp(jawRidgeBlend, 1.,
+                const double blend = fixedEar ? 1. : std::lerp(jawRidgeBlend, 1.,
                     smootherStep((templateEarRow-y)/earTransition));
                 for (auto& delta : residual) delta *= blend;
                 const auto displaced = [&] { return Point2{current[0]+residual[0],current[1]+residual[1]}; };
                 if (blend != 1. && !redFace.edges.empty() &&
                     redFace.clearance(displaced()) < .01)
                     residual = {0.,0.};
-                const auto target = displaced();
-                if (sample.mapped) ridgeSamples.append(record({{"target",point(target)},{"before",point(current)},{"ear_junction",Json(useHeadTemplate ? y==templateEarRow : seam && y==seamRow)},
+                if (fixedEar && y==templateEarRow && redFace.clearance(*anchoredEar) >= .01)
+                    residual = earShift;
+                edgeResidual.append(residual);
+            }
+            if (useHeadTemplate) {
+                // The projected 3D section and the painted outline have
+                // different sample spacing. Fair their join in pose space
+                // before imposing any constraints on the Part mesh.
+                const double band=.05*span;
+                std::vector<Point2> guide;
+                for (std::size_t i=0;i<outline.size();++i)
+                    guide.push_back({inherited[i][0]+edgeResidual[i][0],inherited[i][1]+edgeResidual[i][1]});
+                const auto smooth = [&](double y) {
+                    Point2 sum{0.,0.};
+                    double total=0.;
+                    const auto first=std::ranges::lower_bound(outline,y-band,{},[](const auto& sample) {
+                        return sample.section[1];
+                    });
+                    for (auto it=first; it!=outline.end() && it->section[1]<y+band; ++it) {
+                        const auto index=static_cast<std::size_t>(it-outline.begin());
+                        const double weight=smootherStep(1.-std::abs(it->section[1]-y)/band);
+                        for (std::size_t axis=0;axis<2;++axis) sum[axis]+=weight*guide[index][axis];
+                        total+=weight;
+                    }
+                    return Point2{sum[0]/total,sum[1]/total};
+                };
+                Point2 earAdjustment{0.,0.};
+                if (fixedEar && redFace.clearance(*anchoredEar)>=.01) {
+                    const auto fairEar=smooth(templateEarRow);
+                    for (std::size_t axis=0;axis<2;++axis)
+                        earAdjustment[axis]=(*anchoredEar)[axis]-fairEar[axis];
+                }
+                for (std::size_t i=0;i<outline.size();++i) {
+                    const double y=outline[i].section[1];
+                    if (y<=profile.temple || y>=chin) continue;
+                    auto target=smooth(y);
+                    const double pinWeight=smootherStep(1.-std::abs(y-templateEarRow)/(2.*band));
+                    for (std::size_t axis=0;axis<2;++axis) target[axis]+=pinWeight*earAdjustment[axis];
+                    const double taper=smootherStep(std::min(y-profile.temple,chin-y)/band);
+                    for (std::size_t axis=0;axis<2;++axis)
+                        target[axis]=std::lerp(inherited[i][axis],target[axis],taper);
+                    if (!redFace.edges.empty()) {
+                        const double clearance=std::min(0.,redFace.clearance(inherited[i]));
+                        target[0]+=side*std::max(0.,clearance-redFace.clearance(target));
+                    }
+                    if (fixedEar && y==templateEarRow && redFace.clearance(*anchoredEar)>=.01)
+                        target=*anchoredEar;
+                    edgeResidual[i]={target[0]-inherited[i][0],target[1]-inherited[i][1]};
+                }
+            }
+            for (std::size_t i=0;i<outline.size();++i) {
+                const auto& sample=outline[i];
+                const auto y=sample.section[1];
+                if (!sample.mapped || y<=profile.temple || y>=chin) continue;
+                const auto current=inherited[i], residual=edgeResidual[i];
+                const Point2 target{current[0]+residual[0],current[1]+residual[1]};
+                ridgeSamples.append(record({{"target",point(target)},{"before",point(current)},
+                    {"section_y",Json(y)},{"ear_junction",Json(useHeadTemplate ? y==templateEarRow : seam && y==seamRow)},
                     {"weights",array(Slice<double>{sample.weights[0],sample.weights[1],sample.weights[2]})},
                     {"vertices",array(Slice<std::size_t>{sample.vertices[0],sample.vertices[1],sample.vertices[2]})}}));
-                edgeResidual.append(residual);
             }
         }
         Slice<double> residualX, residualY;
@@ -1145,9 +1269,10 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
         const ContourSample* junctionSample = nullptr;
         Slice<double> junctionDirection;
         Point2 junctionDelta{0.,0.};
-        if (seam && !dynamic && !registeredRidge) {
+        const bool fixedEar = anchoredEar.has_value();
+        if (!dynamic && (fixedEar || (seam && !registeredRidge))) {
             const auto at = std::ranges::find_if(outline,[&](const auto& sample) {
-                return sample.mapped && sample.section[1] == seamRow;
+                return sample.mapped && sample.section[1] == (fixedEar ? templateEarRow : seamRow);
             });
             if (at != outline.end()) {
                 junctionSample = &*at;
@@ -1194,18 +1319,17 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                 Point2 displacement;
             };
             std::vector<ContourConstraint> constraints;
+            const auto appendConstraint = [&](const ContourSample& sample, Point2 residual) {
+                const auto gridPoint = projected(sample.section);
+                constraints.push_back({&sample,invertGrid(toRoot(sample.section),
+                    {gridPoint[0]+residual[0],gridPoint[1]+residual[1]})});
+            };
             for (std::size_t i=0; i<outline.size(); ++i) {
                 const auto& sample = outline[i];
                 if (!sample.mapped || sample.section[1] <= profile.temple || sample.section[1] >= chin) continue;
-                const auto origin = profile.frame.origin;
-                const Point2 point{
-                    origin[0]+sample.section[0]*profile.frame.tangent[0]+sample.section[1]*profile.frame.normal[0],
-                    origin[1]+sample.section[0]*profile.frame.tangent[1]+sample.section[1]*profile.frame.normal[1]};
-                const auto gridPoint = projected(sample.section);
                 // The triangle sample is already in rendered coordinates.
                 // Translate its residual to the Grid sampling point before inversion.
-                constraints.push_back({&sample,invertGrid(point,
-                    {gridPoint[0]+edgeResidual[i][0],gridPoint[1]+edgeResidual[i][1]})});
+                appendConstraint(sample, edgeResidual[i]);
             }
             const auto initial = skinField.duplicate();
             const auto rhs = [&](Slice<Point2> field, bool target) {
@@ -1259,7 +1383,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             }
 
         }
-        if (side) {
+        if (measureReference && side) {
             for (std::size_t i=0;i<outline.size();++i) {
                 const auto& sample = outline[i];
                 if (!sample.mapped || sample.section[1]<=profile.temple || sample.section[1]>=chin) continue;
@@ -1275,7 +1399,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
         // Inversion and barycentric fitting can pull a contour sample back
         // through the original projected skin. Remove the contributing
         // residuals before saving, repeating until no changed sample enters.
-        if (!redFace.edges.empty()) {
+        if (measureReference && !redFace.edges.empty()) {
             std::vector<bool> remove(skinWorld.size());
             bool updated;
             do {
@@ -1370,11 +1494,22 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             operation.sourceIndexAssignSlot("ridge_rms_error") = Json(std::sqrt(squaredFitError/ridgeSamples.size()));
             operation.sourceIndexAssignSlot("ridge_max_error") = Json(maximumFitError);
         }
-        operations.append(operation);
-        for (const auto part : coincidentSkin)
-            operations.append(record({{"part",Json(part)},{"key",read(key,"key")},
-                {"values",array(displacement)},{"kind",Json("coincident_skin")}}));
-        for (const auto& line : skinOutlines) {
+        if (!measureReference) operations.append(operation);
+        if (!measureReference) for (const auto& follower : coincidentSkin) {
+            Slice<double> values;
+            for (const auto& sample : follower.samples) {
+                Point2 delta{0., 0.};
+                if (sample.mapped)
+                    for (std::size_t j=0; j<3; ++j)
+                        for (std::size_t axis=0; axis<2; ++axis)
+                            delta[axis] += sample.weights[j]*displacement[2*sample.vertices[j]+axis];
+                values.append(delta[0]);
+                values.append(delta[1]);
+            }
+            operations.append(record({{"part",Json(follower.id)},{"key",read(key,"key")},
+                {"values",array(values)},{"kind",Json("coincident_skin")}}));
+        }
+        if (measureReference) for (const auto& line : skinOutlines) {
             const auto local = contracts::ngRigNumbers(read(line,"root_to_local_direction"));
             Slice<double> values;
             for (const auto p : contracts::ngRigPoints(read(line,"world"))) {
@@ -1394,7 +1529,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
                 {"values",array(values)},{"kind",Json("skin_outline")}}));
         }
         std::vector<Point2> posedOutline;
-        if (side && !hairTargets.empty()) {
+        if (measureReference && side && !hairTargets.empty()) {
             for (std::size_t i : {std::size_t(0),std::size_t(1)}) {
                 const auto append = [&](const ContourSample& sample) {
                     if (!sample.mapped) return;
@@ -1419,7 +1554,7 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
             }
             return outer;
         };
-        for (const auto& hair : hairTargets) {
+        if (measureReference) for (const auto& hair : hairTargets) {
             const double turnWeight = smootherStep((std::abs(value[0])-.5)/.5);
             if (!side || (turnWeight == 0. && hair.noseEdge.empty())) {
                 Slice<double> zeros;
@@ -1538,18 +1673,18 @@ Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<fram
         {"program_sha256", read(program, "content_sha256")}, {"depth_angle_program_sha256", read(state, "depth_angle_program_sha256")},
         {"source_uv_program_sha256", read(state, "source_uv_program_sha256")}, {"source_sha256", read(state, "source_sha256")},
         {"visually_reviewed", Json(false)}});
-    if (skinWorld.size() > originalCount) {
-        // Match the precision of the coordinates and UVs stored by Part.
-        for (std::size_t i = originalCount; i < skinLocal.size(); ++i)
-            for (std::size_t axis = 0; axis < 2; ++axis) {
-                skinLocal[i][axis] = static_cast<float>(skinLocal[i][axis]);
-                skinUV[i][axis] = static_cast<float>(skinUV[i][axis]);
-            }
-        report.as_object()["refined_mesh"] = record({{"part",Json(skin)},{"original_count",Json(originalCount)},
-            {"vertices",contracts::ngRigPointsJson(skinLocal)},{"uv",contracts::ngRigPointsJson(skinUV)},
-            {"triangles",skinTriangles}});
-    }
-    report.as_object()["content_sha256"] = core::settings::SettingsString(contracts::ngRigDigest(report));
+    return report;
+}
+
+Json ngRigCompileCheekCorrections(Json state, Json program, std::shared_ptr<framework::AutoRigTaskContext> context) {
+    const auto original = compileCheekCorrections(state, program, context, true);
+    if (!read(original,"applicable").as_bool()) return original;
+    auto report = compileCheekCorrections(state, program, context, false);
+    auto operations = read(report,"operations").sourceArrayValue().duplicate();
+    for (const auto& operation : read(original,"operations").sourceArrayValue())
+        operations.append(operation);
+    report.sourceIndexAssignSlot("operations") = operations;
+    report.sourceIndexAssignSlot("content_sha256") = core::settings::SettingsString(contracts::ngRigDigest(report));
     return report;
 }
 

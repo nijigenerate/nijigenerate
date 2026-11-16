@@ -177,11 +177,20 @@ Json ngRigVerifyExclusions(Json state, Json program) {
     const auto detection = atEvidence(state, "rig_exclusions");
     std::set<std::uint64_t> excluded;
     for (auto id : atEvidence(detection, "parts").sourceArrayValue()) excluded.insert(ngRigUnsigned(id));
+    const bool humanoid = getEvidence(program, "kind", literalEvidence("humanoid")).as_string().view() == "humanoid";
+    const auto domains = humanoid ? atEvidence(program, "domains").sourceArrayValue() : JsonArray{};
+    const auto localCarriers = humanoid ? JsonArray{} : atEvidence(program, "carriers").sourceArrayValue();
     JsonArray violations;
-    for (auto domain : atEvidence(program, "domains").sourceArrayValue())
+    for (auto domain : domains)
         for (auto part : atEvidence(domain, "parts").sourceArrayValue())
             if (excluded.contains(ngRigUnsigned(part))) violations.append(objectEvidence({
                 {stringLiteralEvidence("part"), part}, {stringLiteralEvidence("domain"), atEvidence(domain, "id")}}));
+    for (auto carrier : localCarriers) {
+        const auto part = atEvidence(carrier, "part");
+        if (excluded.contains(ngRigUnsigned(part))) violations.append(objectEvidence({
+            {stringLiteralEvidence("part"), part},
+            {stringLiteralEvidence("reason"), literalEvidence("excluded_part_has_local_rig_carrier")}}));
+    }
     for (auto material : atEvidence(state, "materials").sourceArrayValue())
         if (excluded.contains(ngRigUnsigned(atEvidence(material, "uuid"))) && !atEvidence(material, "static").as_bool())
             violations.append(objectEvidence({{stringLiteralEvidence("part"), atEvidence(material, "uuid")},
@@ -193,15 +202,18 @@ Json ngRigVerifyExclusions(Json state, Json program) {
     for (auto change : getEvidence(detection, "scoped_parts", JsonArray{}).sourceArrayValue()) {
         const auto part = ngRigUnsigned(atEvidence(change, "part"));
         bool found = false;
-        for (auto domain : atEvidence(program, "domains").sourceArrayValue())
+        const auto verifyFamily = [&](Json target) {
+            found = true;
+            if (atEvidence(target, "owner").as_string().view() != "head"
+                    || atEvidence(target, "chart").as_string().view() != "face")
+                violations.append(objectEvidence({{stringLiteralEvidence("part"), Json(part)},
+                    {stringLiteralEvidence("reason"), literalEvidence("surface_overlay_has_unsupported_deformation_family")}}));
+        };
+        for (auto domain : domains)
             for (auto member : atEvidence(domain, "parts").sourceArrayValue())
-                if (ngRigUnsigned(member) == part) {
-                    found = true;
-                    if (atEvidence(domain, "owner").as_string().view() != "head"
-                            || atEvidence(domain, "chart").as_string().view() != "face")
-                        violations.append(objectEvidence({{stringLiteralEvidence("part"), Json(part)},
-                            {stringLiteralEvidence("reason"), literalEvidence("surface_overlay_has_unsupported_deformation_family")}}));
-                }
+                if (ngRigUnsigned(member) == part) verifyFamily(domain);
+        for (auto carrier : localCarriers)
+            if (ngRigUnsigned(atEvidence(carrier, "part")) == part) verifyFamily(carrier);
         if (!found) violations.append(objectEvidence({{stringLiteralEvidence("part"), Json(part)},
             {stringLiteralEvidence("reason"), literalEvidence("surface_overlay_missing_from_rig")}}));
     }

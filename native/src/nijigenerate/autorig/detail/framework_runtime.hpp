@@ -374,6 +374,7 @@ inline Json jsonIndex(Json value, Text key) {
 }
 compat::Slice<std::uint8_t> readBytes(std::string_view path);
 Json readJson(std::string_view path);
+Json copyJson(Json value, std::size_t* bytes = nullptr);
 inline compat::Slice<std::uint8_t> readBytes(const Text& path) { return readBytes(path.view()); }
 inline Json readJson(const Text& path) { return readJson(path.view()); }
 }

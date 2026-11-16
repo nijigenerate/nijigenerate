@@ -198,21 +198,13 @@ Json verifyRig(Json state, Json program, Task task) {
         }
     });
     NativeIntegerMap<std::uint32_t, bool> inspectedGrids;
-    const auto shapeCorrections = get(state, "shape_corrections", Json{});
-    const auto refinement = get(shapeCorrections, "refined_mesh", Json{});
-    const auto sharedSkin = get(shapeCorrections, "shared_skin_parts", absentArray()).sourceArrayValue();
     for (auto target : field(state, "targets").sourceArrayValue()) {
         ngRigCheckpoint(task);
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
             auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(field(target, "part"))));
             enforceNative(bool(part),"Saved material is missing",1720);
-            auto expectedMapping = refinement.is_object() &&
-                field(refinement, "part") == field(target, "part") ? refinement : field(target, "mapping");
-            for (const auto id : sharedSkin)
-                if (id == field(target, "part"))
-                    expectedMapping = field(shapeCorrections, "shared_skin_mapping");
-            enforceNative(sameTextureMapping(textureMapping(part), expectedMapping),
+            enforceNative(sameTextureMapping(textureMapping(part), field(target, "mapping")),
                 "Saved Part geometry or UV mapping changed after meshing",1721);
             if (!humanoid) return;
             const auto gridId = uuid(field(target, "grid"));

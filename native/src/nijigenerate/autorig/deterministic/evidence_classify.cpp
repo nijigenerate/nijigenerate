@@ -1,4 +1,5 @@
 #include "detail/evidence.hpp"
+#include "observation.hpp"
 #include <numeric>
 #include <set>
 namespace nijigenerate::autorig::deterministic::evidence {
@@ -544,6 +545,34 @@ Json ngRigClassifyMaterials(Json observation,Json options,std::shared_ptr<framew
         if(atEvidence(m,"role").as_string().view()=="local"){setEvidence(m,"owner",literalEvidence("local"));setEvidence(m,"chart",literalEvidence("local"));continue;}
         for(auto rule:atEvidence(specification,"rules").sourceArrayValue())if(atEvidence(rule,"id").as_string().view()==atEvidence(m,"role").as_string().view()){setEvidence(m,"owner",atEvidence(rule,"owner"));setEvidence(m,"chart",atEvidence(rule,"chart"));break;}
         enforceEvidence(evidenceObject(m).if_contains("owner"),"Unsupported automatic material role",422);
+        if (atEvidence(m,"feature").as_string().view()=="sclera" &&
+                !evidenceObject(m).if_contains("landmark_cloud")) {
+            const auto* support=evidenceObject(m).if_contains("alpha_runs_32");
+            const auto* dimensions=evidenceObject(m).if_contains("texture_size");
+            const auto* mapping=evidenceObject(m).if_contains("source_root_mapping");
+            if (!support || !dimensions || !mapping) continue;
+            const auto size=dimensions->sourceArrayValue();
+            const auto width=ngRigUnsigned(size[0]), height=ngRigUnsigned(size[1]);
+            auto runs=support->sourceArrayValue();
+            compat::Slice<std::uint8_t> alpha;
+            alpha.resize(width*height*4);
+            std::size_t area=0;
+            for (std::size_t i=0;i<runs.size();i+=2) {
+                const auto start=ngRigUnsigned(runs[i]), count=ngRigUnsigned(runs[i+1]);
+                for (auto pixel=start;pixel<start+count;++pixel) alpha[pixel*4+3]=255;
+                area+=count;
+            }
+            if (!area) continue;
+            auto main=observation::ngRigLargestAlphaComponent(alpha,width,height,context);
+            std::size_t mainArea=0;
+            for (std::size_t pixel=3;pixel<main.size();pixel+=4) mainArea+=main[pixel]!=0;
+            // Ignore detached specks on one eye surface. A shared layer
+            // containing two substantial apertures retains both.
+            if (mainArea<area && double(mainArea)/area>=.85) {
+                auto points=observation::ngRigTextureSupport(main,width,height,*mapping,40000,context);
+                setEvidence(m,"landmark_cloud",ngRigPointsJson(points));
+            }
+        }
     }
     auto result=duplicateEvidence(observation);setEvidence(result,"materials",materials);setEvidence(result,"options",options);return result;
     } catch (const compat::ThrowableException& error) {

@@ -18,13 +18,19 @@ Json readJson(std::string_view path) {
     return json::ngParseAutoRigJson(compat::RetainedString(std::string(
         reinterpret_cast<const char*>(bytes.data()), bytes.size())));
 }
-Json copyJson(Json value) {
+Json copyJson(Json value, std::size_t* bytes) {
+    if (bytes) *bytes += sizeof(Json);
     // Phobos std.json object ref getter: Jeremie Pelletier 2008-2009,
     // Boost Software License 1.0, port/licenses/phobos-rig-json.txt.
     if (value.is_object()) {
-        const auto& input = value.sourceObjectRef();
-        core::settings::SettingsJsonObject result;
-        for (const auto& member : input) result[member.name] = copyJson(member.item);
+        const auto& input = value.as_object();
+        core::settings::SettingsJsonObject result(input.isOrdered());
+        for (const auto& member : input) {
+            if (bytes) *bytes += sizeof(member.name) + member.name.view().size();
+            auto copy = copyJson(member.item, bytes);
+            if (input.isOrdered()) result.orderedMembers().append({member.name, std::move(copy)});
+            else result[member.name] = std::move(copy);
+        }
         return result;
     }
     if (value.is_array()) {
@@ -40,9 +46,10 @@ Json copyJson(Json value) {
         } catch (const std::length_error&) {
             throw compat::ngStaticError<compat::OutOfMemoryError>(std::source_location::current());
         }
-        for (std::size_t index = 0; index < input.size(); ++index) result[index] = copyJson(input[index]);
+        for (std::size_t index = 0; index < input.size(); ++index) result[index] = copyJson(input[index], bytes);
         return result;
     }
+    if (bytes && value.is_string()) *bytes += value.as_string().view().size();
     return value;
 }
 }
@@ -136,7 +143,10 @@ AutoRigValue AutoRigValue::fileName(Text value) { AutoRigValue r; r.text = std::
 AutoRigValue AutoRigValue::path(Text value) { auto r = fileName(std::move(value)); r.kind = AutoRigValueKind::Path; return r; }
 AutoRigValue AutoRigValue::jsonValue(Json value) { AutoRigValue r; r.kind = AutoRigValueKind::Json; r.json = std::move(value); return r; }
 AutoRigValue AutoRigValue::jsonSnapshot(Json value) {
-    AutoRigValue r; r.kind = AutoRigValueKind::Json; r.encodedJson = core::settings::ngSettingsJsonString(value); return r;
+    AutoRigValue result;
+    result.kind = AutoRigValueKind::Json;
+    result.json = detail::copyJson(value, &result.jsonByteLength);
+    return result;
 }
 AutoRigValue AutoRigValue::blob(compat::Slice<std::uint8_t> value) {
     AutoRigValue result; result.kind = AutoRigValueKind::Blob;
@@ -163,14 +173,15 @@ compat::ConstSlice<std::uint8_t> AutoRigValue::readImmutableBlob() {
     return compat::ConstSlice<std::uint8_t>(mutableBytes.duplicate());
 }
 AutoRigValueInfo ngAutoRigValueInfo(AutoRigValue value, std::uint64_t revision) {
-    return {value.kind, value.text, value.encodedJson.empty() ? value.blobByteLength() : value.encodedJson.size(), revision};
+    return {value.kind, value.text,
+        value.kind == AutoRigValueKind::Json ? value.jsonByteLength : value.blobByteLength(), revision};
 }
 AutoRigValue ngCopyAutoRigValue(AutoRigValue value) {
     switch (value.kind) {
     case AutoRigValueKind::FileName: return AutoRigValue::fileName(value.text);
     case AutoRigValueKind::Path: return AutoRigValue::path(value.text);
-    case AutoRigValueKind::Json: return AutoRigValue::jsonValue(!value.text.empty() ? detail::readJson(value.text) :
-        !value.encodedJson.empty() ? json::ngParseAutoRigJson(compat::RetainedString(value.encodedJson)) : detail::copyJson(value.json));
+    case AutoRigValueKind::Json: return AutoRigValue::jsonValue(
+        !value.text.empty() ? detail::readJson(value.text) : detail::copyJson(value.json));
     case AutoRigValueKind::Blob: return !value.text.empty() || value.nativePayload ? value : AutoRigValue::blob(value.mutableBytes);
     }
     throw compat::SwitchError(Text::fromStaticLiteral("No appropriate switch clause found"),

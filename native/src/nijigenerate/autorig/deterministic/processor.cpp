@@ -203,8 +203,7 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         phase(text("classify-materials"));
         const auto exclusions = ngRigGet(state, key("rig_exclusions"), Json(Object{}));
         const bool resolved = ngRigGet(exclusions, key("validated"), false).as_bool()
-            && core::settings::ngSettingsJsonString(ngRigGet(state, key("options"), Json(Object{})))
-                == core::settings::ngSettingsJsonString(compileOptions);
+            && ngRigGet(state, key("options"), Json(Object{})) == compileOptions;
         auto observation = resolved ? state : evidence::ngRigDetectExclusions(state, compileOptions, context);
         ngRigCheckpoint(context);
         phase(text("derive-evidence"));
