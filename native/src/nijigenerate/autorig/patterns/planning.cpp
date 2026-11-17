@@ -110,7 +110,7 @@ bool zeroAxis(const A& axis) {
     return axis.size()>=2 && std::any_of(axis.begin(),axis.end(),[](const auto& v){return std::abs(num(v))<1e-9;});
 }
 // A collapsing surface is identified by the motion of its mesh, not by an eye label.
-bool collapsing(const Node& n,const Json& b) {
+bool collapsing(const Node& n,const Json& b,double maxClosedHeight=.45) {
     if(at(b,"param_name")!="deform" || n.points.empty())return false;
     double baseW=n.high[0]-n.low[0],baseH=n.high[1]-n.low[1];
     if(baseW<1e-6 || baseH<1e-6)return false;
@@ -123,7 +123,7 @@ bool collapsing(const Node& n,const Json& b) {
             double v=n.points[i][d]+component(offsets[i],d);
             if(!i)low[d]=high[d]=v;else {low[d]=std::min(low[d],v);high[d]=std::max(high[d],v);}
         }
-        if((high[1]-low[1])/baseH<0.45 && (high[0]-low[0])/baseW>0.7)return true;
+        if((high[1]-low[1])/baseH<maxClosedHeight && (high[0]-low[0])/baseW>0.7)return true;
     }
     return false;
 }
@@ -341,10 +341,23 @@ Json ngPlanPattern(std::string_view pattern,const Json& document,const Json& sel
     }
     if(pattern=="p18" || pattern=="p19" || pattern=="p20") {
         std::map<Id,std::vector<std::pair<Id,const Json*>>> apertures;
+        std::map<Id,std::vector<std::pair<Id,const Json*>>> partialApertures;
         for(const auto& [pid,p]:scene.parameters)for(const auto& b:arr(at(*p,"bindings"))) {
             auto target=id(at(b,"node"));
-            if(scene.nodes.contains(target) && collapsing(scene.nodes.at(target),b))apertures[target].push_back({pid,&b});
+            const auto node=scene.nodes.find(target);
+            if (node==scene.nodes.end()) continue;
+            if (collapsing(node->second,b)) apertures[target].push_back({pid,&b});
+            else if (pattern!="p20" && collapsing(node->second,b,.65))
+                partialApertures[target].push_back({pid,&b});
         }
+        // A partial closure can drive these eye-specific additions when a
+        // separate gaze input moves a Part directly masked by the aperture.
+        for (auto it=partialApertures.begin(); it!=partialApertures.end();) {
+            if (apertures.contains(it->first) || it->second.size()!=1) it=partialApertures.erase(it);
+            else ++it;
+        }
+        for (const auto& [aperture, group] : gazeGroups(scene,partialApertures))
+            apertures.emplace(aperture,std::move(partialApertures.at(aperture)));
         const auto eyeGroups = pattern == "p19" ? gazeGroups(scene,apertures) : std::map<Id,GazeGroup>{};
         std::set<Id> springMembers;
         if (pattern=="p19") planBlinkPhysics(scene,apertures,eyeGroups,selection,manual,matches,controls,springMembers);

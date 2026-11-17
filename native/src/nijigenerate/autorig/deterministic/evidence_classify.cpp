@@ -1,5 +1,6 @@
 #include "detail/evidence.hpp"
 #include "observation.hpp"
+#include <algorithm>
 #include <numeric>
 #include <set>
 namespace nijigenerate::autorig::deterministic::evidence {
@@ -279,7 +280,6 @@ Json ngRigClassifyMaterials(Json observation,Json options,std::shared_ptr<framew
     }
     compat::Slice<Point2> faceSupport,footSupport;
     phase = "face and foot support";
-    for(auto m:materials)if(!atEvidence(m,"static").as_bool()){if(atEvidence(m,"role").as_string().view()=="face")faceSupport.append(ngRigPoints(atEvidence(m,"cloud")));if(atEvidence(m,"role").as_string().view()=="foot")footSupport.append(ngRigPoints(atEvidence(m,"cloud")));}
     auto supportBounds=[](compat::Slice<Point2> points){const double inf=std::numeric_limits<double>::infinity();std::array<double,4>b{inf,inf,-inf,-inf};for(auto p:points)for(std::size_t i=0;i<2;++i){b[i]=dmin(b[i],p[i]);b[i+2]=dmax(b[i+2],p[i]);}return b;};
     // Assess complete alpha support in an anatomical frame before proximal inheritance.
     // Names propose anchors; spatial evidence decides whether unlabelled surfaces belong
@@ -292,6 +292,68 @@ Json ngRigClassifyMaterials(Json observation,Json options,std::shared_ptr<framew
         for(auto p:cloud)if(p[0]>=box[0]&&p[0]<=box[2]&&p[1]>=box[1]&&p[1]<=box[3])++count;
         return cloud.empty()?0.:count/cloud.size();
     };
+    const auto compactRearCoverage = [&](compat::Slice<Point2> cloud, const std::array<double,4>& bounds,
+                                         compat::Slice<Point2> faceCloud, const std::array<double,4>& face) {
+        const double fw=face[2]-face[0], fh=face[3]-face[1];
+        const double width=bounds[2]-bounds[0], height=bounds[3]-bounds[1];
+        if (fw<=0 || fh<=0 || width<=.8*fw || width>=1.8*fw ||
+            height<=.8*fh || height>=1.8*fh || bounds[1]>=face[1]+.1*fh) return 0.;
+        const std::array<double,4> headBox{face[0]-.4*fw,face[1]-.6*fh,
+            face[2]+.4*fw,face[3]+.35*fh};
+        if (fractionInside(cloud,headBox)<=.95) return 0.;
+        return fractionInside(faceCloud,bounds);
+    };
+    struct FaceCandidate {
+        std::size_t index;
+        compat::Slice<Point2> cloud;
+        compat::Slice<Point2> samples;
+        std::array<double,4> bounds;
+        compat::Slice<double> drawOrder;
+    };
+    std::vector<FaceCandidate> faces;
+    for (std::size_t i=0; i<materials.size(); ++i) {
+        const auto material=materials[i];
+        const auto fields=material.sourceObjectRef();
+        if (atEvidence(material,"static").as_bool() || atEvidence(material,"role").as_string().view()!="face" ||
+            fields.if_contains("receiver")) continue;
+        const auto* solid=fields.if_contains("draw_order_cloud");
+        if (!solid || !fields.if_contains("alpha_runs_128") || !fields.if_contains("texture_size") ||
+            !fields.if_contains("source_root_mapping")) continue;
+        auto cloud=ngRigPoints(*solid);
+        if (cloud.empty()) continue;
+        auto order=ngRigNumbers(getEvidence(material,"draw_order_zsort_path",JsonArray{}));
+        if (order.empty()) continue;
+        compat::Slice<Point2> samples;
+        const auto stride=1+(cloud.size()-1)/1024;
+        for (std::size_t j=0; j<cloud.size(); j+=stride) samples.append(cloud[j]);
+        faces.push_back({i,cloud,samples,supportBounds(cloud),order});
+    }
+    // Reconsider a name-based face candidate before it can define the face outline.
+    // A nearly coincident skin variant does not have the exposed area of a rear cap.
+    for (const auto& rear : faces) {
+        if (explicitRole[rear.index]) continue;
+        auto& material=materials[rear.index];
+        for (const auto& front : faces) {
+            const auto end=std::min(rear.drawOrder.size(),front.drawOrder.size());
+            const auto mismatch=std::mismatch(rear.drawOrder.begin(),rear.drawOrder.begin()+end,front.drawOrder.begin());
+            if (mismatch.first==rear.drawOrder.begin()+end || *mismatch.first<=*mismatch.second) continue;
+            if (compactRearCoverage(rear.cloud,rear.bounds,front.cloud,front.bounds)<=.8) continue;
+            const auto skin=materials[front.index];
+            const double covered=observation::ngRigAlphaCoverage(material,front.samples);
+            if (covered<=.90 || observation::ngRigAlphaCoverage(skin,rear.samples)>=.85) continue;
+            setEvidence(material,"role",literalEvidence("hair_back"));
+            setEvidence(material,"semantic_source",literalEvidence("rear_surface_behind_face"));
+            setEvidence(material,"anatomical_support_fraction",covered);
+            setEvidence(material,"support_part",atEvidence(skin,"uuid"));
+            break;
+        }
+    }
+    for (auto material : materials) {
+        if (atEvidence(material,"static").as_bool()) continue;
+        const auto role=atEvidence(material,"role").as_string().view();
+        if (role=="face") faceSupport.append(ngRigPoints(atEvidence(material,"cloud")));
+        if (role=="foot") footSupport.append(ngRigPoints(atEvidence(material,"cloud")));
+    }
     // A disc clipped by a wider eye aperture is an iris, even when its name says
     // "eyeball". The mask source, not that ambiguous name, defines the eye corners.
     if(!faceSupport.empty()) {
@@ -410,12 +472,8 @@ Json ngRigClassifyMaterials(Json observation,Json options,std::shared_ptr<framew
         // Long hair, isolated facial details and small accessories fail these bounds.
         if(role.empty()&&!faceSupport.empty()) {
             const auto face=supportBounds(faceSupport);
-            const double fw=face[2]-face[0],fh=face[3]-face[1];
-            const double covered=fractionInside(faceSupport,b);
-            const std::array<double,4> headBox{face[0]-.4*fw,face[1]-.6*fh,
-                face[2]+.4*fw,face[3]+.35*fh};
-            if(fw>0&&fh>0&&covered>.8&&fractionInside(cloud,headBox)>.95&&
-                width>.8*fw&&width<1.8*fw&&height>.8*fh&&height<1.8*fh&&b[1]<face[1]+.1*fh) {
+            const double covered=compactRearCoverage(cloud,b,faceSupport,face);
+            if(covered>.8) {
                 setEvidence(m,"role",literalEvidence("hair_back"));
                 setEvidence(m,"semantic_source",literalEvidence("compact_surface_encloses_face"));
                 setEvidence(m,"anatomical_support_fraction",covered);
