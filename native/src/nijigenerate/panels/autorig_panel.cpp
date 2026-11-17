@@ -1,5 +1,6 @@
 // Actual class bodies from independently authored panels/autorig.d; BSD-2-Clause.
 #include "autorig.hpp"
+#include "detail/autorig_resource_store.hpp"
 #include <nijigenerate/compat/source_c_string.hpp>
 #include <nijigenerate/compat/detail/source_c_string_contract.hpp>
 #include <nijigenerate/compat/switch_error.hpp>
@@ -28,19 +29,55 @@
 #include <nijigenerate/autorig/detail/json_first_pass_reader.hpp>
 #include <nijigenerate/widgets/button.hpp>
 #include <nijigenerate/widgets/inputtext.hpp>
+#include <nijigenerate/widgets/dragdrop.hpp>
+#include <nijigenerate/widgets/texture.hpp>
+#include <nijigenerate/widgets/output_tree.hpp>
+#include <nijigenerate/widgets/controller.hpp>
+#include <nodes/part.hpp>
+#include <nijigenerate/utils.hpp>
+#include <nijigenerate/autorig/deterministic/native_stage.hpp>
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <charconv>
+#include <cmath>
+#include <cfloat>
+#include <cstdio>
 #include <initializer_list>
 #include <memory>
+#include <map>
 #include <new>
 #include <source_location>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <unordered_set>
 
 namespace nijigenerate::panels::autorig {
+using detail::EvidenceResourceGroup;
+
+struct TaskResourceSummary {
+    std::vector<std::uint32_t> detected;
+    std::vector<EvidenceResourceGroup> tags;
+    std::map<std::uint32_t, std::vector<::nijigenerate::autorig::framework::Text>> changes;
+    std::map<std::uint32_t, ::nijigenerate::autorig::framework::Text> names;
+    std::vector<::nijigenerate::autorig::framework::Text> incompleteStages;
+};
+
+struct AutoRigPanel::HandoffPreview {
+    std::vector<std::uint32_t> nodes;
+    std::vector<EvidenceResourceGroup> groups;
+    std::size_t landmarks{};
+};
+
+struct AutoRigPanel::EvidenceTree {
+    std::shared_ptr<detail::EvidenceResourceStore> store = std::make_shared<detail::EvidenceResourceStore>();
+    std::shared_ptr<detail::EvidenceResourceOutput> output = std::make_shared<detail::EvidenceResourceOutput>(store);
+    std::vector<EvidenceResourceGroup> groups;
+    std::uint64_t indexRevision{};
+};
+
 namespace {
 
 // Source callbacks are evaluated outside this primitive storage conversion.
@@ -103,6 +140,7 @@ std::string valueKindText(::nijigenerate::autorig::framework::AutoRigValueKind k
     case Kind::FileName: value.memberName = compat::RetainedString::fromStaticLiteral("FileName"); break;
     case Kind::Path: value.memberName = compat::RetainedString::fromStaticLiteral("Path"); break;
     case Kind::Json: value.memberName = compat::RetainedString::fromStaticLiteral("Json"); break;
+    case Kind::Object: value.memberName = compat::RetainedString::fromStaticLiteral("Object"); break;
     case Kind::Blob: value.memberName = compat::RetainedString::fromStaticLiteral("Blob"); break;
     }
     const std::array<TypedFormatArgument, 1> arguments{value};
@@ -121,6 +159,7 @@ compat::RetainedString workflowStateText(::nijigenerate::autorig::workflow::Auto
     case State::Succeeded: value.memberName = compat::RetainedString::fromStaticLiteral("Succeeded"); break;
     case State::Failed: value.memberName = compat::RetainedString::fromStaticLiteral("Failed"); break;
     case State::Canceled: value.memberName = compat::RetainedString::fromStaticLiteral("Canceled"); break;
+    case State::PartiallySucceeded: value.memberName = compat::RetainedString::fromStaticLiteral("PartiallySucceeded"); break;
     }
     const std::array<TypedFormatArgument, 1> arguments{value};
     return compat::RetainedString(ngFormatTyped("%s", arguments));
@@ -139,9 +178,28 @@ compat::RetainedString taskStateText(::nijigenerate::autorig::framework::AutoRig
     case State::Failed: value.memberName = compat::RetainedString::fromStaticLiteral("Failed"); break;
     case State::Canceled: value.memberName = compat::RetainedString::fromStaticLiteral("Canceled"); break;
     case State::Stale: value.memberName = compat::RetainedString::fromStaticLiteral("Stale"); break;
+    case State::Blocked: value.memberName = compat::RetainedString::fromStaticLiteral("Blocked"); break;
+    case State::PartiallySucceeded: value.memberName = compat::RetainedString::fromStaticLiteral("PartiallySucceeded"); break;
+    case State::NotApplicable: value.memberName = compat::RetainedString::fromStaticLiteral("NotApplicable"); break;
     }
     const std::array<TypedFormatArgument, 1> arguments{value};
     return compat::RetainedString(ngFormatTyped("%s", arguments));
+}
+
+compat::RetainedString taskStatusLabel(::nijigenerate::autorig::framework::AutoRigTaskState state) {
+    using State = ::nijigenerate::autorig::framework::AutoRigTaskState;
+    switch (state) {
+    case State::Succeeded: return translateText("Processing complete");
+    case State::Failed: return translateText("Failed");
+    case State::Running: return translateText("Running");
+    case State::Pending: return translateText("Pending");
+    case State::Canceled: return translateText("Canceled");
+    case State::Stale: return translateText("Needs rerun");
+    case State::Blocked: return translateText("Blocked");
+    case State::PartiallySucceeded: return translateText("Partially completed");
+    case State::NotApplicable: return translateText("Not applicable");
+    }
+    return {};
 }
 
 } // namespace
@@ -272,6 +330,7 @@ void AutoRigPanel::onUpdate() {
         const auto text = cStringCopy(error);
         ImGui::TextWrapped("%s", cStringData(text));
     }
+    renderActiveProgress();
     ImGui::Separator();
     compat::RetainedStringSlice removedRun;
     if (ImGui::BeginChild("##AutoRigSessions", ImVec2(0, 0))) {
@@ -308,6 +367,11 @@ void AutoRigPanel::removeRun(compat::RetainedStringSlice runId) {
         }
     };
     eraseChildren(reviewDrafts);
+    eraseChildren(evidenceTrees);
+    eraseChildren(resourceSummaries);
+    reviewTaskByRun.erase(runId);
+    reviewHandoffByRun.erase(runId);
+    eraseChildren(handoffTargets);
     contextDrafts.erase(runId);
     workflowOptionsDrafts.erase(runId);
     eraseChildren(inputDrafts);
@@ -520,76 +584,1256 @@ void AutoRigPanel::renderPresetPicker() {
     }
 }
 
+namespace {
+using ::nijigenerate::autorig::framework::Text;
+using ::nijigenerate::autorig::workflow::AutoRigWorkflowRun;
+
+std::vector<Text> workflowTasks(const std::shared_ptr<AutoRigWorkflowRun>& run) {
+    std::vector<Text> result;
+    std::unordered_set<Text, ::nijigenerate::autorig::framework::TextHash,
+        ::nijigenerate::autorig::framework::TextEqual> seen;
+    const auto visit = [&](auto&& self, Text id) -> void {
+        if (!seen.insert(id).second) return;
+        const auto spec = run->session()->taskSpec(id);
+        for (const auto& dep : spec.dependencies) self(self, dep.retainedString());
+        for (const auto& connection : spec.connections) self(self, connection.sourceTask.retainedString());
+        result.push_back(std::move(id));
+    };
+    for (const auto& step : run->orderedSteps()) visit(visit, run->stepTaskId(step.id.retainedString()));
+    return result;
+}
+using TaskState = ::nijigenerate::autorig::framework::AutoRigTaskState;
+using TaskPhase = ::nijigenerate::autorig::framework::AutoRigTaskPhase;
+
+bool needsAttention(TaskState state) {
+    return state == TaskState::Failed || state == TaskState::Blocked || state == TaskState::PartiallySucceeded ||
+        state == TaskState::Stale || state == TaskState::Canceled;
+}
+
+Text missingRequiredInput(const std::shared_ptr<AutoRigWorkflowRun>& run, const Text& task,
+        bool externalOnly = false) {
+    const auto session = run->session();
+    const auto spec = session->taskSpec(task);
+    for (const auto& port : spec.inputs) {
+        if (externalOnly && std::ranges::any_of(spec.connections, [&](const auto& connection) {
+                return connection.input == port.id;
+            })) continue;
+        if (port.required && session->inputEvidence(task, port.id.retainedString()).empty())
+            return port.id.retainedString();
+    }
+    return {};
+}
+
+// Material Symbols Outlined, merged into the application's UI font.
+const char* taskStatusIcon(TaskState state) {
+    if (state == TaskState::Succeeded) return "\ue92f"; // check_circle
+    if (state == TaskState::Running) return "\ue1c4"; // timelapse
+    if (state == TaskState::Failed) return "\uf8b6"; // error
+    if (state == TaskState::Canceled) return "\ue5c9"; // cancel
+    if (state == TaskState::NotApplicable) return "\ue15b"; // remove
+    return "\uef4a"; // pending
+}
+
+ImVec4 taskStatusColor(TaskState state) {
+    switch (state) {
+    case TaskState::Running: return {0.f, .4f, .8f, 1.f};
+    case TaskState::Succeeded: return {0.f, .9f, 0.f, 1.f};
+    case TaskState::Failed: return {.9f, 0.f, 0.f, 1.f};
+    case TaskState::NotApplicable: return ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+    default: return {.8f, .4f, 0.f, 1.f};
+    }
+}
+
+constexpr auto changeArrow = " \ue5c8 "; // arrow_forward
+
+template<std::size_t N>
+void reviewLine(const char (&label)[N]) {
+    const auto text = translateText(label);
+    ImGui::TextWrapped("%.*s", static_cast<int>(text.size()), text.data());
+}
+
+void reviewGuidance(std::string_view step, TaskPhase phase) {
+    if (step == "source") reviewLine("Check that the artwork needed for the rig is present, including hidden layers.");
+    else if (step == "exclusions" || step == "exclusion-check")
+        reviewLine("Check that excluded parts are meant to stay still and that moving parts are still included.");
+    else if (step == "measure" || step == "compile")
+        reviewLine("Check that the eyes, mouth, neck and joints line up with the artwork. Correct wrong roles or landmarks in the settings.");
+    else if (step == "shoulders" || step == "ear-attachments" || step == "hip-attachments" || step == "weld")
+        reviewLine("Check that each pair meets at the intended seam. After welding, turn or tilt the model and look for gaps or pulling.");
+    else if (step == "mesh" || step == "uv")
+        reviewLine("Select a part and check that the mesh covers the artwork and the texture sits in the right place.");
+    else if (step == "groups" || step == "composites" || step == "layout")
+        reviewLine("Check that parts which move together are grouped and that clipping and draw order keep the eyes and mouth visible.");
+    else if (step == "build" || step == "depth")
+        reviewLine("Check that the bones meet the joints and that the face, neck and clothing are placed at the right depth.");
+    else if (step == "bake")
+        reviewLine("Turn and tilt the face and body in both directions. Check that the head stays attached to the neck and the arms, waist and legs follow.");
+    else if (step == "controls")
+        reviewLine("Blink and open the mouth. Check that the eyes and mouth close cleanly and that highlights and clipping follow.");
+    else if (step == "foot-plan")
+        reviewLine("Check which foot and leg grids are eligible before applying the correction.");
+    else if (step == "feet")
+        reviewLine("Tilt the body to both sides. Check that the feet hold their position and the legs do not pull away.");
+    else if (step == "rear-plan" || step == "cheek-plan")
+        reviewLine("Check that the selected parts belong to the back hair or skin outline this correction is meant to follow.");
+    else if (step == "rear")
+        reviewLine("Turn the head left, right, up and down. Check that the back hair follows the head without bulging or stepping.");
+    else if (step == "corrections")
+        reviewLine("Compare both sides of the face. Follow the outline from chin to temple and check that the cheek and hair meet without a dent or gap.");
+    else if (step == "physics")
+        reviewLine("Move and stop the model. Check that the intended parts sway together and settle.");
+    else if (step == "verify" || phase == TaskPhase::Verify)
+        reviewLine("Review any item marked for attention, then move the model in the viewport to check its appearance.");
+    else if (phase == TaskPhase::Collect || phase == TaskPhase::Plan)
+        reviewLine("Check that the selected parts have the roles needed for this step.");
+    else
+        reviewLine("Move the affected parameter and check that the selected parts follow as intended.");
+}
+
+Text handoffLabel(compat::RetainedStringSlice port) {
+    if (port.view() == "state") return translateText("Model state");
+    if (port.view() == "model") return translateText("Model checkpoint");
+    if (port.view() == "program") return translateText("Rig plan");
+    if (port.view() == "plan") return translateText("Correction targets and settings");
+    if (port.view() == "pairs") return translateText("Part pairs");
+    if (port.view() == "shoulder-pairs") return translateText("Shoulder and arm pairs");
+    if (port.view() == "ear-pairs") return translateText("Front and back ear pairs");
+    if (port.view() == "hip-pairs") return translateText("Waist and leg pairs");
+    if (port.view() == "options") return translateText("Workflow settings");
+    if (port.view() == "targets" || port.view() == "target-associations") return translateText("Target nodes");
+    if (port.view() == "measurements") return translateText("Body measurements");
+    if (port.view() == "materials") return translateText("Material classification");
+    return translateText(port.retainedString());
+}
+
+struct ReviewStep {
+    Text task;
+    compat::RetainedStringSlice step;
+    compat::RetainedStringSlice label;
+    TaskState state;
+};
+
+struct TaskHandoff {
+    std::size_t from, to;
+    std::vector<::nijigenerate::autorig::framework::AutoRigConnection> ports;
+};
+
+std::vector<TaskHandoff> workflowHandoffs(const std::shared_ptr<AutoRigWorkflowRun>& run,
+        const std::vector<ReviewStep>& rows) {
+    std::vector<TaskHandoff> edges;
+    for (std::size_t to = 0; to < rows.size(); ++to) {
+        const auto spec = run->session()->taskSpec(rows[to].task);
+        std::map<std::size_t, std::vector<::nijigenerate::autorig::framework::AutoRigConnection>> inputs;
+        const auto sourceIndex = [&](std::string_view id) {
+            return static_cast<std::size_t>(std::ranges::find_if(rows,
+                [&](const auto& row) { return row.task.view() == id; }) - rows.begin());
+        };
+        for (const auto& dep : spec.dependencies) {
+            const auto from = sourceIndex(dep.view());
+            if (from < to) inputs.try_emplace(from);
+        }
+        for (const auto& port : spec.connections) {
+            const auto from = sourceIndex(port.sourceTask.view());
+            if (from < to) inputs[from].push_back(port);
+        }
+        for (auto& [from, ports] : inputs) edges.push_back({from, to, std::move(ports)});
+    }
+    return edges;
+}
+
+std::optional<std::size_t> renderWorkflowFlow(const std::vector<ReviewStep>& rows,
+        const std::vector<TaskHandoff>& edges, std::optional<std::size_t> task,
+        std::optional<std::size_t> handoff) {
+    std::optional<std::size_t> selected;
+    const float line = ImGui::GetTextLineHeight();
+    constexpr float railWidth = 22.f;
+    const auto ink = ImGui::GetColorU32(ImGuiCol_Text);
+    const auto muted = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+    const auto border = ImGui::GetColorU32(ImGuiCol_Text, .28f);
+    auto* panelState = ImGui::GetStateStorage();
+    const auto fractionKey = ImGui::GetID("task-flow-fraction");
+    const float fraction = panelState->GetFloat(fractionKey, .45f);
+    const float rowHeight = ImGui::GetFrameHeightWithSpacing();
+    const float available = std::max(ImGui::GetContentRegionAvail().y, rowHeight * 10.f);
+    const float height = available * fraction;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {8.f, 8.f});
+    if (ImGui::BeginChild("task-flow", {0, height}, ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding)) {
+        auto* draw = ImGui::GetWindowDrawList();
+        std::vector<ImVec2> anchors;
+        anchors.reserve(rows.size());
+        const auto focusKey = ImGui::GetID("last-focused-task");
+        auto* storage = ImGui::GetStateStorage();
+        const int focus = task ? static_cast<int>(*task) : -1;
+        const bool reveal = focus != storage->GetInt(focusKey, -1);
+        storage->SetInt(focusKey, focus);
+        ImGui::Indent(railWidth);
+        const float width = std::max(60.f, ImGui::GetContentRegionAvail().x);
+        for (std::size_t index = 0; index < rows.size(); ++index) {
+            const auto& row = rows[index];
+            ImGui::PushID(cStringCopy(row.task).data());
+            const auto status = cStringCopy(taskStatusLabel(row.state));
+            const float statusWidth = ImGui::CalcTextSize(status.data()).x;
+            const bool inlineStatus = width >= statusWidth + 155.f;
+            const float titleWidth = std::max(24.f, width-35.f-(inlineStatus ? statusWidth+8.f : 0.f));
+            const auto titleSize = ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, titleWidth,
+                row.label.data(), row.label.data()+row.label.size());
+            const float titleHeight = std::max(line, titleSize.y);
+            const float cardHeight = titleHeight + (inlineStatus ? 0.f : line+2.f) + 10.f;
+            if (ImGui::InvisibleButton("task", {width, cardHeight}, ImGuiButtonFlags_EnableNav)) selected = index;
+            const auto p = ImGui::GetItemRectMin(), q = ImGui::GetItemRectMax();
+            anchors.push_back({p.x, (p.y+q.y)*.5f});
+            const bool active = task == index;
+            if (active && reveal) ImGui::SetScrollHereY(.4f);
+            if (active || ImGui::IsItemHovered() || ImGui::IsItemFocused())
+                draw->AddRectFilled(p, q, ImGui::GetColorU32(ImGuiCol_Text, active ? .11f : .06f), 4.f);
+            draw->AddRect(p, q, active ? ink : border, 4.f, 0, active ? 1.5f : 1.f);
+            draw->PushClipRect(p, q, true);
+            draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), {p.x+7.f, p.y+5.f},
+                ImGui::GetColorU32(taskStatusColor(row.state)), taskStatusIcon(row.state));
+            draw->AddText(nullptr, 0, {p.x+28.f, p.y+5.f}, ink, row.label.data(),
+                row.label.data()+row.label.size(), titleWidth);
+            const ImVec2 statusPosition = inlineStatus ? ImVec2{q.x-statusWidth-6.f, p.y+5.f} :
+                ImVec2{p.x+28.f, p.y+titleHeight+7.f};
+            draw->AddText(statusPosition, needsAttention(row.state) || active ? ink : muted, status.data());
+            draw->PopClipRect();
+            ImGui::PopID();
+        }
+        ImGui::Unindent(railWidth);
+        if (task) for (std::size_t index = 0; index < edges.size(); ++index) {
+            const auto& edge = edges[index];
+            if (edge.from != *task && edge.to != *task) continue;
+            const auto from = anchors[edge.from], to = anchors[edge.to];
+            const float rail = to.x-(edge.to == *task ? 16.f : 9.f);
+            const ImVec2 path[]{from, {rail, from.y}, {rail, to.y}, to};
+            const auto color = handoff == index ? ink : border;
+            draw->AddPolyline(path, 4, color, 0, handoff == index ? 2.f : 1.f);
+            draw->AddTriangleFilled(to, {to.x-5.f, to.y-3.f}, {to.x-5.f, to.y+3.f}, color);
+        }
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
+    ImGui::InvisibleButton("resize-task-flow", {ImGui::GetContentRegionAvail().x, line * .55f});
+    const bool resizing = ImGui::IsItemActive();
+    const bool hover = ImGui::IsItemHovered();
+    if (resizing || hover) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    if (resizing) {
+        const float change = ImGui::GetIO().MouseDelta.y / available;
+        panelState->SetFloat(fractionKey, std::clamp(fraction + change, .25f, .85f));
+    } else if (hover) {
+        ImGui::SetTooltip("%s", cStringCopy(translateText("Drag to resize the task list")).data());
+    }
+    const auto min = ImGui::GetItemRectMin();
+    const auto max = ImGui::GetItemRectMax();
+    const float middle = (min.y + max.y) * .5f;
+    const auto handleColor = resizing ? ImGuiCol_SeparatorActive : hover ? ImGuiCol_SeparatorHovered : ImGuiCol_Separator;
+    ImGui::GetWindowDrawList()->AddLine({min.x, middle}, {max.x, middle}, ImGui::GetColorU32(handleColor));
+    return selected;
+}
+
+void reviewMotion(const std::shared_ptr<AutoRigWorkflowRun>& run, std::string_view step) {
+    struct Control { const char* name; Text label; };
+    using Controls = std::initializer_list<Control>;
+    const Controls angles{{"Face::Yaw-Pitch", translateText("Face turn and tilt")},
+        {"Body::Yaw-Pitch", translateText("Body turn and lean")}, {"Body::Roll", translateText("Body side tilt")}};
+    const Controls face{{"Face::Yaw-Pitch", translateText("Face turn and tilt")}};
+    const Controls feet{{"Body::Roll", translateText("Body side tilt")}};
+    const Controls expressions{{"Eye::L::Blink", translateText("Left blink")}, {"Eye::R::Blink", translateText("Right blink")},
+        {"Mouth::Open", translateText("Mouth opening")}};
+    const Controls* controls = step == "bake" || step == "verify" || step == "weld" ? &angles :
+        step == "rear" || step == "corrections" ? &face : step == "feet" ? &feet :
+        step == "controls" ? &expressions : nullptr;
+    if (!controls || run->workflowId().view() != "model-to-rig") return;
+    if (!ImGui::TreeNodeEx("motion-preview", ImGuiTreeNodeFlags_DefaultOpen, "%s",
+            cStringCopy(translateText("Try the movement")).data())) return;
+    const auto puppet = project::incActivePuppet();
+    const auto session = run->session();
+    const auto source = run->stepTaskId("source");
+    if (puppet && puppet->root && session->hasOutput(source, "state")) {
+        const auto state = session->output(source, "state").json;
+        const auto root = state.is_object() ? state.sourceObjectRef().if_contains("rootId") : nullptr;
+        std::uint64_t node = 0;
+        if (root && root->is_uint64()) node = root->as_uint64();
+        else if (root && root->is_int64()) node = static_cast<std::uint64_t>(root->as_int64());
+        if (node == puppet->root->getUUID()) {
+            std::vector<std::shared_ptr<nicxlive::core::param::Parameter>> parameters;
+            const auto count = static_cast<float>(controls->size());
+            const float available = ImGui::GetContentRegionAvail().x;
+            const float column = (available - ImGui::GetStyle().ItemSpacing.x * (count - 1)) / count;
+            const bool sideBySide = column >= 76;
+            const float width = std::min(sideBySide ? column : available, 150.0f);
+            for (const auto& control : *controls) {
+                const auto found = std::ranges::find_if(puppet->parameters, [&](const auto& parameter) {
+                    return parameter->getName().view() == control.name;
+                });
+                if (found == puppet->parameters.end()) continue;
+                auto parameter = *found;
+                if (sideBySide && !parameters.empty()) ImGui::SameLine();
+                parameters.push_back(parameter);
+                ImGui::PushID(control.name);
+                ImGui::BeginGroup();
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + width);
+                ImGui::TextUnformatted(control.label.data(), control.label.data() + control.label.size());
+                ImGui::PopTextWrapPos();
+                if (width >= 30)
+                    widgets::ngController<4.0f, 4.0f, 3.0f, 1.0f>(std::string_view("##pose"), parameter,
+                        {width, parameter->isVec2 ? 62.0f : 22.0f});
+                ImGui::EndGroup();
+                ImGui::PopID();
+            }
+            if (!parameters.empty() && ImGui::SmallButton(cStringCopy(translateText("Reset these pose controls")).data()))
+                for (const auto& parameter : parameters) parameter->value = parameter->defaults;
+        } else reviewLine("Open the model used by this run to try its movement.");
+    } else reviewLine("Open the model used by this run to try its movement.");
+    ImGui::TreePop();
+}
+
+} // namespace
+
 void AutoRigPanel::renderTask(
         std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
-        ::nijigenerate::autorig::framework::AutoRigWorkflowStep step) {
-    using State = ::nijigenerate::autorig::framework::AutoRigTaskState;
+        ::nijigenerate::autorig::framework::Text taskId, compat::RetainedStringSlice stepId,
+        bool running, const std::function<void()>& renderInputs, const std::function<void()>& renderNext) {
     [[maybe_unused]] const auto owner = weak_from_this().lock();
-    const auto taskId = compat::ngRequireObject(run)->stepTaskId(step.id.retainedString());
     const auto task = compat::ngRequireObject(compat::ngRequireObject(run)->session())->task(taskId, false);
     const auto state = task.state;
-    const auto stepId = cStringCopy(step.id);
-    ImGui::PushID(cStringData(stepId));
+    ImGui::PushID(cStringCopy(taskId).data());
     const auto spec = compat::ngRequireObject(compat::ngRequireObject(run)->session())->taskSpec(taskId);
     const compat::RetainedStringSlice title = !spec.label.empty()
-        ? core::translation::ngTranslateRetained(spec.label.retainedString()) : step.id;
-    // The original Thread carrier is required here; a separate busy flag would
-    // not preserve the source's worker-reference lifetime or null semantics.
-    ImGui::BeginDisabled(worker != nullptr);
-    if (widgets::ngButtonColored("\xee\x80\xb7", ImVec2(24, 24))) startRun(run, step.id);
-    ImGui::EndDisabled();
+        ? core::translation::ngTranslateRetained(spec.label.retainedString()) : compat::RetainedStringSlice(taskId);
+    enum View { Review, Inputs, Next, Evidence };
+    auto* ui = ImGui::GetStateStorage();
+    const auto initial = state == TaskState::Pending || state == TaskState::Blocked ? Inputs : Review;
+    const auto selectedTabKey = ImGui::GetID("requested-step-tab");
+    const auto evidenceTabKey = ImGui::GetID("evidence-tab-open");
+    const auto displayState = running ? TaskState::Running : state;
+    const auto heading = taskStatusLabel(displayState);
+    ImGui::TextWrapped("%.*s", static_cast<int>(title.size()), title.data());
+    bool openMenu = !running && ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right);
+    ImGui::TextColored(taskStatusColor(displayState), "%s", taskStatusIcon(displayState));
     ImGui::SameLine();
-    core::translation::FormatEnum formattedState;
-    formattedState.base = std::get<core::translation::FormatInteger>(
-        core::translation::ngFormatArgument(static_cast<std::int32_t>(state)));
-    formattedState.typeName = compat::RetainedString::fromStaticLiteral("AutoRigTaskState");
-    switch (state) {
-    case State::Pending: formattedState.memberName = compat::RetainedString::fromStaticLiteral("Pending"); break;
-    case State::Running: formattedState.memberName = compat::RetainedString::fromStaticLiteral("Running"); break;
-    case State::Succeeded: formattedState.memberName = compat::RetainedString::fromStaticLiteral("Succeeded"); break;
-    case State::Failed: formattedState.memberName = compat::RetainedString::fromStaticLiteral("Failed"); break;
-    case State::Canceled: formattedState.memberName = compat::RetainedString::fromStaticLiteral("Canceled"); break;
-    case State::Stale: formattedState.memberName = compat::RetainedString::fromStaticLiteral("Stale"); break;
-    }
-    const std::array<core::translation::TypedFormatArgument, 1> arguments{formattedState};
-    const auto stateText = compat::RetainedString(core::translation::ngFormatTyped("%s", arguments));
-    if (renderStateTree(title, stateText, compat::RetainedString::fromStaticLiteral("task"),
-            ImGuiTreeNodeFlags_None)) {
-        // Source __() already returns a C-string; unlike _.toStringz(), this
-        // boundary must not make a second SourceCString allocation.
-        const auto inputLabel = core::translation::ngTranslateCString("Input");
-        if (ImGui::TreeNodeEx(inputLabel.data(), ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::BeginDisabled(worker != nullptr);
-            if (step.taskId.view() == "compile-rig") renderMaterialRoles(run, taskId);
-            else if (!compat::ngRequireObject(compat::ngRequireObject(run)->session())->renderInputUI(taskId)) {
-                renderDefaultInputs(run, taskId);
+    ImGui::TextUnformatted(heading.data(), heading.data() + heading.size());
+
+    if (!running) {
+        const auto expanded = run->session()->task(taskId);
+        const bool hasComparison = std::ranges::any_of(expanded.artifacts, [](const auto& artifact) {
+            const auto port = artifact.portId.view();
+            return port == "review" || port == "report" || port == "review-layout";
+        });
+        const bool hasEvidence = !expanded.artifacts.empty() || !expanded.inputEvidenceIds.empty();
+        bool evidenceOpen = hasEvidence && ui->GetBool(evidenceTabKey, false);
+        const auto selectTab = [&](View destination) { ui->SetInt(selectedTabKey, destination); };
+        const auto runCurrent = [&] {
+            const auto missing = missingRequiredInput(run, taskId);
+            const bool canPrepare = !missing.empty() && missingRequiredInput(run, taskId, true).empty();
+            ImGui::BeginDisabled(worker != nullptr || (!missing.empty() && !canPrepare));
+            const auto label = canPrepare ? translateText("Prepare inputs and run") :
+                state == TaskState::Pending ? translateText("Run this step") :
+                translateText("Rerun this step");
+            if (ImGui::Button(cStringCopy(label).data())) {
+                startRun(run, stepId, true, {}, taskId);
+                selectTab(Review);
             }
             ImGui::EndDisabled();
-            ImGui::TreePop();
-        }
-        const auto outputLabel = core::translation::ngTranslateCString("Output");
-        if (ImGui::TreeNodeEx(outputLabel.data(), ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (!renderRigOutput(run, taskId) &&
-                    !compat::ngRequireObject(compat::ngRequireObject(run)->session())->renderOutputUI(taskId)) {
-                renderDefaultOutputs(run, taskId);
+            if (!missing.empty()) {
+                const auto format = cStringCopy(translateText("Waiting for %s"));
+                ImGui::TextWrapped(format.data(), cStringCopy(handoffLabel(missing)).data());
             }
+        };
+        const auto showResult = [&] {
+            if (state == TaskState::Stale)
+                reviewLine("Settings changed. Run the step again to check the new result.");
+            else if (state == TaskState::Blocked)
+                reviewLine("Check the preceding step that provides the missing result.");
+            renderTaskEvidence(run, expanded);
+            if (state == TaskState::Blocked || state == TaskState::Stale || state == TaskState::Failed) {
+                if (ImGui::Button(cStringCopy(translateText("Check step inputs")).data())) selectTab(Inputs);
+            }
+            if (!worker && (state == TaskState::Succeeded || state == TaskState::PartiallySucceeded)) {
+                reviewGuidance(stepId.view(), spec.phase);
+                reviewMotion(run, stepId.view());
+            }
+            if (hasComparison && ImGui::TreeNode(cStringCopy(translateText("Changes tab")).data())) {
+                if (!renderRigOutput(run, taskId)) run->session()->renderOutputUI(taskId);
+                ImGui::TreePop();
+            }
+        };
+        const auto showInputs = [&] {
+            runCurrent();
+            ImGui::BeginDisabled(worker != nullptr);
+            renderTargetSettings(run, taskId);
+            renderInputs();
+            if (ImGui::TreeNodeEx("input-options", stepId.view() == "compile" ? ImGuiTreeNodeFlags_DefaultOpen : 0,
+                    "%s", cStringCopy(translateText("Settings")).data())) {
+                if (stepId.view() == "compile") renderMaterialRoles(run, taskId);
+                else if (!run->session()->renderInputUI(taskId)) renderDefaultInputs(run, taskId);
+                ImGui::TreePop();
+            }
+            ImGui::EndDisabled();
+        };
+        if (ImGui::BeginTabBar("step-views", ImGuiTabBarFlags_FittingPolicyScroll)) {
+            const int requested = ui->GetInt(selectedTabKey, initial);
+            ui->SetInt(selectedTabKey, -1);
+            const auto tab = [&](View destination, const Text& label, const auto& body, bool* open = nullptr) {
+                const auto flags = requested == destination ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+                if (ImGui::BeginTabItem(cStringCopy(label).data(), open, flags)) {
+                    ImGui::Spacing();
+                    body();
+                    ImGui::EndTabItem();
+                }
+            };
+            tab(Review, translateText("Step result tab"), showResult);
+            tab(Inputs, translateText("Step inputs tab"), showInputs);
+            tab(Next, translateText("Continue to dependent steps"), renderNext);
+            if (evidenceOpen)
+                tab(Evidence, translateText("Evidence tab"), [&] { renderTaskEvidence(run, expanded, true); },
+                    &evidenceOpen);
+            ImGui::BeginDisabled(!hasEvidence);
+            if (ImGui::TabItemButton("\ue5d3##step-options", ImGuiTabItemFlags_Trailing)) openMenu = true;
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", cStringCopy(translateText("Step options")).data());
+            ImGui::EndTabBar();
+        }
+        if (openMenu) ImGui::OpenPopup("step-menu");
+        if (ImGui::BeginPopup("step-menu")) {
+            const auto label = cStringCopy(translateText("Advanced evidence"));
+            if (ImGui::MenuItem(label.data(), nullptr, false, hasEvidence)) {
+                evidenceOpen = true;
+                selectTab(Evidence);
+            }
+            ImGui::EndPopup();
+        }
+        ui->SetBool(evidenceTabKey, evidenceOpen);
+    }
+    ImGui::PopID();
+}
+
+namespace {
+using namespace ::nijigenerate::autorig::framework;
+
+void evidenceText(const Text& text) {
+    if (!text.empty()) ImGui::TextUnformatted(text.data(), text.data() + text.size());
+}
+
+void evidenceNode(const detail::EvidenceNodeIndex& index, std::uint32_t id) {
+    const auto node = index.find(id);
+    ImGui::PushID(static_cast<int>(id));
+    if (node) {
+        const auto icon = utils::incTypeIdToIcon(node->typeId());
+        const std::string label = std::string(icon) + " " + std::string(node->getName().view()) + "###node";
+        const bool selected = project::incNodeInSelection(node);
+        if (const auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(node);
+                part && part->textures[0]) {
+            widgets::ngTextureSlotUntitled(std::string_view("part"), part->textures[0],
+                {24, 24}, 1, ImGuiWindowFlags_NoInputs, selected);
+            ImGui::SameLine();
+        }
+        if (ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_None,
+                ImVec2(ImGui::CalcTextSize(label.c_str(), nullptr, true).x + 4, 0))) {
+            if (!ImGui::GetIO().KeyCtrl) project::incSelectNode(node);
+            else if (selected) project::incRemoveSelectNode(node);
+            else project::incAddSelectNode(node);
+        }
+        if (node->parentRef() && ImGui::BeginDragDropSource()) {
+            widgets::ngSetNodeDragDropPayload(node);
+            const auto selection = project::incSelectedNodes();
+            if (selected && selection.size() > 1) widgets::ngDragdropNodeList(selection);
+            else widgets::ngDragdropNodeList(node);
+            ImGui::EndDragDropSource();
+        }
+    } else {
+        ImGui::TextDisabled("%s", cStringCopy(translateText("Part unavailable in the current model")).data());
+    }
+    ImGui::PopID();
+}
+
+std::uint32_t evidenceNodeId(const Json& row, const char* field) {
+    if (!row.is_object()) return 0;
+    const auto fieldValue = row.sourceObjectRef().if_contains(field);
+    if (!fieldValue) return 0;
+    if (fieldValue->is_uint64()) return static_cast<std::uint32_t>(fieldValue->as_uint64());
+    if (fieldValue->is_int64()) return static_cast<std::uint32_t>(fieldValue->as_int64());
+    return 0;
+}
+
+std::string_view reportText(const Json& row, const char* field) {
+    if (!row.is_object()) return {};
+    const auto value = row.sourceObjectRef().if_contains(field);
+    return value && value->is_string() ? value->as_string().view() : std::string_view{};
+}
+
+std::string changeValue(const Json& value) {
+    if (value.is_bool()) return std::string(translateText(value.as_bool() ? Text("Enabled") : Text("Disabled")).view());
+    if (value.is_string()) return std::string(value.as_string().view());
+    const auto number = [](const Json& entry) { return entry.is_int64() || entry.is_uint64() || entry.is_double(); };
+    if (number(value)) return std::string(compat::ngJsonStringify(value).view());
+    if (value.is_array() && value.as_array().size() <= 4 &&
+            std::ranges::all_of(value.as_array(), number))
+        return std::string(compat::ngJsonStringify(value).view());
+    return {};
+}
+
+Text reviewRole(std::string_view tag) {
+    const bool left = tag.ends_with("/left");
+    const bool right = tag.ends_with("/right");
+    if (left || right) tag.remove_suffix(left ? 5 : 6);
+    const auto label = [&]() -> Text {
+        if (tag == "rig/material") return translateText("Rig materials");
+        if (tag == "face/eye") return translateText("Eye area");
+        if (tag == "face/mouth") return translateText("Mouth");
+        if (tag == "face/skin") return translateText("Face skin");
+        if (tag == "face/cheek") return translateText("Cheek outline");
+        if (tag == "body/neck") return translateText("Neck");
+        if (tag == "body/torso") return translateText("Torso");
+        if (tag == "body/arm") return translateText("Arm");
+        if (tag == "body/arm/hand") return translateText("Hand");
+        if (tag == "body/leg") return translateText("Leg");
+        if (tag == "body/leg/foot") return translateText("Foot");
+        if (tag == "body/shoulder") return translateText("Shoulder");
+        if (tag == "body/hip") return translateText("Waist joint");
+        if (tag == "head/ear") return translateText("Ear");
+        if (tag == "head/hair/back") return translateText("Back hair");
+        return {};
+    }();
+    if (label.empty() || (!left && !right)) return label;
+    return (left ? translateText("Model left") : translateText("Model right")) + " · " + label;
+}
+
+std::vector<EvidenceResourceGroup> tagGroups(const std::vector<AutoRigTargetAssociation>& members) {
+    std::map<std::string_view, std::vector<std::uint32_t>> byTag;
+    for (const auto& member : members)
+        if (member.node && !member.tag.empty()) byTag[member.tag.view()].push_back(member.node);
+    std::vector<EvidenceResourceGroup> groups;
+    groups.reserve(byTag.size());
+    for (auto& [tag, nodes] : byTag) {
+        auto label = reviewRole(tag);
+        if (label.empty()) label = Text(tag);
+        groups.push_back({std::string(tag), std::move(label), std::move(nodes)});
+    }
+    return groups;
+}
+
+TaskResourceSummary resourceSummary(const AutoRigTaskSnapshot& task) {
+    using namespace ::nijigenerate::autorig::deterministic::native_detail;
+    TaskResourceSummary summary;
+    const auto detect = [&](std::uint32_t node) {
+        if (node) summary.detected.push_back(node);
+    };
+    const auto operations = [&](const Json& plan, const char* field) {
+        if (!plan.is_object()) return;
+        const auto rows = plan.sourceObjectRef().if_contains("operations");
+        if (rows && rows->is_array())
+            for (const auto& row : rows->as_array()) detect(evidenceNodeId(row, field));
+    };
+    const auto description = [&](std::uint32_t node, Text label) {
+        auto& lines = summary.changes[node];
+        if (std::ranges::find(lines, label) == lines.end()) lines.push_back(std::move(label));
+    };
+    bool hasDetections = false;
+    for (const auto& artifact : task.artifacts) {
+        if (artifact.preview || artifact.evidenceId.empty()) continue;
+        const auto port = artifact.portId.view();
+        if (port == "target-associations") {
+            hasDetections = true;
+            const auto associations = artifact.value().object<AutoRigTargetAssociations>();
+            summary.tags = tagGroups(associations->members);
+            for (const auto& member : associations->members) detect(member.node);
+        } else if (port == "plan") {
+            hasDetections = true;
+            const auto value = artifact.value();
+            if (value.holdsObject<FixedFootPlan>()) operations(value.object<FixedFootPlan>()->report, "grid");
+            if (value.holdsObject<CheekPlan>()) operations(value.object<CheekPlan>()->report, "part");
+            if (value.holdsObject<RearCapPlan>())
+                for (const auto& operation : value.object<RearCapPlan>()->operations) detect(operation.part);
+        } else if (port == "report" && artifact.kind == AutoRigValueKind::Json) {
+            const auto report = artifact.value().json;
+            const auto stages = report.is_object() ? report.sourceObjectRef().if_contains("finish_stages") : nullptr;
+            if (stages && stages->is_array()) for (const auto& stage : stages->as_array()) {
+                if (!stage.is_object()) continue;
+                const auto ok = stage.sourceObjectRef().if_contains("succeeded");
+                if (ok && ok->is_bool() && !ok->as_bool())
+                    summary.incompleteStages.emplace_back(std::string(reportText(stage, "stage")));
+            }
+        } else if (port == "targets" && artifact.kind == AutoRigValueKind::Json) {
+            hasDetections = true;
+            const auto value = artifact.value().json;
+            for (const auto field : {"parts", "nodes"}) if (value.is_object()) {
+                const auto rows = value.sourceObjectRef().if_contains(field);
+                if (rows && rows->is_array()) for (const auto& row : rows->as_array()) {
+                    if (row.is_uint64()) detect(static_cast<std::uint32_t>(row.as_uint64()));
+                    else if (row.is_int64()) detect(static_cast<std::uint32_t>(row.as_int64()));
+                }
+            }
+        }
+    }
+    for (const auto& artifact : task.artifacts) {
+        if (artifact.preview || artifact.portId.view() != "review" || artifact.kind != AutoRigValueKind::Json) continue;
+        const auto report = artifact.value().json;
+        if (!report.is_object()) continue;
+        if (!hasDetections) if (const auto rows = report.sourceObjectRef().if_contains("classification");
+                rows && rows->is_array()) {
+            for (const auto& row : rows->as_array()) detect(evidenceNodeId(row, "uuid"));
+        }
+        const auto rows = report.sourceObjectRef().if_contains("changes");
+        if (!rows || !rows->is_array()) continue;
+        const auto bindingRows = [](const Json& item) {
+            if (!item.is_object()) return core::settings::SettingsJsonArray{};
+            const auto values = item.sourceObjectRef().if_contains("bindings");
+            return values && values->is_array() ? values->sourceArrayValue() : core::settings::SettingsJsonArray{};
+        };
+        for (const auto& row : rows->as_array()) {
+            const auto id = reportText(row, "id");
+            const auto action = reportText(row, "change");
+            const auto before = row.sourceIndexValue("before");
+            const auto after = row.sourceIndexValue("after");
+            const auto name = reportText(action == "removed" ? before : after, "name");
+            if (id.starts_with("node:")) {
+                std::uint32_t node{};
+                const auto parsed = std::from_chars(id.data() + 5, id.data() + id.size(), node);
+                if (parsed.ec != std::errc{} || parsed.ptr != id.data() + id.size() || !node) continue;
+                summary.names[node] = Text(std::string(name));
+                if (action == "added") description(node, translateText("Added"));
+                else if (action == "removed") description(node, translateText("Removed"));
+                else {
+                    const auto fields = row.sourceIndexValue("fields");
+                    if (fields.is_object()) for (const auto& field : fields.sourceObjectRef()) {
+                        const auto label = ::nijigenerate::autorig::deterministic::presentation::ngRigReviewFieldLabel(
+                            field.name.retainedString(), [](compat::RetainedStringSlice label) -> compat::RetainedStringSlice {
+                                return translateText(label.retainedString());
+                            });
+                        if (label.view() == field.name.view()) continue;
+                        const auto oldValue = changeValue(field.item.sourceIndexValue("before"));
+                        const auto newValue = changeValue(field.item.sourceIndexValue("after"));
+                        if (!oldValue.empty() && !newValue.empty())
+                            description(node, Text(std::string(label.view()) + "  " + oldValue + changeArrow + newValue));
+                        else description(node, label.retainedString());
+                    }
+                    if (!summary.changes.contains(node)) description(node, translateText("Modified"));
+                }
+            } else if (id.starts_with("parameter:")) {
+                const auto oldBindings = bindingRows(before), newBindings = bindingRows(after);
+                const auto describe = [&](const Json& binding, Text action, Text property,
+                        std::uint32_t oldCount, std::uint32_t newCount) {
+                    const auto node = evidenceNodeId(binding, "target");
+                    if (!node) return;
+                    summary.names[node] = Text(std::string(reportText(binding, "target_name")));
+                    const auto label = translateText("Parameter binding");
+                    std::string line = std::string(action.view()) + " · " + std::string(name) +
+                        " · " + std::string(label.view()) + " · " + std::string(property.view());
+                    if (oldCount != newCount) {
+                        line += " (" + std::string(translateText("Keys").view()) + " " +
+                            std::to_string(oldCount) + changeArrow + std::to_string(newCount) + ")";
+                    }
+                    description(node, Text(std::move(line)));
+                };
+                const auto matches = [](const Json& a, const Json& b) {
+                    return evidenceNodeId(a, "target") == evidenceNodeId(b, "target") &&
+                        reportText(a, "property") == reportText(b, "property");
+                };
+                const auto propertyName = [](const Json& binding) {
+                    const auto property = reportText(binding, "property");
+                    return property == "deform" ? translateText("Deformation") : Text(std::string(property));
+                };
+                for (const auto& binding : newBindings) {
+                    auto previous = std::ranges::find_if(oldBindings, [&](const Json& a) { return matches(a, binding); });
+                    const auto newCount = evidenceNodeId(binding, "authored_keys");
+                    if (previous == oldBindings.end())
+                        describe(binding, translateText("Added"), propertyName(binding), 0, newCount);
+                    else if (*previous != binding)
+                        describe(binding, translateText("Modified"), propertyName(binding),
+                            evidenceNodeId(*previous, "authored_keys"), newCount);
+                }
+                for (const auto& binding : oldBindings)
+                    if (std::ranges::none_of(newBindings, [&](const Json& a) { return matches(a, binding); }))
+                        describe(binding, translateText("Removed"), propertyName(binding),
+                            evidenceNodeId(binding, "authored_keys"), 0);
+            }
+        }
+    }
+    std::ranges::sort(summary.detected);
+    summary.detected.erase(std::unique(summary.detected.begin(), summary.detected.end()), summary.detected.end());
+    return summary;
+}
+
+template<class Source, class Edited, class NodeIds>
+bool evidenceGroups(const detail::EvidenceNodeIndex& index, const Source& source, const Source& current,
+        Edited& edited, NodeIds ids) {
+    bool changed = false;
+    using Keys = std::remove_cvref_t<decltype(ids(source[0]))>;
+    std::map<Keys, bool> groups;
+    for (std::size_t i = 0; i < source.size(); ++i) {
+        const auto nodes = ids(source[i]);
+        auto [group, inserted] = groups.try_emplace(nodes, false);
+        if (!inserted) {
+            if (group->second) edited.push_back(source[i]);
+            continue;
+        }
+        bool& include = group->second;
+        include = std::ranges::any_of(current, [&](const auto& row) { return ids(row) == nodes; });
+        ImGui::PushID(static_cast<int>(i));
+        changed |= ImGui::Checkbox("##include", &include);
+        for (const auto node : nodes) if (node) {
+            ImGui::SameLine();
+            evidenceNode(index, node);
+        }
+        ImGui::PopID();
+        if (include) edited.push_back(source[i]);
+    }
+    return changed;
+}
+
+std::optional<AutoRigValue> editPlan(const detail::EvidenceNodeIndex& index,
+        const AutoRigValue& source, const AutoRigValue& current) {
+    using namespace ::nijigenerate::autorig::deterministic::native_detail;
+    if (source.holdsObject<RearCapPlan>() && current.holdsObject<RearCapPlan>()) {
+        auto edited = *current.object<RearCapPlan>();
+        edited.operations.clear();
+        if (evidenceGroups(index, source.object<RearCapPlan>()->operations, current.object<RearCapPlan>()->operations,
+                edited.operations, [](const RearCapOperation& operation) { return std::array{operation.part}; }))
+            return AutoRigValue::objectValue(std::move(edited));
+    } else if (source.holdsObject<FixedFootPlan>() && current.holdsObject<FixedFootPlan>()) {
+        auto edited = *current.object<FixedFootPlan>();
+        const auto sourceRows = source.object<FixedFootPlan>()->report.sourceIndexValue("operations").sourceArrayValue();
+        const auto currentRows = edited.report.sourceIndexValue("operations").sourceArrayValue();
+        std::vector<Json> rows;
+        if (evidenceGroups(index, sourceRows, currentRows, rows,
+                [](const Json& row) { return std::array{evidenceNodeId(row, "grid")}; })) {
+            core::settings::SettingsJsonArray operations;
+            for (const auto& row : rows) operations.append(row);
+            auto report = edited.report.sourceObjectNoRef().duplicate();
+            report["operations"] = operations;
+            edited.report = report;
+            return AutoRigValue::objectValue(std::move(edited));
+        }
+    } else if (source.holdsObject<Json>() && current.holdsObject<Json>() && source.object<Json>()->is_array() &&
+            current.object<Json>()->is_array()) {
+        const auto sourceRows = source.object<Json>()->sourceArrayValue();
+        const auto currentRows = current.object<Json>()->sourceArrayValue();
+        const auto pairNodes = [](const Json& row) {
+            return std::array{evidenceNodeId(row, "source"), evidenceNodeId(row, "target")};
+        };
+        if (!sourceRows.empty() && std::ranges::all_of(sourceRows, [&](const auto& row) {
+            const auto nodes = pairNodes(row);
+            return nodes[0] && nodes[1];
+        })) {
+            std::vector<Json> rows;
+            if (evidenceGroups(index, sourceRows, currentRows, rows, pairNodes)) {
+                core::settings::SettingsJsonArray pairs;
+                for (const auto& row : rows) pairs.append(row);
+                return AutoRigValue::objectValue(Json(pairs));
+            }
+        }
+    }
+    return std::nullopt;
+}
+} // namespace
+
+detail::EvidenceNodeIndex& AutoRigPanel::evidenceIndex() {
+    if (!evidenceNodeIndex) evidenceNodeIndex = std::make_shared<detail::EvidenceNodeIndex>();
+    const auto puppet = project::incActivePuppet();
+    evidenceNodeIndex->refresh(puppet ? puppet->root : nullptr);
+    return *evidenceNodeIndex;
+}
+
+void AutoRigPanel::renderEvidenceTree(compat::RetainedStringSlice key, const std::vector<std::uint32_t>& ids) {
+    if (!ids.empty()) renderEvidenceGroups(key, {{ {}, {}, ids }});
+}
+
+void AutoRigPanel::renderEvidenceGroups(compat::RetainedStringSlice key,
+        const std::vector<EvidenceResourceGroup>& groups, const std::function<void(std::uint32_t)>& editNode) {
+    if (groups.empty()) return;
+    const auto& index = evidenceIndex();
+    if (!evidenceTrees.contains(key)) evidenceTrees[key] = std::make_shared<EvidenceTree>();
+    auto& view = *evidenceTrees.at(key);
+    if (view.indexRevision != index.revision() || view.groups != groups) {
+        view.store->assign(groups, index, translateText("Part unavailable in the current model"));
+        view.groups = groups;
+        view.indexRevision = index.revision();
+    }
+    if (view.store->roots.empty()) {
+        reviewLine("Part unavailable in the current model");
+        return;
+    }
+    const auto rows = view.store->nodes.size() + (groups.front().key.empty() ? 0 : view.store->roots.size());
+    const auto displayHeight = static_cast<float>(std::clamp<std::size_t>(rows, 2, 6) * 34 + 24);
+    if (ImGui::BeginChild(cStringCopy(key).data(), {0, displayHeight}, ImGuiChildFlags_Borders))
+        view.output->render(editNode);
+    ImGui::EndChild();
+}
+
+void AutoRigPanel::renderTargetSettings(
+        std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
+        ::nijigenerate::autorig::framework::Text task,
+        ::nijigenerate::autorig::framework::Text producerEvidence) {
+    using namespace ::nijigenerate::autorig::framework;
+    const auto session = run->session();
+    const auto spec = session->taskSpec(task);
+    const auto puppet = project::incActivePuppet();
+    if (spec.tagCondition.empty() || !puppet || !puppet->root || worker) return;
+    const Text model(std::to_string(puppet->root->getUUID()));
+    const auto eligible = session->resolveTargets(spec.tagCondition.retainedString(), model);
+    if (!producerEvidence.empty() && std::ranges::find(eligible.evidenceIds, producerEvidence) ==
+            eligible.evidenceIds.end()) return;
+    const auto title = producerEvidence.empty() ? translateText("Target nodes") :
+        translateText(spec.label.retainedString());
+    ImGui::PushID(cStringCopy(task).data());
+    if (ImGui::TreeNodeEx("targets", producerEvidence.empty() ? ImGuiTreeNodeFlags_DefaultOpen : 0,
+            "%s", cStringCopy(title).data())) {
+        const auto restriction = session->targetRestriction(task);
+        const auto selected = restriction.empty() ? nullptr :
+            session->readEvidence(restriction).object<AutoRigTargetAssociations>();
+        std::vector<std::uint32_t> nodes;
+        const auto isSelected = [&](std::uint32_t node) {
+            return !selected || (selected->modelIdentity == model &&
+                std::ranges::any_of(selected->members, [&](const auto& member) { return node == member.node; }));
+        };
+        std::vector<std::uint32_t> candidates;
+        for (const auto& member : eligible.targets)
+            if (std::ranges::find(candidates, member.node) == candidates.end()) candidates.push_back(member.node);
+        std::vector<AutoRigTargetAssociation> selectedMembers;
+        for (const auto& member : eligible.targets) if (isSelected(member.node)) selectedMembers.push_back(member);
+        for (const auto node : candidates) if (isSelected(node)) nodes.push_back(node);
+        if (nodes.empty()) evidenceText(translateText("No confirmed targets"));
+        else {
+            const auto count = cStringCopy(translateText("Parts selected for this step: %zu"));
+            ImGui::Text(count.data(), nodes.size());
+            renderEvidenceGroups(draftKey(run, task, Text("picker")), tagGroups(selectedMembers));
+        }
+        bool changed = false;
+        const bool showChecklist = ImGui::TreeNode(cStringCopy(translateText("Include or exclude individual targets")).data());
+        if (showChecklist) {
+            renderEvidenceGroups(draftKey(run, task, Text("picker-edit")), tagGroups(eligible.targets),
+                [&](std::uint32_t id) {
+                    auto found = std::ranges::find(nodes, id);
+                    bool included = found != nodes.end();
+                    if (!ImGui::Checkbox("##target", &included)) return;
+                    changed = true;
+                    if (included) nodes.push_back(id);
+                    else nodes.erase(found);
+                });
             ImGui::TreePop();
         }
-        const auto message = task.message;
-        if (!message.empty()) {
-            const auto text = cStringCopy(message);
-            ImGui::TextWrapped("%s", cStringData(text));
+        const auto useSelection = [&] {
+            nodes.clear();
+            for (const auto& node : project::incSelectedNodes())
+                if (eligible.contains(node->getUUID())) nodes.push_back(node->getUUID());
+            changed = !nodes.empty();
+        };
+        if (ImGui::Button(cStringCopy(translateText("Use selected nodes")).data())) useSelection();
+        if (ImGui::BeginDragDropTarget()) {
+            if (const auto payload = ImGui::AcceptDragDropPayload("_PUPPETNTREE")) {
+                const auto node = widgets::ngNodeFromDragDropPayload(payload);
+                if (node && evidenceIndex().find(node->getUUID()) == node && eligible.contains(node->getUUID())) {
+                    if (project::incNodeInSelection(node)) useSelection();
+                    else { nodes = {node->getUUID()}; changed = true; }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        try {
+            if (changed) session->setTargetRestriction(task, model, std::move(nodes));
+            if (selected) {
+                ImGui::SameLine();
+                if (ImGui::Button(cStringCopy(translateText("Follow detected targets")).data()))
+                    session->setTargetRestriction(task, model, std::nullopt);
+            }
+        } catch (const compat::ThrowableException& error) {
+            const std::lock_guard lock(stateMonitor);
+            lastError = error.msg;
         }
         ImGui::TreePop();
     }
     ImGui::PopID();
 }
 
+void AutoRigPanel::renderHandoff(
+        const std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun>& run,
+        ::nijigenerate::autorig::framework::Text sourceId, ::nijigenerate::autorig::framework::Text taskId,
+        const std::vector<::nijigenerate::autorig::framework::AutoRigConnection>& ports) {
+    using namespace ::nijigenerate::autorig::framework;
+    using namespace ::nijigenerate::autorig::deterministic::native_detail;
+    const auto session = run->session();
+    const auto receiver = session->task(taskId, false);
+    const auto taskTitle = [&](const Text& id) {
+        return translateText(session->taskSpec(id).label.retainedString());
+    };
+    ImGui::PushID(cStringCopy(sourceId).data());
+    ImGui::PushID(cStringCopy(taskId).data());
+    if (ImGui::SmallButton(cStringCopy(translateText("Inspect sender")).data())) {
+        reviewTaskByRun[run->id()] = sourceId;
+        reviewHandoffByRun.erase(run->id());
+    }
+    for (const auto& port : ports) {
+        ImGui::PushID(cStringCopy(port.input).data());
+        const auto name = handoffLabel(port.sourceOutput);
+        const auto planned = session->inputEvidence(taskId, port.input.retainedString());
+        const auto used = receiver.inputEvidenceIds.find(port.input);
+        const bool recorded = used != receiver.inputEvidenceIds.end();
+        const auto evidence = planned;
+        const auto status = evidence.empty() ? translateText("Waiting for output") :
+            recorded && used->second == evidence ? translateText("Received by task") :
+            translateText("Ready for next run");
+        ImGui::Separator();
+        ImGui::TextWrapped("%.*s  ·  %.*s", static_cast<int>(name.size()), name.data(),
+            static_cast<int>(status.size()), status.data());
+        if (recorded && used->second != planned) reviewLine("The last run used a different input.");
+        if (!evidence.empty()) {
+            const auto origin = session->evidenceInfo(evidence);
+            if (origin.task != sourceId) {
+                if (origin.task == taskId) reviewLine("Uses an edited input.");
+                else if (!origin.task.empty()) {
+                    const auto originLabel = taskTitle(origin.task);
+                    const auto originFormat = cStringCopy(translateText("Passed from %s"));
+                    ImGui::TextWrapped(originFormat.data(), cStringCopy(originLabel).data());
+                }
+            } else if (evidence != session->outputEvidence(sourceId, port.sourceOutput.retainedString())) {
+                reviewLine("Uses an earlier result.");
+            }
+            const auto key = draftKey(run, taskId, evidence);
+            const auto sourceSpec = session->taskSpec(sourceId);
+            const auto output = std::ranges::find_if(sourceSpec.outputs, [&](const auto& entry) {
+                return entry.id == port.sourceOutput;
+            });
+            if (output != sourceSpec.outputs.end() && output->kind != AutoRigValueKind::Blob &&
+                    !handoffTargets.contains(key)) {
+                auto preview = std::make_shared<HandoffPreview>();
+                auto& nodes = preview->nodes;
+                const auto add = [&](std::uint32_t id) {
+                    if (id && std::ranges::find(nodes, id) == nodes.end()) nodes.push_back(id);
+                };
+                const auto value = session->readEvidence(evidence);
+                const auto rows = [&](const Json& object, const char* field, const char* node) {
+                    if (!object.is_object()) return;
+                    const auto values = object.sourceObjectRef().if_contains(field);
+                    if (values && values->is_array())
+                        for (const auto& row : values->as_array()) add(evidenceNodeId(row, node));
+                };
+                if (value.holdsObject<AutoRigTargetAssociations>()) {
+                    const auto associations = value.object<AutoRigTargetAssociations>();
+                    preview->groups = tagGroups(associations->members);
+                    for (const auto& member : associations->members) add(member.node);
+                } else if (value.holdsObject<FixedFootPlan>()) {
+                    rows(value.object<FixedFootPlan>()->report, "operations", "grid");
+                } else if (value.holdsObject<CheekPlan>()) {
+                    rows(value.object<CheekPlan>()->report, "operations", "part");
+                } else if (value.holdsObject<RearCapPlan>()) {
+                    for (const auto& operation : value.object<RearCapPlan>()->operations) add(operation.part);
+                } else if (value.kind == AutoRigValueKind::Json) {
+                    rows(value.json, "carriers", "part");
+                    rows(value.json, "targets", "part");
+                    rows(value.json, "classification", "uuid");
+                    if (port.sourceOutput.view() == "state") rows(value.json, "materials", "uuid");
+                }
+                if (value.kind == AutoRigValueKind::Json && origin.task == sourceId &&
+                        origin.port.view() == "materials" && origin.attempt != 0) {
+                    const auto review = session->outputEvidence(origin.task, "review", origin.attempt);
+                    if (!review.empty()) rows(session->readEvidence(review).json, "classification", "uuid");
+                }
+                if (value.holdsObject<Json>()) {
+                    const auto data = value.object<Json>();
+                    if (data->is_array()) for (const auto& pair : data->as_array()) {
+                        const auto source = evidenceNodeId(pair, "source");
+                        const auto target = evidenceNodeId(pair, "target");
+                        add(source);
+                        add(target);
+                        if (!source && !target) continue;
+                        const auto number = preview->groups.size() + 1;
+                        const auto name = cStringCopy(translateText("Part pair %zu"));
+                        char label[96];
+                        std::snprintf(label, sizeof(label), name.data(), number);
+                        std::vector<std::uint32_t> members;
+                        if (source) members.push_back(source);
+                        if (target) members.push_back(target);
+                        preview->groups.push_back({std::to_string(number), Text(std::string(label)), std::move(members)});
+                    }
+                    if (data->is_object()) {
+                        const auto landmarks = data->sourceObjectRef().if_contains("landmarks");
+                        if (landmarks && landmarks->is_object())
+                            preview->landmarks = landmarks->as_object().size();
+                    }
+                }
+                handoffTargets[key] = std::move(preview);
+            }
+            const auto found = handoffTargets.find(key);
+            if (found != handoffTargets.end() && found->second->landmarks) {
+                const auto count = cStringCopy(translateText("Landmarks measured: %d"));
+                ImGui::Text(count.data(), static_cast<int>(found->second->landmarks));
+            }
+            if (found != handoffTargets.end() && !found->second->nodes.empty()) {
+                const auto& nodes = found->second->nodes;
+                const auto label = cStringCopy(translateText("Handoff parts and nodes"));
+                if (ImGui::TreeNodeEx("parts", ImGuiTreeNodeFlags_DefaultOpen, "%s (%zu)", label.data(), nodes.size())) {
+                    if (found->second->groups.empty()) renderEvidenceTree(key, nodes);
+                    else renderEvidenceGroups(key, found->second->groups);
+                    ImGui::TreePop();
+                }
+            }
+            if (!worker) try {
+                const auto input = port.input.retainedString();
+                const auto original = session->outputEvidence(sourceId, port.sourceOutput.retainedString());
+                const auto outputPort = port.sourceOutput.view();
+                const bool editable = outputPort == "plan" || outputPort == "pairs" || outputPort.ends_with("-pairs");
+                if (editable && !original.empty() && (evidence == original || origin.task == taskId)) {
+                    if (auto edited = editPlan(evidenceIndex(), session->readEvidence(original),
+                            session->readEvidence(evidence)))
+                        session->bindInputEvidence(taskId, input,
+                            session->registerInputEvidence(taskId, input, std::move(*edited)));
+                }
+                if (!session->boundInputEvidence(taskId, input).empty() &&
+                        ImGui::SmallButton(cStringCopy(translateText("Follow task output")).data()))
+                    session->bindInputEvidence(taskId, input, {});
+            } catch (const compat::ThrowableException& error) {
+                const std::lock_guard lock(stateMonitor);
+                lastError = error.msg;
+            }
+        }
+        ImGui::PopID();
+    }
+    ImGui::PopID();
+    ImGui::PopID();
+}
+
+void AutoRigPanel::renderTaskEvidence(
+        std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
+        const ::nijigenerate::autorig::framework::AutoRigTaskSnapshot& task, bool details) {
+    using namespace ::nijigenerate::autorig::framework;
+    const auto session = run->session();
+    using core::translation::ngTranslateCString;
+    const auto steps = workflowTasks(run);
+    if (!details) {
+        const auto summaryKey = draftKey(run, task.taskId, Text("resources-" + std::to_string(task.attempt)));
+        std::shared_ptr<const TaskResourceSummary> available;
+        if (task.state == AutoRigTaskState::Running) available = std::make_shared<TaskResourceSummary>();
+        else {
+            if (!resourceSummaries.contains(summaryKey))
+                resourceSummaries[summaryKey] = std::make_shared<TaskResourceSummary>(resourceSummary(task));
+            available = resourceSummaries.at(summaryKey);
+        }
+        const auto& summary = *available;
+        const auto section = [&](const char* id, const Text& title, const std::vector<std::uint32_t>& nodes,
+                bool open, const std::vector<EvidenceResourceGroup>* groups = nullptr) {
+            if (nodes.empty()) return;
+            if (ImGui::TreeNodeEx(id, open ? ImGuiTreeNodeFlags_DefaultOpen : 0, "%s (%zu)",
+                    cStringCopy(title).data(), nodes.size())) {
+                const auto key = draftKey(run, task.taskId, Text(std::string(id) + "-" + std::to_string(task.attempt)));
+                if (groups && !groups->empty()) renderEvidenceGroups(key, *groups);
+                else renderEvidenceTree(key, nodes);
+                ImGui::TreePop();
+            }
+        };
+        std::vector<std::uint32_t> flagged, applied, changed;
+        std::vector<EvidenceResourceGroup> issueGroups;
+        std::map<std::string, std::size_t> issueByReason;
+        std::vector<Text> issuesWithoutParts;
+        std::size_t attention = 0;
+        for (const auto& unit : task.units) {
+            auto* destination = unit.state == TaskState::Succeeded ? &applied :
+                needsAttention(unit.state) ? &flagged : nullptr;
+            if (destination == &flagged) {
+                ++attention;
+                const auto reason = unit.message.empty() ? taskStatusLabel(unit.state) : translateText(unit.message);
+                if (unit.nodes.empty()) issuesWithoutParts.push_back(reason);
+                else {
+                    const auto key = std::string(reason.view());
+                    const auto [found, first] = issueByReason.try_emplace(key, issueGroups.size());
+                    if (first) issueGroups.push_back({key, reason, {}});
+                    auto& members = issueGroups[found->second].nodes;
+                    members.insert(members.end(), unit.nodes.begin(), unit.nodes.end());
+                }
+            }
+            if (destination) for (const auto node : unit.nodes)
+                if (std::ranges::find(*destination, node) == destination->end()) destination->push_back(node);
+        }
+        for (const auto& change : summary.changes) changed.push_back(change.first);
+        if (!attention && needsAttention(task.state) && task.state != TaskState::Stale && !task.message.empty()) {
+            const auto message = translateText(task.message);
+            ImGui::TextWrapped("%.*s", static_cast<int>(message.size()), message.data());
+        }
+        if (!summary.incompleteStages.empty()) {
+            reviewLine("Steps that did not finish");
+            const auto steps = run->orderedSteps();
+            for (const auto& incomplete : summary.incompleteStages) {
+                const auto step = std::ranges::find_if(steps,
+                    [&](const auto& item) { return item.taskId.view() == incomplete.view(); });
+                if (step == steps.end()) continue;
+                const auto title = translateText(session->taskSpec(run->stepTaskId(step->id.retainedString())).label.retainedString());
+                const auto id = run->stepTaskId(step->id.retainedString());
+                ImGui::PushID(cStringCopy(id).data());
+                if (ImGui::Selectable(cStringCopy(title).data())) reviewTaskByRun[run->id()] = id;
+                ImGui::PopID();
+            }
+        }
+        if (attention) {
+            const auto heading = ngTranslateCString("Groups to check: %d");
+            ImGui::Text(heading.data(), static_cast<int>(attention));
+            for (const auto& reason : issuesWithoutParts)
+                ImGui::TextWrapped("%.*s", static_cast<int>(reason.size()), reason.data());
+            section("flagged", translateText("Find these parts in the tree"), flagged, true, &issueGroups);
+        }
+
+        // Choose the list that supports the step's decision. Keep the other views available on demand.
+        const bool detection = changed.empty() && !summary.detected.empty();
+        const auto& mainTargets = detection ? summary.detected : !changed.empty() ? changed : applied;
+        if (mainTargets != flagged || (detection && !summary.tags.empty())) {
+            const auto title = detection ? translateText("Check the detected targets") : !changed.empty() ?
+                translateText("Changed parts and nodes") : translateText("Processed parts and nodes");
+            section("review-targets", title, mainTargets, flagged.empty(), detection ? &summary.tags : nullptr);
+        }
+        if (!changed.empty()) {
+            bool foundSelection = false;
+            for (const auto& node : project::incSelectedNodes()) {
+                const auto found = summary.changes.find(node->getUUID());
+                if (found == summary.changes.end()) continue;
+                foundSelection = true;
+                evidenceText(Text(node->getName()));
+                for (const auto& change : found->second)
+                    ImGui::BulletText("%.*s", static_cast<int>(change.size()), change.data());
+            }
+            if (!foundSelection) reviewLine("Select a changed part to see what was edited");
+            const auto& index = evidenceIndex();
+            for (const auto node : changed) if (!index.find(node)) {
+                const auto name = summary.names.at(node);
+                ImGui::Text("%s %.*s", ngTranslateCString("Removed").data(), static_cast<int>(name.size()), name.data());
+            }
+        }
+        if (task.state == TaskState::NotApplicable) reviewLine("No applicable parts were found.");
+        const bool otherParts = (!detection && !summary.detected.empty()) ||
+            (!applied.empty() && applied != mainTargets && applied != changed) ||
+            (task.scope && !task.scope->targets.empty());
+        if (otherParts && ImGui::TreeNode(ngTranslateCString("Part details").data())) {
+            if (!detection) section("detected", translateText("Check the detected targets"), summary.detected,
+                false, &summary.tags);
+            if (applied != mainTargets && applied != changed)
+                section("applied", translateText("Processed parts and nodes"), applied, false);
+            if (task.scope && !task.scope->targets.empty()) {
+                std::vector<std::uint32_t> candidates;
+                for (const auto& member : task.scope->targets)
+                    if (std::ranges::find(candidates, member.node) == candidates.end()) candidates.push_back(member.node);
+                const auto groups = tagGroups(task.scope->targets);
+                if (candidates != mainTargets || groups != summary.tags)
+                    section("eligible", translateText("Eligible parts and nodes"), candidates, false, &groups);
+            }
+            ImGui::TreePop();
+        }
+        return;
+    }
+    if (task.artifacts.empty() && task.inputEvidenceIds.empty()) return;
+    if (!task.inputEvidenceIds.empty() && ImGui::TreeNode(cStringCopy(translateText("Input evidence")).data())) {
+        for (const auto& [port, id] : task.inputEvidenceIds) {
+            const auto origin = session->evidenceInfo(id);
+            const auto name = handoffLabel(origin.port.empty() ? port : origin.port);
+            if (origin.task.empty() || origin.task == task.taskId) {
+                evidenceText(name);
+            } else {
+                const auto sender = translateText(session->taskSpec(origin.task).label.retainedString());
+                ImGui::TextWrapped("%.*s · %.*s", static_cast<int>(name.size()), name.data(),
+                    static_cast<int>(sender.size()), sender.data());
+            }
+        }
+        ImGui::TreePop();
+    }
+    const auto renderArtifacts = [&](const AutoRigTaskSnapshot& snapshot) {
+        for (const auto& artifact : snapshot.artifacts) {
+            if (artifact.evidenceId.empty() || artifact.preview) continue;
+            ImGui::PushID(cStringCopy(artifact.evidenceId).data());
+            const auto name = handoffLabel(artifact.portId);
+            if (ImGui::TreeNode("evidence", "%.*s", static_cast<int>(name.size()), name.data())) {
+                if (artifact.portId.view() == "target-associations") {
+                    const auto associations = artifact.value().object<AutoRigTargetAssociations>();
+                    renderEvidenceGroups(draftKey(run, task.taskId, artifact.evidenceId),
+                        tagGroups(associations->members));
+                }
+                if (artifact.kind == AutoRigValueKind::Json && artifact.portId.view() == "report" &&
+                        ImGui::TreeNode(cStringCopy(translateText("Report data")).data())) {
+                    const auto report = inputText(artifact.value());
+                    ImGui::TextWrapped("%.*s", static_cast<int>(report.size()), report.data());
+                    ImGui::TreePop();
+                }
+                ImGui::BeginDisabled(worker != nullptr);
+                for (const auto& consumer : steps) {
+                    const auto spec = session->taskSpec(consumer);
+                    if (artifact.portId.view() == "target-associations")
+                        renderTargetSettings(run, consumer, artifact.evidenceId);
+                    for (const auto& connection : spec.connections) {
+                        if (connection.sourceTask.view() != task.taskId.view() ||
+                                connection.sourceOutput.view() != artifact.portId.view()) continue;
+                        ImGui::PushID(cStringCopy(consumer).data());
+                        ImGui::PushID(cStringCopy(connection.input).data());
+                        const auto label = cStringCopy(translateText(spec.label.retainedString()));
+                        if (ImGui::TreeNode("consumer", "%s", label.data())) {
+                            try {
+                                const auto port = connection.input.retainedString();
+                                const auto input = session->inputEvidence(consumer, port);
+                                const auto pinned = session->boundInputEvidence(consumer, port);
+                                if (input == artifact.evidenceId) reviewLine("Ready for next run");
+                                else if (input.empty()) reviewLine("Waiting for output");
+                                else reviewLine("Uses a different result.");
+                                if (pinned != artifact.evidenceId &&
+                                        ImGui::Button(cStringCopy(translateText("Use this evidence")).data()))
+                                    session->bindInputEvidence(consumer, port, artifact.evidenceId);
+                                if (!pinned.empty() &&
+                                        ImGui::Button(cStringCopy(translateText("Follow task output")).data()))
+                                    session->bindInputEvidence(consumer, port, {});
+                                const auto latest = session->outputEvidence(snapshot.taskId, artifact.portId);
+                                if (input == artifact.evidenceId || (!pinned.empty() && artifact.evidenceId == latest &&
+                                        session->evidenceInfo(pinned).task == consumer)) {
+                                    if (artifact.kind == AutoRigValueKind::Object) {
+                                        if (auto edited = editPlan(evidenceIndex(), artifact.value(), session->readEvidence(input)))
+                                            session->bindInputEvidence(consumer, port,
+                                                session->registerInputEvidence(consumer, port, std::move(*edited)));
+                                    } else if (artifact.kind == AutoRigValueKind::Json &&
+                                            artifact.portId.view() != "state" && artifact.portId.view() != "program" &&
+                                            ImGui::TreeNode(cStringCopy(translateText("Edit evidence for this input")).data())) {
+                                        const auto key = draftKey(run, consumer, port);
+                                        if (!inputObserved.contains(key) || inputObserved.at(key) != input) {
+                                            inputDrafts[key] = inputText(session->readEvidence(input));
+                                            inputObserved[key] = input;
+                                        }
+                                        auto draft = inputDrafts.at(key);
+                                        widgets::ngInputTextMultiline(std::string_view("##evidence"), draft, {-1, 100});
+                                        inputDrafts[key] = draft;
+                                        const bool apply = ImGui::Button(cStringCopy(translateText("Apply")).data());
+                                        ImGui::TreePop();
+                                        if (apply) session->bindInputEvidence(consumer, port, session->registerInputEvidence(
+                                            consumer, port, draftValue(artifact.kind, draft)));
+                                    }
+                                }
+                            } catch (const compat::ThrowableException& error) {
+                                const std::lock_guard lock(stateMonitor);
+                                lastError = error.msg;
+                            }
+                            ImGui::TreePop();
+                        }
+                        ImGui::PopID();
+                        ImGui::PopID();
+                    }
+                }
+                ImGui::EndDisabled();
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+    };
+    renderArtifacts(task);
+    if (task.attempt && ImGui::TreeNode(cStringCopy(translateText("Earlier attempts")).data())) {
+        for (const auto& attempt : session->taskAttempts(task.taskId)) {
+            if (attempt.attempt == task.attempt) continue;
+            ImGui::PushID(static_cast<int>(attempt.attempt));
+            if (ImGui::TreeNode("attempt", "#%u · %s", attempt.attempt,
+                    cStringCopy(taskStatusLabel(attempt.state)).data())) {
+                renderArtifacts(attempt);
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+        ImGui::TreePop();
+    }
+}
+
 void AutoRigPanel::renderDefaultInputs(
         std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
         compat::RetainedStringSlice taskId) {
     using namespace ::nijigenerate::autorig;
-    using Kind = framework::AutoRigValueKind;
     using core::translation::ngTranslateCString;
     const auto owner = weak_from_this().lock();
     auto context = compat::ngRequireObject(compat::ngRequireObject(run)->session())->inputContext(
@@ -624,7 +1868,12 @@ void AutoRigPanel::renderDefaultInputs(
                 bytes += ')';
                 return compat::RetainedString(std::move(bytes));
             });
-        } else if (port.id.view() == "state") label = translateText("Upstream processing result");
+        } else if (port.id.view() == "plan") label = translateText("Correction targets and settings");
+        else if (port.id.view() == "measurements") label = translateText("Body measurements");
+        else if (port.id.view() == "shoulder-pairs") label = translateText("Shoulder and arm pairs");
+        else if (port.id.view() == "ear-pairs") label = translateText("Front and back ear pairs");
+        else if (port.id.view() == "hip-pairs") label = translateText("Waist and leg pairs");
+        else if (port.id.view() == "state") label = translateText("Upstream processing result");
         else if (port.id.view() == "program") label = translateText("Rig plan");
         else if (port.id.view() == "model") label = translateText("Model checkpoint");
         else if (port.id.view() == "materials") label = translateText("Material classification");
@@ -636,70 +1885,14 @@ void AutoRigPanel::renderDefaultInputs(
             ImGui::TextUnformatted(cStringData(text));
         }
         if (context->isConnected(port.id.retainedString())) {
-            compat::RetainedStringSlice value;
-            if (!context->hasValue(port.id.retainedString()))
-                value = translateText("Waiting for dependency");
-            else if (port.kind == Kind::Json) value = translateText(builtIn
-                ? compat::RetainedString::fromStaticLiteral("Input from preceding task")
-                : compat::RetainedString::fromStaticLiteral("JSON artifact ready"));
-            else if (port.kind == Kind::Blob) value = translateText("Binary artifact");
-            else value = inputText(context->value(port.id.retainedString()));
-            const auto text = cStringCopy(value);
-            ImGui::TextUnformatted(cStringData(text));
-            const auto connections = compat::ngRequireObject(run->session())->taskSpec(
-                taskId.retainedString()).connections;
-            for (const auto connection : connections) {
-                if (connection.input != port.id) continue;
-                const auto source = compat::ngRequireObject(run->session())->task(
-                    connection.sourceTask.retainedString(), false);
-                const auto sourceSpec = compat::ngRequireObject(run->session())->taskSpec(
-                    connection.sourceTask.retainedString());
-                const auto pattern = translateText("From %s / %s (attempt %s)");
-                const std::array<core::translation::TypedFormatArgument, 3> arguments{
-                    core::translation::ngFormatArgument(translateText(sourceSpec.label.retainedString())),
-                    core::translation::ngFormatArgument(connection.sourceOutput),
-                    core::translation::ngFormatArgument(source.attempt)};
-                const auto from = cStringCopy(core::translation::ngFormatTyped(pattern.view(), arguments));
-                ImGui::TextWrapped("%s", cStringData(from));
-                bool hasReview = false;
-                {
-                    const auto outputs = sourceSpec.outputs;
-                    for (const auto output : outputs) if (output.id.view() == "review") hasReview = true;
-                }
-                if (hasReview) {
-                    const auto preceding = ngTranslateCString("Preceding stage result");
-                    if (ImGui::TreeNode(preceding.data())) {
-                        const auto cacheKey = draftKey(run, connection.sourceTask,
-                            compat::RetainedString::fromStaticLiteral("input-review"));
-                        auto found = reviewDrafts.find(cacheKey);
-                        auto* cached = found == reviewDrafts.end() ? nullptr : &found->second;
-                        if (worker == nullptr && (!cached || cached->attempt != source.attempt)) {
-                            ReviewDraft draft;
-                            draft.attempt = source.attempt;
-                            const auto artifacts = compat::ngRequireObject(run->session())->task(
-                                connection.sourceTask.retainedString()).artifacts;
-                            for (const auto artifact : artifacts) {
-                                if (artifact.portId.view() == "review" || artifact.portId.view() == "review-layout") {
-                                    const auto report = framework::ngCopyAutoRigValue(artifact.value()).json;
-                                    draft.tables.appendRange(deterministic::presentation::ngRigReviewTables(report, {},
-                                        [](compat::RetainedStringSlice message) -> compat::RetainedStringSlice {
-                                            return translateText(message.retainedString());
-                                        }));
-                                }
-                            }
-                            reviewDrafts[cacheKey] = draft;
-                            found = reviewDrafts.find(cacheKey);
-                            cached = found == reviewDrafts.end() ? nullptr : &found->second;
-                        }
-                        if (cached && !cached->tables.empty()) renderReviewTables(cached->tables);
-                        else {
-                            const auto waiting = cStringCopy(translateText("Waiting for task result"));
-                            ImGui::TextUnformatted(cStringData(waiting));
-                        }
-                        ImGui::TreePop();
-                    }
-                }
-            }
+            const auto session = run->session();
+            const auto name = port.id.retainedString();
+            const auto text = !session->boundInputEvidence(taskId.retainedString(), name).empty()
+                ? translateText("Uses the selected past result")
+                : context->hasValue(name) ? translateText("Uses the latest result")
+                : translateText("Waiting for a previous step");
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", cStringCopy(text).data());
         } else {
             const auto key = draftKey(run, taskId, port.id);
             const auto revision = compat::ngRequireObject(run->session())->inputRevision(taskId.retainedString());
@@ -809,7 +2002,7 @@ bool AutoRigPanel::renderRigOutput(
                                 const auto named = materialNames->find(id);
                                 if (named != materialNames->end()) name = &named->second;
                             }
-                            const auto separator = targets.empty() ? std::string_view{} : std::string_view(" → ");
+                            const auto separator = targets.empty() ? std::string_view{} : std::string_view(changeArrow);
                             const compat::RetainedStringSlice targetName = name ? *name : translateText("Unresolved target");
                             std::string addition(separator);
                             addition += targetName.view();
@@ -924,6 +2117,7 @@ compat::RetainedStringSlice AutoRigPanel::inputText(
     case Kind::Path:
     case Kind::Blob:
         return compat::RetainedStringSlice(value.text);
+    case Kind::Object: return {};
     case Kind::Json:
         return compat::ngJsonStringify(value.json);
     }
@@ -940,6 +2134,7 @@ compat::RetainedStringSlice AutoRigPanel::valueKindLabel(
     case Kind::FileName: return ngTranslateRetained(compat::RetainedString::fromStaticLiteral("File name"));
     case Kind::Path: return ngTranslateRetained(compat::RetainedString::fromStaticLiteral("File path"));
     case Kind::Json: return ngTranslateRetained(compat::RetainedString::fromStaticLiteral("JSON"));
+    case Kind::Object: return ngTranslateRetained(compat::RetainedString::fromStaticLiteral("Evidence object"));
     case Kind::Blob: return ngTranslateRetained(compat::RetainedString::fromStaticLiteral("Binary data"));
     }
     throw compat::ngStaticError<compat::SwitchError>(
@@ -948,46 +2143,17 @@ compat::RetainedStringSlice AutoRigPanel::valueKindLabel(
 }
 
 bool AutoRigPanel::renderStateTree(compat::RetainedStringSlice title,
-        compat::RetainedStringSlice state, compat::RetainedStringSlice id, ImGuiTreeNodeFlags flags) {
+        TaskState state, compat::RetainedStringSlice id, ImGuiTreeNodeFlags flags, bool reveal) {
     [[maybe_unused]] const auto owner = weak_from_this().lock();
-    const auto translate = []<std::size_t N>(const char (&value)[N]) {
-        return core::translation::ngTranslateRetained(compat::RetainedString::fromStaticLiteral(value));
-    };
-    ImVec4 color;
-    compat::RetainedString icon;
-    compat::RetainedString status;
-    if (state.view() == "Running") {
-        color = {0, 0.4f, 0.8f, 1};
-        icon = compat::RetainedString::fromStaticLiteral("\xEE\x87\x84"); // U+E1C4
-        status = translate("Running");
-    } else if (state.view() == "Succeeded") {
-        color = {0, 0.9f, 0, 1};
-        icon = compat::RetainedString::fromStaticLiteral("\xEE\xA4\xAF"); // U+E92F
-        status = translate("Completed");
-    } else if (state.view() == "Failed") {
-        color = {0.9f, 0, 0, 1};
-        icon = compat::RetainedString::fromStaticLiteral("\xEF\xA2\xB6"); // U+F8B6
-        status = translate("Failed");
-    } else if (state.view() == "Canceled") {
-        color = {0.8f, 0.4f, 0, 1};
-        icon = compat::RetainedString::fromStaticLiteral("\xEE\x97\x89"); // U+E5C9
-        status = translate("Canceled");
-    } else {
-        color = {0.8f, 0.4f, 0, 1};
-        icon = compat::RetainedString::fromStaticLiteral("\xEE\xBD\x8A"); // U+EF4A
-        status = state.view() == "Stale" ? translate("Needs rerun") : translate("Pending");
-    }
-    const auto iconText = cStringCopy(icon);
-    ImGui::TextColored(color, "%s", cStringData(iconText));
-    if (ImGui::IsItemHovered()) {
-        const auto statusText = cStringCopy(compat::RetainedStringSlice(status));
-        ImGui::SetTooltip("%s", cStringData(statusText));
-    }
-    ImGui::SameLine(0, 0);
+    ImGui::TextColored(taskStatusColor(state), "%s", taskStatusIcon(state));
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", cStringCopy(taskStatusLabel(state)).data());
+    ImGui::SameLine(0, 2.f);
     std::string label(title.data() ? title.data() : "", title.size());
     label += "###";
     label.append(id.data() ? id.data() : "", id.size());
     const auto labelText = cStringCopy(std::move(label));
+    if (reveal) ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     return ImGui::TreeNodeEx(cStringData(labelText), flags);
 }
 
@@ -1000,6 +2166,7 @@ bool AutoRigPanel::renderStateTree(compat::RetainedStringSlice title,
     case Kind::Path: return Value::path(draft.retainedString());
     case Kind::Json:
         return Value::jsonValue(::nijigenerate::autorig::json::detail::parseJSON(draft));
+    case Kind::Object: break;
     case Kind::Blob: {
         auto bytes = nicxlive::core::d_runtime::ngReadBinaryFile(draft.retainedString());
         return Value::blob(compat::Slice<std::uint8_t>::retainedView(
@@ -1224,8 +2391,31 @@ void AutoRigPanel::renderSessionConfiguration(
     }, [] { ImGui::EndDisabled(); });
 }
 
+void AutoRigPanel::renderActiveProgress() {
+    if (!activeRun || !worker) return;
+    const auto session = activeRun->session();
+    const auto progress = session->executionProgress();
+    const bool stopping = session->isCanceled();
+    const auto state = stopping ? TaskState::Canceled : TaskState::Running;
+    ImGui::TextColored(taskStatusColor(state), "%s", taskStatusIcon(state));
+    ImGui::SameLine();
+    if (stopping) {
+        reviewLine("Stopping AutoRig");
+    } else if (!progress.currentTask.empty()) {
+        const auto spec = session->taskSpec(progress.currentTask);
+        const auto task = spec.label.empty() ? progress.currentTask : translateText(spec.label.retainedString());
+        const auto status = cStringCopy(translateText("Running: %s"));
+        ImGui::TextWrapped(status.data(), cStringCopy(task).data());
+    } else {
+        reviewLine("AutoRig is running");
+    }
+    const auto count = cStringCopy(translateText("Tasks resolved in this run: %zu"));
+    ImGui::TextDisabled(count.data(), progress.resolvedTasks);
+}
+
 bool AutoRigPanel::renderRun(
         std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run) {
+    namespace framework = ::nijigenerate::autorig::framework;
     using State = ::nijigenerate::autorig::workflow::AutoRigWorkflowState;
     using core::translation::ngTranslateRetained;
     [[maybe_unused]] const auto owner = weak_from_this().lock();
@@ -1235,60 +2425,259 @@ bool AutoRigPanel::renderRun(
     compat::ngRunWithScopeExit([&] {
         result = [&] {
         const auto snapshot = run->snapshot(false);
-        auto label = ngTranslateRetained(run->displayName());
-        std::string labelBytes(label.view());
-        labelBytes += " #";
-        {
-            const compat::RetainedStringSlice currentId(run->id());
-            if (currentId.size() < 8) throw compat::ngStaticError<compat::ArraySliceError>(
-                0, 8, currentId.size(),
-                compat::RetainedString::fromStaticLiteral("source/nijigenerate/panels/autorig.d"), 850);
-            labelBytes += currentId.slice(0, 8).view();
+        const auto label = ngTranslateRetained(run->displayName());
+        const bool running = worker != nullptr && activeRun == run;
+        enum RunView { Check, GlobalSettings, SelectedArea, Outputs };
+        auto* ui = ImGui::GetStateStorage();
+        const auto viewKey = ImGui::GetID("run-view");
+        int view = ui->GetInt(viewKey, Check);
+        bool remove = false;
+        if (running) {
+            ImGui::BeginDisabled(run->session()->isCanceled());
+            if (ImGui::SmallButton(cStringCopy(translateText("Cancel")).data())) run->cancel();
+            ImGui::EndDisabled();
+        } else {
+            if (ImGui::SmallButton("\ue5d3##run-actions")) ImGui::OpenPopup("run-actions"); // more_horiz
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", cStringCopy(translateText("Run options")).data());
+            if (ImGui::BeginPopup("run-actions")) {
+                const auto choose = [&](RunView destination, const framework::Text& label) {
+                    if (ImGui::MenuItem(cStringCopy(label).data(), nullptr, view == destination))
+                        view = destination;
+                };
+                choose(Check, translateText("Review this result"));
+                choose(GlobalSettings, translateText("Workflow settings"));
+                if (run->workflowId() == "model-to-rig") choose(SelectedArea, translateText("Rerun a specific area"));
+                choose(Outputs, translateText("Workflow output"));
+                ImGui::Separator();
+                if (ImGui::MenuItem(cStringCopy(translateText("Run batch")).data(), nullptr, false, !worker))
+                    startRun(run);
+                remove = ImGui::MenuItem(cStringCopy(translateText("Delete session")).data(),
+                    nullptr, false, !run->session()->isBusy());
+                ImGui::EndPopup();
+            }
         }
-        ImGui::BeginDisabled(activeRun == run || compat::ngRequireObject(run->session())->isBusy());
-        const bool remove = widgets::ngButtonColored("\xee\xa1\xb2##delete", ImVec2(24, 24));
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered()) {
-            const auto text = cStringCopy(compat::RetainedStringSlice(ngTranslateRetained(
-                compat::RetainedString::fromStaticLiteral("Delete session"))));
-            ImGui::SetTooltip("%s", text.data());
-        }
+        ui->SetInt(viewKey, view);
         if (remove) return true;
         ImGui::SameLine();
-        const bool running = worker != nullptr && activeRun == run;
-        ImGui::BeginDisabled((worker != nullptr && !running) ||
-            (running && compat::ngRequireObject(run->session())->isCanceled()));
-        if (widgets::ngButtonColored(running ? "\xee\x97\x89" : "\xee\x80\xb7", ImVec2(24, 24))) {
-            if (running) run->cancel();
-            else startRun(run);
-        }
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered()) {
-            const auto text = cStringCopy(compat::RetainedStringSlice(ngTranslateRetained(running
-                ? compat::RetainedString::fromStaticLiteral("Cancel")
-                : compat::RetainedString::fromStaticLiteral("Run batch"))));
-            ImGui::SetTooltip("%s", text.data());
-        }
-        ImGui::SameLine();
-        core::translation::FormatEnum state;
-        state.base = std::get<core::translation::FormatInteger>(
-            core::translation::ngFormatArgument(static_cast<std::int32_t>(snapshot.state)));
-        state.typeName = compat::RetainedString::fromStaticLiteral("AutoRigWorkflowState");
+        auto state = TaskState::Pending;
         switch (snapshot.state) {
-        case State::Pending: state.memberName = compat::RetainedString::fromStaticLiteral("Pending"); break;
-        case State::Running: state.memberName = compat::RetainedString::fromStaticLiteral("Running"); break;
-        case State::Succeeded: state.memberName = compat::RetainedString::fromStaticLiteral("Succeeded"); break;
-        case State::Failed: state.memberName = compat::RetainedString::fromStaticLiteral("Failed"); break;
-        case State::Canceled: state.memberName = compat::RetainedString::fromStaticLiteral("Canceled"); break;
+        case State::Pending: break;
+        case State::Running: state = TaskState::Running; break;
+        case State::Succeeded: state = TaskState::Succeeded; break;
+        case State::Failed: state = TaskState::Failed; break;
+        case State::Canceled: state = TaskState::Canceled; break;
+        case State::PartiallySucceeded: state = TaskState::PartiallySucceeded; break;
         }
-        const std::array<core::translation::TypedFormatArgument, 1> values{state};
-        const auto stateText = compat::RetainedString(core::translation::ngFormatTyped("%s", values));
-        if (renderStateTree(compat::RetainedString(std::move(labelBytes)), stateText,
-                compat::RetainedString::fromStaticLiteral("run"), ImGuiTreeNodeFlags_DefaultOpen)) {
-            renderSessionConfiguration(run);
-            renderSessionOutput(run);
-            const auto steps = run->orderedSteps();
-            for (auto step : steps) renderTask(run, step);
+        if (renderStateTree(label, state, compat::RetainedString::fromStaticLiteral("run"),
+                ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (running || view == Check) {
+                const auto tasks = workflowTasks(run);
+                const auto steps = run->orderedSteps();
+                const auto executingTask = running ? run->session()->executionProgress().currentTask : Text{};
+                std::vector<ReviewStep> rows;
+                rows.reserve(tasks.size());
+                const bool builtIn = run->workflowId().view() == "model-to-rig";
+                for (const auto& task : tasks) {
+                    const auto step = std::ranges::find_if(steps, [&](const auto& item) {
+                        return run->stepTaskId(item.id.retainedString()) == task;
+                    });
+                    const auto stepId = step == steps.end() ? compat::RetainedStringSlice{} : step->id;
+                    const auto spec = run->session()->taskSpec(task);
+                    rows.push_back({task, stepId, spec.label.empty() ? compat::RetainedStringSlice(task) :
+                        compat::RetainedStringSlice(translateText(spec.label.retainedString())),
+                        task == executingTask ? TaskState::Running : run->session()->task(task, false).state});
+                }
+
+                std::vector<std::size_t> checks;
+                std::vector<std::size_t> issues;
+                std::optional<std::size_t> current;
+                for (std::size_t index = 0; index < rows.size(); ++index) {
+                    const auto& row = rows[index];
+                    if (row.state == TaskState::Running) current = index;
+                    if (needsAttention(row.state)) issues.push_back(index);
+                }
+                if (builtIn) {
+                    for (const auto key : {"compile", "bake", "controls", "verify"}) {
+                        for (std::size_t index = 0; index < rows.size(); ++index)
+                            if (rows[index].step.view() == key && rows[index].state != TaskState::Pending)
+                                checks.push_back(index);
+                    }
+                } else {
+                    for (std::size_t index = 0; index < rows.size(); ++index)
+                        if (rows[index].state != TaskState::Pending) checks.push_back(index);
+                }
+                const auto suggested = !issues.empty() ? std::optional(issues.front()) :
+                    !checks.empty() ? std::optional(checks.front()) : std::nullopt;
+                {
+                    const auto tab = reviewTaskByRun.find(run->id());
+                    if (tab != reviewTaskByRun.end()) {
+                        for (std::size_t index = 0; index < rows.size(); ++index)
+                            if (rows[index].task == tab->second) current = index;
+                    }
+                    if (!current && !running) current = suggested;
+                }
+                const auto handoffs = workflowHandoffs(run, rows);
+                std::optional<std::size_t> handoff;
+                const auto runId = run->id();
+                if (const auto picked = reviewHandoffByRun.find(runId);
+                        picked != reviewHandoffByRun.end() && picked->second < handoffs.size())
+                    handoff = picked->second;
+                const auto selectTask = [&](std::size_t index) {
+                    current = index;
+                    reviewTaskByRun[runId] = rows[*current].task;
+                    reviewHandoffByRun.erase(runId);
+                    handoff.reset();
+                };
+                const auto completed = std::ranges::count_if(rows, [](const auto& row) {
+                    return row.state == TaskState::Succeeded;
+                });
+                const auto summary = cStringCopy(translateText("%zu of %zu steps completed · %zu need attention"));
+                ImGui::TextWrapped(summary.data(), static_cast<std::size_t>(completed), rows.size(), issues.size());
+                if (!running && snapshot.state == State::Pending) {
+                    ImGui::BeginDisabled(worker != nullptr);
+                    if (ImGui::Button(cStringCopy(translateText("Start AutoRig")).data())) startRun(run);
+                    ImGui::EndDisabled();
+                } else if (!running) {
+                    const auto& queue = issues.empty() ? checks : issues;
+                    if (!queue.empty()) {
+                        const auto at = current ? std::ranges::find(queue, *current) : queue.end();
+                        const auto next = at == queue.end() || std::next(at) == queue.end() ? queue.front() : *std::next(at);
+                        const auto action = issues.empty() ? translateText("Next check") : translateText("Review issue");
+                        if (ImGui::SmallButton(cStringCopy(action).data())) selectTask(next);
+                    }
+                    if (!queue.empty()) ImGui::SameLine();
+                    if (ImGui::SmallButton(cStringCopy(translateText("Workflow settings")).data()))
+                        ui->SetInt(viewKey, GlobalSettings);
+                }
+                if (const auto choice = renderWorkflowFlow(rows, handoffs, current, handoff)) selectTask(*choice);
+
+                ImGui::Spacing();
+                if (current) {
+                    const auto selected = *current;
+                    const auto& row = rows[*current];
+                    const auto renderInputs = [&] {
+                        const auto inputs = std::ranges::count_if(handoffs, [&](const auto& edge) {
+                            return edge.to == selected && !edge.ports.empty();
+                        });
+                        if (inputs) reviewLine("Inputs from other steps");
+                        const auto missing = missingRequiredInput(run, row.task);
+                        for (std::size_t i = 0; i < handoffs.size(); ++i) {
+                            const auto& edge = handoffs[i];
+                            if (edge.to != selected || edge.ports.empty()) continue;
+                            const auto& source = rows[edge.from];
+                            const bool openByDefault = inputs == 1 || (!missing.empty() &&
+                                std::ranges::any_of(edge.ports, [&](const auto& port) { return port.input == missing; }));
+                            ImGui::PushID(static_cast<int>(i));
+                            const bool open = ImGui::TreeNodeEx("source", openByDefault ?
+                                ImGuiTreeNodeFlags_DefaultOpen : 0, "%s", cStringCopy(source.label).data());
+                            if (ImGui::IsItemToggledOpen()) {
+                                if (open) reviewHandoffByRun[runId] = i;
+                                else if (handoff == i) reviewHandoffByRun.erase(runId);
+                            }
+                            if (open) {
+                                renderHandoff(run, source.task, row.task, edge.ports);
+                                ImGui::TreePop();
+                            }
+                            ImGui::PopID();
+                        }
+                    };
+                    const auto renderNext = [&] {
+                        bool hasNext = false;
+                        for (const auto& edge : handoffs) {
+                            if (edge.from != selected) continue;
+                            hasNext = true;
+                            const auto& next = rows[edge.to];
+                            const auto missing = missingRequiredInput(run, next.task);
+                            const bool finished = next.state == TaskState::Succeeded || next.state == TaskState::NotApplicable;
+                            ImGui::PushID(cStringCopy(next.task).data());
+                            ImGui::TextWrapped("%s", cStringCopy(next.label).data());
+                            if (finished) {
+                                const auto status = taskStatusLabel(next.state);
+                                ImGui::TextUnformatted(status.data(), status.data() + status.size());
+                            } else if (!missing.empty()) {
+                                const auto format = cStringCopy(translateText("Waiting for %s"));
+                                ImGui::TextWrapped(format.data(), cStringCopy(handoffLabel(missing)).data());
+                            } else {
+                                ImGui::BeginDisabled(worker != nullptr);
+                                if (ImGui::Button(cStringCopy(translateText("Run this step")).data())) {
+                                    selectTask(edge.to);
+                                    startRun(run, next.step, false, {}, next.task);
+                                }
+                                ImGui::EndDisabled();
+                            }
+                            if (finished || !missing.empty() || worker == nullptr) ImGui::SameLine();
+                            if (ImGui::SmallButton(cStringCopy(translateText("Open step")).data()))
+                                selectTask(edge.to);
+                            ImGui::Separator();
+                            ImGui::PopID();
+                        }
+                        if (!hasNext) reviewLine("No dependent steps");
+                    };
+                    renderTask(run, row.task, row.step, row.state == TaskState::Running, renderInputs, renderNext);
+                } else if (running) {
+                    reviewLine("Running selected steps");
+                }
+
+            } else {
+                if (ImGui::SmallButton(cStringCopy(translateText("Back to the check")).data()))
+                    ui->SetInt(viewKey, Check);
+                if (view == GlobalSettings) renderSessionConfiguration(run);
+                if (view == Outputs && renderSessionOutput(run)) ui->SetInt(viewKey, Check);
+            }
+            if (!running && view == SelectedArea && run->workflowId() == "model-to-rig") {
+                const auto steps = run->orderedSteps();
+                ImGui::BeginDisabled(worker != nullptr);
+                ImGui::InputText(cStringCopy(translateText("AutoRig tags")).data(), scopeTags.data(), scopeTags.size());
+                ImGui::SameLine();
+                if (ImGui::Button(cStringCopy(translateText("Rerun selected tags")).data())) {
+                    const auto puppet = project::incActivePuppet();
+                    if (puppet) {
+                        framework::AutoRigTargetSelector selector;
+                        std::string_view rest(scopeTags.data());
+                        while (!rest.empty()) {
+                            const auto end = rest.find_first_of(", ");
+                            const auto token = rest.substr(0, end);
+                            if (!token.empty()) selector.tags.emplace_back(token);
+                            if (end == rest.npos) break;
+                            rest.remove_prefix(end + 1);
+                        }
+                        try {
+                            auto plan = run->plan(std::move(selector), framework::Text(
+                                std::to_string(puppet->root->getUUID())));
+                            startRun(run, {}, true, std::move(plan));
+                        } catch (const compat::ThrowableException& error) {
+                            const std::lock_guard lock(stateMonitor);
+                            lastError = error.msg;
+                        }
+                    }
+                }
+                ImGui::EndDisabled();
+                const std::lock_guard lock(stateMonitor);
+                if (scopedResultRun == run->id() && ImGui::TreeNode(cStringCopy(translateText("Tagged run results")).data())) {
+                    for (const auto& task : scopedResult.tasks) {
+                        const auto spec = run->session()->taskSpec(task.taskId);
+                        const auto name = translateText(spec.label.retainedString());
+                        ImGui::PushID(cStringCopy(task.taskId).data());
+                        if (renderStateTree(name, task.state, compat::RetainedString::fromStaticLiteral("scoped-task"), 0)) {
+                            evidenceText(taskStatusLabel(task.state));
+                            const auto steps = run->orderedSteps();
+                            const auto step = std::ranges::find_if(steps, [&](const auto& item) {
+                                return run->stepTaskId(item.id.retainedString()) == task.taskId;
+                            });
+                            reviewGuidance(step == steps.end() ? std::string_view{} : step->id.view(), spec.phase);
+                            renderTaskEvidence(run, task);
+                            if (ImGui::TreeNode(cStringCopy(translateText("Advanced evidence")).data())) {
+                                renderTaskEvidence(run, task, true);
+                                ImGui::TreePop();
+                            }
+                            ImGui::TreePop();
+                        }
+                        ImGui::PopID();
+                    }
+                    ImGui::TreePop();
+                }
+            }
             ImGui::TreePop();
         }
         return false;
@@ -1634,6 +3023,8 @@ void AutoRigPanel::renderMaterialRoles(
                 Json(sourceElement(cached->landmarkX, i, 770)), Json(sourceElement(cached->landmarkY, i, 770))});
         }
         options.sourceIndexAssignSlot("landmarks") = Json(landmarks);
+        run->session()->setInput(run->stepTaskId(literal("exclusions").retainedString()),
+            literal("options").retainedString(), framework::AutoRigValue::jsonValue(options));
         context->setValue(literal("options").retainedString(), framework::AutoRigValue::jsonValue(options));
         if (rerun) startRun(run, {}, false);
     } catch (const compat::ThrowableException& error) {
@@ -1642,45 +3033,39 @@ void AutoRigPanel::renderMaterialRoles(
     }
 }
 
-void AutoRigPanel::renderSessionOutput(
+bool AutoRigPanel::renderSessionOutput(
         std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run) {
     using Kind = ::nijigenerate::autorig::framework::AutoRigValueKind;
     [[maybe_unused]] const auto owner = weak_from_this().lock();
     const auto title = core::translation::ngTranslateCString("Workflow output");
-    if (!ImGui::TreeNode(title.data())) return;
+    if (!ImGui::TreeNodeEx(title.data(), ImGuiTreeNodeFlags_DefaultOpen)) return false;
+    bool openVerification = false;
     compat::ngRunWithScopeExit([&] {
-        if (compat::ngRequireObject(run)->renderOutputUI()) return;
-        if (compat::ngRequireObject(run)->workflowId() == "model-to-rig") {
-            const auto message = cStringCopy(translateText(
-                "The resulting rig is applied to the editor model. Inspect task changes and verification below."));
-            ImGui::TextWrapped("%s", cStringData(message));
-            return;
+        if (run->renderOutputUI()) return;
+        const bool builtIn = run->workflowId() == "model-to-rig";
+        if (builtIn && ImGui::SmallButton(cStringCopy(translateText("Open final verification")).data())) {
+            reviewTaskByRun[run->id()] = run->stepTaskId("verify");
+            reviewHandoffByRun.erase(run->id());
+            openVerification = true;
         }
-        const auto ports = compat::ngRequireObject(run)->outputPorts();
-        for (auto port : ports) {
-            const auto name = cStringCopy(port.id);
-            ImGui::TextUnformatted(cStringData(name));
-            if (!compat::ngRequireObject(run)->hasOutput(port.id.retainedString())) {
-                const auto waiting = cStringCopy(translateText("Waiting for output"));
-                ImGui::TextUnformatted(cStringData(waiting));
+        for (const auto& port : run->outputPorts()) {
+            ImGui::PushID(cStringCopy(port.id).data());
+            const auto name = port.id.view() == "model" ? translateText("Rigged model") :
+                port.id.view() == "report" ? translateText("Verification report") : port.id.retainedString();
+            const auto id = port.id.retainedString();
+            if (!run->hasOutput(id)) {
+                ImGui::TextDisabled("%s · %s", cStringCopy(name).data(),
+                    cStringCopy(translateText("Waiting for output")).data());
             } else {
-                auto artifact = compat::ngRequireObject(run)->outputArtifact(port.id.retainedString());
-                const auto label = port.kind == Kind::Json ?
-                    translateText("JSON artifact ready") :
-                    port.kind == Kind::Blob ? translateText("Binary artifact") :
-                    artifact.value().text;
-                const auto text = cStringCopy(label);
-                ImGui::TextUnformatted(cStringData(text));
-                if (port.kind == Kind::Blob) {
-                    const auto pattern = translateText("%s bytes");
-                    const std::array<core::translation::TypedFormatArgument, 1> arguments{
-                        core::translation::ngFormatArgument(artifact.byteLength())};
-                    const auto bytes = cStringCopy(core::translation::ngFormatTyped(pattern.view(), arguments));
-                    ImGui::TextUnformatted(cStringData(bytes));
-                }
+                ImGui::TextWrapped("%s · %s", cStringCopy(name).data(),
+                    cStringCopy(translateText("Processing complete")).data());
+                if (port.kind != Kind::Json && port.kind != Kind::Blob)
+                    evidenceText(run->outputArtifact(id).value().text);
             }
+            ImGui::PopID();
         }
     }, [] { ImGui::TreePop(); });
+    return openVerification;
 }
 
 void AutoRigPanel::renderDefaultOutputs(

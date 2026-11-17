@@ -182,6 +182,7 @@ AutoRigValue ngCopyAutoRigValue(AutoRigValue value) {
     case AutoRigValueKind::Path: return AutoRigValue::path(value.text);
     case AutoRigValueKind::Json: return AutoRigValue::jsonValue(
         !value.text.empty() ? detail::readJson(value.text) : detail::copyJson(value.json));
+    case AutoRigValueKind::Object: return value;
     case AutoRigValueKind::Blob: return !value.text.empty() || value.nativePayload ? value : AutoRigValue::blob(value.mutableBytes);
     }
     throw compat::SwitchError(Text::fromStaticLiteral("No appropriate switch clause found"),

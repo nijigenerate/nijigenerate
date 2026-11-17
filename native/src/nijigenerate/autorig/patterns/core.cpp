@@ -248,13 +248,21 @@ Json ngDetectPattern(std::string_view pattern, const Json& document, const Json&
     require(mode == "auto" || mode == "manual", "Target mode must be auto or manual");
     if (mode == "manual") {
         // Empty explicit selection means no targets. Never fall back to auto here.
-        matches = get(request, "matches").as_array();
-        for (auto& match : matches) {
+        const auto& submitted = get(request, "matches").as_array();
+        for (std::size_t i = 0; i < submitted.size(); ++i) {
             check(checkpoint);
-            validateMatch(spec, index, match);
-            match.as_object()["provenance"] = "manual";
-            match.as_object()["requires_review"] = false;
+            auto match = submitted[i];
+            try {
+                validateMatch(spec, index, match);
+                match.as_object()["provenance"] = "manual";
+                match.as_object()["requires_review"] = false;
+                matches.push_back(std::move(match));
+            } catch (const std::exception& error) {
+                unresolved.push_back(Object{{"match_index", i}, {"reason", error.what()}});
+            }
         }
+        if (matches.empty() && !unresolved.empty())
+            throw std::invalid_argument(string(get(unresolved.front(), "reason")));
     } else {
         if (!request.as_object().contains("condition")) {
             auto detected = ngDetectStructuralPatterns(document, checkpoint);

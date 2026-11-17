@@ -99,20 +99,21 @@ std::vector<Point2> projectedHull(std::vector<Point2> points) {
 }
 }
 
-Json applyRearCap(Json state, Json program, Task task) {
+RearCapPlan planRearCap(Json state, Json program, Task task) {
+    RearCapPlan plan{nativeString(indexNative(state, "model_sha256")), core::settings::SettingsJsonArray{}, {}};
     core::settings::SettingsJsonArray silhouettes;
     const auto targets=indexNative(state,"targets").sourceArrayValue();
     const auto keys=indexNative(state,"native_head_keys").sourceArrayValue();
     const auto skin=indexNative(indexNative(program,"hierarchy"),"face_origin");
-    if (skin.is_null()) return silhouettes;
+    if (skin.is_null()) return plan;
     const auto fitValue=program.sourceObjectRef().if_contains("head_surface_fit");
-    if (!fitValue || !fitValue->is_array()) return silhouettes;
+    if (!fitValue || !fitValue->is_array()) return plan;
     const auto fit=ngRigNumbers(*fitValue);
-    if (fit.size()!=5) return silhouettes;
+    if (fit.size()!=5) return plan;
     const auto anatomyValue=program.sourceObjectRef().if_contains("head_anatomical_fit");
-    if (!anatomyValue || !anatomyValue->is_array()) return silhouettes;
+    if (!anatomyValue || !anatomyValue->is_array()) return plan;
     const auto coordinates=ngRigNumbers(*anatomyValue);
-    if (coordinates.size()!=6) return silhouettes;
+    if (coordinates.size()!=6) return plan;
     const head_template::Fit anatomy{coordinates[0],coordinates[1],coordinates[2],
         coordinates[3],coordinates[4],coordinates[5]};
     const double faceWidth=fit[2]-fit[0], faceHeight=fit[3]-fit[1];
@@ -136,19 +137,13 @@ Json applyRearCap(Json state, Json program, Task task) {
         if (stringGet(target,"reference_component","")!="hair_back") continue;
         contracts::ngRigCheckpoint(task);
         const auto id=uuid(indexNative(target,"part"));
+        if (!task->acceptsTarget(id)) continue;
         const auto bounds=ngRigNumbers(indexNative(materials[id],"bounds"));
         if (bounds[0]>faceCenter-.30*faceWidth || bounds[2]<faceCenter+.30*faceWidth ||
             bounds[1]>fit[1]+.16*faceHeight || bounds[3]<fit[1]+.65*faceHeight) continue;
         const auto rear=measure(ngRigPoints(indexNative(
             observation::ngRigAlphaContour(materials[id],task),"points")));
         if (rear.edges.empty()) continue;
-        bool canBind=false;
-        task->runOnMainThread([&] {
-            auto puppet=project::incActivePuppet();
-            auto part=puppet->findNodeById(id);
-            canBind=part && !parameterByName(puppet,"Face::Yaw-Pitch")->getBinding(part,"deform");
-        });
-        if (!canBind) continue;
         const auto gridX=ngRigNumbers(indexNative(target,"xs"));
         const auto gridY=ngRigNumbers(indexNative(target,"ys"));
         const auto gridFrame=ngRigNumbers(indexNative(target,"parent_to_root"));
@@ -251,21 +246,40 @@ Json applyRearCap(Json state, Json program, Task task) {
                 values.append(static_cast<float>(inverse[2]*delta[0]+inverse[3]*delta[1]));
             }
             const auto indices=ngRigNumbers(indexNative(key,"key"));
-            task->runOnMainThread([&] {
-                auto puppet=project::incActivePuppet();
-                auto part=puppet->findNodeById(id);
-                auto parameter=parameterByName(puppet,"Face::Yaw-Pitch");
-                auto context=editorContext({part});
-                context->parameters({parameter});
-                context->keyPoint({static_cast<unsigned>(indices[0]),static_cast<unsigned>(indices[1])});
-                context->hasExplicitKeyPoint(true);
-                commandSource([&] {
-                    return createNativeObject<commands::model::set_deform_binding::SetDeformBindingCommand>(
-                        compat::RetainedString::fromStaticLiteral("deform"),values,true,false);
-                },[&] { return context; });
-            });
+            plan.operations.push_back({id, {static_cast<unsigned>(indices[0]), static_cast<unsigned>(indices[1])},
+                std::move(values)});
         }
     }
-    return silhouettes;
+    plan.silhouettes = silhouettes;
+    return plan;
+}
+Json applyRearCap(const RearCapPlan& plan, Task task) {
+    NativeIntegerMap<std::uint32_t, bool> eligible;
+    for (const auto& operation : plan.operations) {
+        ngRigCheckpoint(task);
+        task->runOnMainThread([&] {
+            auto puppet = project::incActivePuppet();
+            auto part = puppet->findNodeById(operation.part);
+            auto parameter = parameterByName(puppet, "Face::Yaw-Pitch");
+            enforceNative(part && parameter, "Rear hair correction target is missing", 260);
+            if (!eligible.contains(operation.part))
+                eligible[operation.part] = !parameter->getBinding(part, "deform");
+            if (!eligible[operation.part]) return;
+            auto context = editorContext({part});
+            context->parameters({parameter});
+            context->keyPoint({operation.key[0], operation.key[1]});
+            context->hasExplicitKeyPoint(true);
+            commandSource([&] {
+                return createNativeObject<commands::model::set_deform_binding::SetDeformBindingCommand>(
+                    compat::RetainedString::fromStaticLiteral("deform"), operation.offsets, true, false);
+            }, [&] { return context; });
+        });
+    }
+    core::settings::SettingsJsonArray applied;
+    for (const auto& silhouette : plan.silhouettes.sourceArrayValue()) {
+        const auto part = uuid(indexNative(silhouette, "part"));
+        if (eligible.contains(part) && eligible[part]) applied.append(silhouette);
+    }
+    return applied;
 }
 }

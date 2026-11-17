@@ -1,121 +1,292 @@
-# AutoRig processor and session framework
+# AutoRig の証跡とタスク実行 API
 
-## Current memory ownership
+この文書は AutoRig の API 改訂案である。タスクは、宣言した入力証跡が解決できたときに実行する。検出が失敗しても、別の証跡で実行できるタスクは続行する。過去の証跡を ID で選択でき、再実行では入力に使う証跡を差し替えられる。
 
-AutoRig sessions now keep model snapshots, JSON, binary artifacts and previews
-in memory. Task publication does not write files or create run directories.
-The native model port is a `Blob` snapshot produced by the engine memory API;
-it is restored through the engine memory loader for retry or rollback. PNG
-previews are captured through `CaptureLiveScreenshotCommand` and retained as
-bytes. Session close/reopen is supported within the same application process;
-disk-based recovery and automatic model saving have been removed. The original
-disk-storage design described below is superseded by this ownership model.
+## 改訂前の API と変更理由
 
-This document describes the first D framework for built-in AutoRig processors. A processor contains shared implementation code and exposes its programs as named task functions. The first intended processor is a D port of `nijigenerate-deterministic-rig`.
+主な対象は native C++ の [framework.hpp](../native/src/nijigenerate/autorig/framework.hpp)、[framework_schema.hpp](../native/src/nijigenerate/autorig/framework_schema.hpp)、[workflow.hpp](../native/src/nijigenerate/autorig/workflow.hpp) である。
 
-Processors may also publish workflow presets. A workflow connects task calls from its provider or other registered processors. The workflow manager lists these presets and creates one `AutoRigSession` when a user invokes one.
+- `AutoRigTaskSpec` は入力・出力ポートと依存タスクを宣言する。実行時は接続元のタスクを再帰実行し、その時点の `committedOutputs` を読む。接続済みポートへの `setInput` は拒否される。`executeGroup` はタスクの例外で残りの実行が中断され得る。`force` や入力の変更で下流のコミット済み出力が失効する。過去の出力を指定する公開 API はない。[実行](../native/src/nijigenerate/autorig/framework_session_run.cpp) · [入力と状態](../native/src/nijigenerate/autorig/framework_session_state.cpp)
+- deterministic AutoRig は各段階の `state` と `model` を連鎖させ、複数の検出結果を一つの状態に入れて渡す。たとえば `apply-shape-corrections` では足の処理に続いて後ろ髪と頬を処理する。足の `hip.Both` 参照で例外が出ると、同じタスク内の後ろ髪・頬まで到達しない。顔の対応付けの失敗も、全体の `compile-rig` の失敗になる。[パイプライン](../native/src/nijigenerate/autorig/deterministic/pipeline.cpp) · [補正の実装](../native/src/nijigenerate/autorig/deterministic/native_stage_cheek.cpp)
+- `RigStateStorage` は JSON を内容のハッシュで、点群と alpha run を個別のトークンでメモリに保持する。チェックポイントの `artifact_refs` と素材メタデータの `_source_support` から復元できる。素材 UUID に対する `currentSupports` も内部で使うため、任意のチェックポイントを扱う API には、明示的な参照だけから復元する契約が必要になる。モデル Blob やプレビューもメモリに保持され、ワークフローの閉じ直しは同一プロセス内で行える。[証跡ストレージ](../native/src/nijigenerate/autorig/deterministic/storage.cpp) · [ワークフロー管理](../native/src/nijigenerate/autorig/workflow_manager.cpp)
 
-## Boundary
+## 実装済みの範囲
 
-`AutoRigProcessor` declares a stable processor ID, display name, task specifications, and `executeTask(taskId, context)`. A processor may call any shared D code internally. The framework runs selected tasks and their dependencies in one session. There is no per-task process invocation or CLI argument mapping.
+実行器は接続ポートと手動指定から入力証跡 ID を解決し、必須入力が不足したタスクを `Blocked` として記録する。実行グループ内では各採取元を一度だけ評価する。後続が使ってよいモデル・状態の入力は、段階ごとに `checkpointFallbacks` で明記する。たとえば足の補正が適用できない場合は、後ろ髪の補正に足の適用前のモデル版を渡す。
 
-The framework lives in `source/nijigenerate/autorig/framework.d`. It is independent of the editor's layout and deform UI. Either mode can create a session and supply inputs through the same API. A task declares model-related inputs only when it needs them.
+基本 AutoRig では人体計測、肩・耳・腰の接合検出、足・後ろ髪・頬の補正計画を個別に採取する。追加 AutoRig は検出対象と適用記録をオブジェクトで受け渡す。公開済み証跡と試行履歴はセッションで保持し、`outputEvidence`、`readEvidence`、`registerInputEvidence`、`bindInputEvidence` で過去の結果や手動入力を利用する。同じセッションを閉じて開き直しても履歴を参照できる。プロジェクト保存をまたぐバイナリ永続化と、画面上での履歴指定は後述の設計に含まれる。
 
-## Task contract
+タスク定義に採取・計画・適用・検証の段階を持たせた。メッシュ生成は同じ設定のバッチを維持し、失敗時は変更を取り消して Part 単位で再試行する。UV 登録も Part 単位で処理し、下流には確認済みのキャリアを渡す。試行の内訳と成功した結果は一緒に公開する。
 
-Each `AutoRigTaskSpec` has an ID, dependencies, input and output ports, and connections from an earlier task's output to its input. Port IDs are local to a task. The four value kinds are:
+`AutoRigWorkflowRun::plan` と `execute` は指定タグ・対象 ID から確認済みの範囲を固定する。対象の関連は基本 AutoRig の分類結果または `registerTargetAssociations` で登録した型付き証跡から取得する。タグ付き実行の出力を別の試行として保存し、通常実行の出力 ID と区別する。パネルの「Rerun selected tags」と `autorig_model_batch INPUT.psd OUTPUT_DIRECTORY --rerun-tag TAG` からこの経路を利用できる。
 
-| Kind | Meaning |
+基本 AutoRig の Part メッシュ、UV 登録、顔機構の Composite と局所コントロール、Welding、足・頬・後ろ髪の補正、物理設定には、全体実行とタグ付き再実行の両方で対象条件を適用する。追加 AutoRig では検出で認定した構造単位を適用に渡す。条件に合う独立した単位を続行し、共有単位では構成要素の適格性を確認する。全体骨格の構築や角度生成のようにリグ全体の整合が必要な段階は、モデル全体を処理単位とする。
+
+条件は実行管理から登録でき、条件 ID と版を保持する。タスクの試行記録には、使った条件、認定した対象と入力証跡 ID を保存する。型付き証跡はセッション内で共有する。個々の認定処理を任意の条件式で組み替える API とプロジェクト保存をまたぐ永続化は設計段階にある。
+
+### AutoRig パネルでの確認と手直し
+
+実行中は、パネル上部に現在のタスクと、今回結果が確定したタスク数を表示する。再利用した結果や対象外の判定も件数に含まれる。フローをスクロールしたり、別の結果を確認したりしている間も実行状況を確認できる。
+
+実行ごとに完了数と要確認数を表示し、「要確認の工程へ」で該当する工程を順に開ける。フローには全工程の名前と状態を表示し、選んだ工程に接続する線を表示する。状態アイコンは青が実行中、緑が成功、オレンジが未実行・入力待ち・再実行が必要など、赤が失敗を示す。フローの高さはパネルに合わせて変わり、境界を上下にドラッグして配分を調整できる。未実行や入力待ちの工程は「入力・対象」、実行済みの工程は「結果」タブから確認する。
+
+- 「入力・対象」では、次の実行に使う部品・ノードをリソースツリーで確認する。入力の渡し元を開くと、部品、接合ペア、補正対象などを確認できる。選択を編集できる入力はここで修正して再実行する。先行工程から得られる入力が不足している場合は、それを準備して実行できる。前回の実行に使った入力が現在の入力と異なる場合は、その旨を表示する。
+- 「結果」では、要確認の項目と理由、検出・処理・変更した部品を確認する。変更した部品を選択すると、その直下に変更内容を表示する。工程に応じて「変更前後」と、角度や開閉を操作する「動きを試す」を開ける。
+- タグの結果では、タグを親行、そのタグに関連する部品・ノードを子行にする。同じ部品は該当する各タグから選べる。接合ペアと要確認の対象も、結果が持つ組や理由でまとめる。部品行はリソースパネルと同じサムネイル・選択・ドラッグ操作を使う。AutoRig 専用ストアに証跡から親子関係を直接登録し、モデル上の階層は表示に使わない。部品の参照には、モデルの構造変更時にだけ更新する UUID 索引を使う。
+- 「後続の実行」では、この工程から結果を受け取る工程や、実行順序を直接指定された工程を表示する。必須の入力が不足していれば待っている結果の名前を示す。入力が揃った工程を選択して実行できる。実行ボタンは通常の証跡依存の実行経路を使う。
+
+工程名の右クリックまたは「…」から、証跡と履歴を開ける。実行名の横の「…」から、部位指定の再実行や成果物を開ける。
+
+## 証跡の ID と履歴
+
+| 項目 | 意味 |
 | --- | --- |
-| `FileName` | A filename value without a directory. It does not imply that a file exists. |
-| `Path` | A reference to a file or directory. User-supplied paths remain external inputs; output paths are allocated inside the run. |
-| `Json` | A structured JSON value. It is available in memory and saved as JSON for inspection. |
-| `Blob` | Binary bytes. They are available in memory and saved as a binary artifact. |
+| `EvidenceKey` | 証跡の用途を表す安定したキー。型とスキーマ版を持ち、必要に応じて対象の部位を指定する。例として `face.eye-apertures/v1`、`leg.fixed-foot-plan/v1` がある。 |
+| `EvidenceId` | 採取または計算で登録した一つの証跡を識別する不変 ID。別の採取で同じデータが得られても、由来を区別できる。 |
+| `ArtifactDigest` | 型ごとに算出できる場合に使う任意の内容ハッシュ。同一内容の実体を共有する。ハッシュの算出は証跡の登録条件にしない。 |
+| `TaskAttemptId` | 一回の実行を識別する ID。タスクインスタンス ID と実行番号を含む。 |
+| `TargetId` | プロジェクト内の具体的な部位や機構を識別する安定 ID。部位を表すタグや、役割に割り当てた Part・Node の ID と組み合わせて使う。 |
+| `SelectionRevision` | 各証跡スロットとタスク入力が、どの ID を選んでいるかを記録する版。 |
 
-Connections require matching kinds. The framework checks task and port IDs, connections, required inputs, and required outputs. Connections imply execution dependencies; explicit dependencies cover ordering without data transfer. Cycles fail before a task is run.
+証跡レコードには ID、キー、値の型、実体への参照、生成した試行、ポート、採取時刻、採取元のモデル版、参照した入力証跡 ID、プロセッサとアルゴリズムの版を記録する。タスクの実行記録には、解決した全入力 ID、出力 ID、成否と診断を残す。手動登録・編集では操作者と元の証跡 ID も記録する。プレビューとログは試行の診断に紐づけ、入力に使う証跡は検証と公開が完了したものに限る。
 
-For example, a D port may declare `prepare-psd` with a `Path` input and `Json` observation output. `derive-evidence` can take that observation as `Json` and return `Json` evidence. A later task can request a `Path` output for an INX model. This does not require every task to share one input schema.
+証跡の実体は、輪郭、ランドマーク、点群、メッシュ対応、変形計画など、処理が用いる型付きの C++ オブジェクトとして保持する。公開時に読み取り専用のスナップショットを確定し、証跡ストアとタスク間では同じオブジェクトを共有する。登録、入力解決、再実行の経路で JSON 文字列への変換や再パースは行わない。既存のバイナリ資産は、型付きオブジェクトが読み取り専用のバッファとして参照する。内容による共有を行う型は、フィールドやバッファを直接ハッシュする。
 
-## Session and artifact ownership
+ユーザーが証跡を「上書き」すると、新しい ID を登録し、選択中のスロットをその ID に更新する。旧版の実体と来歴は残る。たとえば左目の範囲や足の対応点を手動で修正した場合、その内容を同じキーの新しい証跡として登録し、該当入力だけを差し替える。古い ID を入力に指定すれば、以前の条件を再現できる。
 
-`AutoRigSessionManager` registers built-in processors and creates runs beneath an application-selected root. Each run gets a generated ID and directory. Every task attempt gets a separate directory:
+証跡の保管先はプロジェクト単位とし、同じプロジェクトの別セッションからも ID で読めるようにする。既存のインメモリストレージを実行時の保管に再利用し、保存済みプロジェクトでは証跡レコード・実体・選択履歴をプロジェクトに対応する領域へ永続化する。型 ID とスキーマ版を記録し、保存・読み込み・エクスポートの境界でだけ型ごとのバイナリコーデックを使う。読み込んだ証跡は同じ型のオブジェクトに復元し、モデルのメッシュなどへの参照は保存可能な ID で表す。未保存プロジェクトの証跡はメモリから明示的にエクスポートできる。証跡の永続化はエディタのモデル保存とは別に行う。履歴から選べる ID と、それが参照する実体は保持する。明示的に削除できるのは参照されていないデータだけとする。
 
-```text
-<root>/<run-id>/<task-id>/attempt-<number>/
-    <output-port>.json | .blob | .name | <allocated path>
-    preview-<preview-id>-<version>.<extension>
-    result.json
-```
+## API の変更案
 
-Task code reads inputs by port name and writes outputs with `publishJson`, `publishBlob`, `publishFileName`, or `outputPath` followed by `publishPath`. It never chooses a run directory. A failed attempt retains its files and `result.json` for inspection, but its outputs are not passed to downstream tasks. A successful attempt commits its declared outputs together. A new attempt does not overwrite the previous one.
+下記の型名・メソッド名は提案である。既存の UI や旧 API との変換が必要な場合は互換アダプターで行う。新しい証跡ストアとタスク API では型付きオブジェクトを直接扱う。
 
-Changing a supplied input invalidates that task and downstream results. Re-executing a task with `force=true` similarly invalidates its dependents. `executeGroup` runs selected tasks in dependency order, reusing valid completed dependencies. `cancel()` sets a cooperative cancellation flag; processors doing long work should check `context.isCanceled()` regularly. A canceled or failed run may be retried in the same session.
+| 現行 API | 改訂案 |
+| --- | --- |
+| `AutoRigTaskSpec.inputs/outputs`、`dependencies`、`connections` | 各ポートに証跡キー、値の型、必須・任意、互換性の条件を宣言する。プリセットの接続は、既定で参照する出力スロットと未採取時の採取タスクを指定する。タスク名だけの依存は証跡の依存へ移し、エディタ操作の直列化は実行器が扱う。 |
+| `AutoRigTaskContext.input(port)` | 解決済みの `evidenceId(port)` と、読み取り専用オブジェクトへの共有参照を返す `input<T>(port)` を提供する。実行中は開始時に解決した ID とオブジェクトを固定する。 |
+| `publishJson`、`publishBlob` など | `publishEvidence<T>(port, value)` でオブジェクトを候補として渡す。実行器が出力の型とスキーマを検証し、試行成功時に読み取り専用で公開する。診断だけは失敗時も試行に残す。 |
+| `AutoRigSession.setInput(task, port, value)` | `registerEvidence<T>(key, value, provenance) -> EvidenceId` と `bindInput(task, port, selector, expectedRevision)` を追加する。型が合えば接続済みのポートでも ID を固定できる。既存の `setInput` は手動証跡の登録とバインドを行う互換 API とする。 |
+| `task()`、`output()`、`outputArtifact()` | `getEvidence(id)` でレコードを、`readEvidence<T>(id)` でオブジェクトへの読み取り専用参照を取得する。`listEvidence(filter)`、`listAttempts(task)`、`outputEvidence(task, port, attempt)` で履歴を調べる。既存の `output()` は現在選択中の互換出力を読む。 |
+| `execute()`、`executeGroup()`、`AutoRigWorkflowRun.executeStep()` | `plan(tasks, selectionRevision)` で解決済み入力と不足を表示し、`execute(plan, options) -> ExecutionReport` はタスク別結果を返す。従来 API はプリセットの現在選択から計画を作る互換入口にする。 |
+| `RigStateStorage` の `artifact(state, name)` | プロジェクトの証跡ストアを導入し、証跡 ID から実体を取得する。複合チェックポイントは素材ごとの support ID を含む不変マニフェストとして保存し、復元時はその参照から必要な部分だけを読む。 |
 
-`previewJson`, `previewBlob`, and `previewPath`/`publishPreview` expose versioned, noncommitted artifacts during execution. `session.task(taskId)` returns task state, attempt number, message, and artifact records, including previews. A viewer can choose its display from the artifact kind, MIME type, and optional port `viewHint`.
+入力セレクタは `Pinned(EvidenceId)` または `Follow(OutputSlot)` とする。`Pinned` は過去の任意の互換証跡を明示する。`Follow` は出力スロットで最後に公開された互換証跡を参照する。互換性にはキーとスキーマに加え、対象の素材・モデル版・座標系を使う。メッシュに依存する変形計画はトポロジーの識別子も確認する。必要な証跡同士の互換性は、ポートの型一致と別に検証する。
 
-## Task UI contract
+プリセット Play は不足する証跡の採取も計画する。タスク単体の再実行では、既存の証跡と明示した入力差し替えで計画を作り、採取元の再実行はオプションで指定する。管理画面の履歴・再実行と、ヘッドレス実行は同じセレクタと計画 API を使う。汎用入力 UI には選択中の ID、由来、不足理由を表示し、プロセッサ固有のエディタからも証跡の差し替えを呼べるようにする。
 
-A processor may implement `IAutoRigInputEditor` and/or `IAutoRigOutputViewer`, following AutoMesh's processor-owned `configure()` pattern. Their `configureInput(taskId, context)` and `viewOutput(taskId, context)` methods draw the editor and result viewer. These methods are called from the editor UI thread through `session.renderInputUI(taskId)` and `session.renderOutputUI(taskId)`. Both return `false` when no custom implementation exists, allowing a generic port or artifact viewer. The framework does not create an editor panel or impose an ImGui dependency on processors without UI.
+### タスクと証跡の対応例
 
-The session owns one stable `AutoRigInputContext` and `AutoRigOutputContext` per task instance. They implement `IAutoRigInputContext` and `IAutoRigOutputContext`; the same interfaces are passed to custom renderers and can be retrieved directly with `session.inputContext(taskId)` and `session.outputContext(taskId)`. They represent task state rather than UI-only wrappers. `AutoRigTaskContext` remains the short-lived execution context for one attempt.
+プリセットは下表のように証跡キーごとの採取元と、各タスクの必須入力を宣言する。実行計画では、入力ポートごとに選んだ具体的な `EvidenceId` を記録する。左右を独立して扱える場合は、同じタスク内に左右それぞれの処理単位を作る。以下の名前は移行後の例である。
 
-The input context lists declared ports and exposes `isConnected`, `canEdit`, `hasValue`, `value`, and `setValue`. `setValue` uses `AutoRigSession.setInput`, so it validates the kind, rejects edits to connected ports or during execution, and invalidates downstream results. Connected values can be inspected but are read-only. The output context lists output ports and exposes the current task snapshot, committed values, and committed output artifacts. Its snapshot includes versioned previews and failed-attempt files, so a viewer can show progress without treating those files as committed outputs.
+| タスク | 必須入力の証跡キー | 生成する証跡キー |
+| --- | --- | --- |
+| `observe-model` | `model.revision` | `source.geometry`、`source.material-support` |
+| `detect-eye-aperture`（左右別） | `source.material-support`、`face.frame` | `eye.aperture[side]` |
+| `detect-body-landmarks` | `source.geometry`、`source.material-support` | `body.landmarks` |
+| `build-body-rig` | `model.revision`、`body.landmarks` | `model.body-rigged` |
+| `plan-foot-correction`（左右別） | `body.skeleton`、`foot.contacts[side]` | `foot.correction[side]` |
+| `plan-cheek` | `face.frame`、`face.outline`、`head.surface` | `face.cheek-correction` |
+| `plan-rear-cap` | `head.surface`、`hair.rear-outline` | `hair.rear-correction` |
+| `apply-correction`（補正別） | 適用先の `model.revision`、該当する補正計画 | 適用後の `model.revision` と適用記録 |
 
-In a workflow, a UI call on a task instance is dispatched to the originating processor with its original task ID. The context still carries the task instance ID and the one workflow session, so repeated calls to the same task remain distinct and cross-plugin editors use the same run's values and files.
+同じ素材から抽出し直した輪郭やランドマークにも個別の ID を発行する。元の素材 ID を来歴に持たせ、素材が同じ場合でも抽出結果を個別に参照・差し替えできるようにする。
 
-## AutoRig panel
+## 実行、失敗、再実行
 
-The AutoRig panel is available in both Layout and Deform. A built-in processor registers through `ngRegisterAutoRigProcessor(processor)` in `nijigenerate.panels.autorig`; the panel reads presets from the shared `AutoRigSessionManager`. The top dropdown lists every registered processor's workflow presets. Its Play button creates a new workflow session under the application's AutoRig run directory.
+1. 計画時に参照できる入力 ID を固定する。必須証跡が未採取で既定の採取元がある場合、その採取を同じ計画に入れ、計画内の該当出力が確定した時点でその ID を固定する。計画外で更新されたスロットは次の計画から使用する。採取タスクにも必要証跡を宣言する。既定経路の循環はプリセット検証で拒否する。
+2. 必須証跡が揃ったタスクを実行する。採取が失敗して入力が不足するタスクは `Blocked` と記録し、失敗した採取試行、不足するキー、指定された ID を返す。本体が実行されて例外や検証エラーを返した場合は `Failed` とする。`Blocked` は実行されなかった失敗として実行レポートに含める。任意証跡の欠如は契約で定めた既定動作につなげる。対象が存在しないと確認できた検出は、理由付きの「対象なし」を証跡として公開できる。
+3. グループ内では `Blocked` や `Failed` を記録して、他の実行可能なタスクを続行する。過去の互換証跡が選択済みなら、採取タスクの直近の成否にかかわらず使用する。互換性が失われた場合は不足または不一致を記録する。モデル成果物が作れた範囲と失敗したタスクを `ExecutionReport` に併記し、部分成功を表せるようにする。
+4. 再実行は入力の差し替えをまとめて検証してから新しい選択版として確定する。実行の再利用はタスクの版、解決済み入力 ID、出力に影響する設定で判定する。変更が影響するのは、解決済み ID が変わるタスクと、その結果を追従するタスクである。固定参照と過去の成果は履歴から引き続き利用できる。`force` は選んだタスクの新しい試行を作る。
+5. 出力と出力スロットの更新は、検証済みの結果をまとめて確定する。候補の一部で実行するタスクは、成功した処理単位を公開対象にできる。失敗やキャンセルは、直前に公開済みの証跡を消さない。実行開始後に入力やモデルが変更された場合も、試行結果は開始時の ID に紐づける。現在のスロットへの反映には選択版の一致を確認する。
 
-Each session is a tree with its own Play button. It lists workflow steps in dependency order, even if the preset declares them in another order. Session Play reruns the entire workflow in that order. A task's Play button reruns that task and any unfinished dependencies in the same session. The API's default `execute()` and `executeStep()` calls still reuse successful results; passing `force=true` gives Play behavior. Every actual task invocation runs in a Fiber, and panel Play runs the workflow on a separate thread. Like AutoMesh, processors should perform computation in the worker and call `context.runOnMainThread()` for editor mutations. The panel's session manager opens and closes each task's `GroupAction` on the main thread with `incActionPushGroup()` / `incActionPopGroup()`. This covers internal dependencies and tasks from other processors, making each task's actions one Undo entry while preserving its own nested group calls. A failed task still closes its group, so any actions it emitted remain undoable. Tasks that reuse a successful result create no Undo entry. The Input and Output branches call the processor-owned UI interfaces when present. Otherwise they show a generic port editor for `FileName`, `Path`, and `Json`, a file loader for `Blob`, and output values plus artifact paths. The panel reports parse, file, and task errors without discarding the session.
+たとえば `bindInput("plan-cheek", "outline", Pinned(oldOutline), revision)` で過去の輪郭を選び、互換な座標系と頭部曲面の証跡を与えれば、直近の輪郭採取が失敗していても頬を補正できる。輪郭を手動で直したときは、新しい証跡 ID へ同じポートを差し替えて再実行する。
 
-`close(runId)` removes an idle in-memory session from the manager and leaves the run directory intact. Reopening a run from disk, retention policy, and cleanup will be added with the UI and persistence layer. The current session API is synchronous; a UI caller must schedule execution outside the render loop and route model mutations through the editor's existing action boundary.
+## 候補の一部で実行するタスク
 
-## Workflow presets and calls
+ワークフローには「接合検出」「Part メッシュ生成」「Welding」のように処理の目的ごとのタスクを登録する。各タスクは、入力に応じて**独立に条件確認・検証・取り消しができる最小単位**を実行時に組み立てる。画面にはタスクを一行で表示し、内訳で対象と失敗理由を確認できるようにする。実行器は同じ設定の単位をまとめて処理できる。実行をまとめる範囲と、結果を採用する範囲は別に定義する。
 
-`AutoRigProcessor.workflows()` returns zero or more `AutoRigWorkflowSpec` values. The workflow ID is local to its provider; callers identify a preset by `(providerId, workflowId)`. A preset declares its public input and output ports, named steps, step ordering, and bindings. Each step specifies a processor ID and task ID. A connection names the source step's output and the destination step's input. An input binding maps a public workflow input to a task input. The optional `targetTask` field permits binding an input of the selected task's internal dependency; an empty value means the selected task itself.
+### 最小単位の決め方
 
-`AutoRigWorkflowManager.listPresets()` provides the user-facing preset list. `create(providerId, workflowId)` validates the complete graph and creates a single session. Validation checks processor and task availability, port kinds, required input coverage, duplicate bindings, and dependency cycles before creating files. `AutoRigWorkflowRun` is a controller for that session: its ID and directory are the session ID and directory. `setInput()` supplies public inputs before execution. `execute()` runs the tasks in dependency order; a failed or canceled call can be retried, reusing completed tasks. `session()`, `stepTaskId()`, `snapshot()`, `output()`, `cancel()`, and the manager's `close()` provide execution and inspection control. Workflow state is derived from session task states.
+| 処理 | 採用・取り消しの単位 | グループ化 |
+| --- | --- | --- |
+| 候補の検出 | 候補一件。左右の検出を独立に検証できる場合は、一方の証跡だけでも公開する。 | 同じ画像、輪郭、座標系の計算を一度行い、同種の候補をまとめて検出する。 |
+| 通常のメッシュ生成 | 独立した Part 一つ。既存メッシュとの互換性を個別に検証できる。 | メッシュ設定が同じ Part をバッチ処理する。バッチは Part ごとの結果を返す。 |
+| 接合用メッシュ、Welding、共有 Grid | 両側の頂点対応や共有トポロジーを一緒に検証する必要がある範囲。複数の操作が同じ頂点対応を変更する場合は、その依存でつながる対象を一単位にする。 | 独立した接合単位を一つのタスクで処理する。単に同じモデルや親ノードを参照する対象は個別に確定できる。 |
+| モデル全体で整合すべき処理 | 必要な要素を一括確認する。たとえばモデル版の確定にはモデルと対応する状態が必要になる。 | 必須条件をタスクの共通入力に宣言する。 |
 
-Each step becomes a task instance in the same session. Its instance ID includes the step ID, so a preset can call the same processor task more than once with different inputs. Internal task dependencies are included under that step. The session owns all attempts and outputs:
+最小単位のキーは、処理の種類と対象 Part・Node の安定 ID、必要な接合や共有トポロジーで決める。素材順や表示名はキーに使わない。必要な証跡が揃った接合は、その接合に関わる対象だけを束ねる。接合候補の不足は、その対象の通常メッシュ生成を止める理由にしない。
 
-```text
-<root>/<run-id>/workflow.json
-<root>/<run-id>/<task-instance-id>/attempt-<number>/...
-```
+### 条件確認と結果の公開
 
-Cross-step values use ordinary task connections in that same session. The session passes only committed outputs, checks matching kinds, and invalidates downstream results when an upstream input changes. JSON is copied at the connection boundary; Blob and Path artifacts stay in the one run directory. `workflow.json` records the preset identity and step-to-task-instance mapping. Task attempt records hold output and preview provenance.
+1. タスクはモデル版やソース座標系などの**共通の必須証跡**と、各処理単位の**必須証跡・任意証跡**を宣言する。共通入力が不足したときはタスクを `Blocked` とする。個別入力の不足・不一致はその単位に記録し、残りの実行条件を判定する。上下流の接続はタスク全体の成否に依存せず、単位ごとの検証済み出力を参照する。
+2. 採取結果は、対象キーごとの成功した証跡 ID と、「対象なし」「証跡不足」「検出失敗」「適用・検証失敗」の内訳を持つ型付きオブジェクトとして公開する。成功した証跡は個別に参照・固定できる。候補の一覧自体を確定できなかったときは、対象範囲の採取失敗として記録する。
+3. 後続タスクは必要な結果を対象キーで結合し、互換性が確認できた単位を実行する。任意証跡が欠ける場合は宣言済みの通常処理を使う。左右両方や接合の両端が必要な処理は、その単位で両方を確認する。共通入力と個別入力が両方揃った単位が一件あれば実行する。確定した対象なしは `NotApplicable`、必要な対象に入力が揃わず起動できない場合は `Blocked` と区別する。
+4. 一部を確定でき、残りに失敗・不足があればタスクは `PartiallySucceeded` とする。実行した単位がすべて失敗し、確定できる結果がない場合は `Failed` とする。後続に渡す出力には、検証に成功した単位の証跡 ID と、それらだけを反映したモデル版を含める。モデルに元から残っている Part は、処理済みの証跡が必要な段階では、既存メッシュの互換性を別途確認した場合に利用できる。結果には対象件数と各単位の理由を記録する。
 
-For example, a processor can publish both a one-step `prepare-only` preset and a `prepare-and-consume` preset. The latter can connect its own `prepare` task's JSON output to another processor's `consume` task. The provider defines the preset; the second processor only needs to publish the named task contract.
+C++ API では既存の単一証跡ポートに加え、対象キーから複数の `EvidenceId` を解決できるコレクションポートを定義する。タスクの計画処理は、共通入力とそのコレクションから処理単位ごとに対象、必須入力、書き込み対象を返す。実行器はその計画の条件確認を行い、検証済み単位の成功証跡と対象別結果を公開する。単一出力を持つ既存タスクは、タスク全体を一つの処理単位として移行できる。画面とバッチ実行は同じ対象別結果を表示・出力する。
 
-## Example
+### メッシュ生成への適用
 
-```d
-class ExampleRigProcessor : AutoRigProcessor {
-    override string procId() { return "example-rig"; }
-    override string displayName() { return "Example rig"; }
+現行の `mesh-parts` は、肩・耳・腰の接合証跡を任意入力にできる。一方で、全キャリアの Part とテクスチャを調べ、設定が同じものをまとめて AutoMesh に渡し、全体で座標系を検証している。候補が出力されなかった単位を明示できる契約と、メッシュ生成に成功した Part だけを下流で採用する契約が必要になる。[メッシュ処理](../native/src/nijigenerate/autorig/deterministic/native_stage_mesh.cpp)
 
-    override AutoRigTaskSpec[] tasks() {
-        return [AutoRigTaskSpec("prepare", "Prepare", null,
-            [AutoRigPortSpec("source", AutoRigValueKind.Json)],
-            [AutoRigPortSpec("result", AutoRigValueKind.Json)], null)];
-    }
+| 入力・結果 | `mesh-parts` の扱い | 後続が採用するもの |
+| --- | --- | --- |
+| 肩の接合が成立し、耳の接合を検出できない | 肩の関係する Part は接合用の設定で生成する。耳の Part は、素材と通常メッシュの条件が揃えば通常設定で生成する。 | 肩の Welding は両端を確認して実行できる。耳の Welding は必要な接合証跡を待つ。 |
+| Part A の素材と座標系は確定し、Part B のテクスチャが欠ける | A を生成・検証する。B は証跡不足を記録し、元の形状を保持する。 | UV 登録・領域配置・リグ適用は、準備済みの Part と各処理に必須の構造だけを採用する。B を必要とする局所処理は保留する。 |
+| 同じ設定のバッチで一部の生成や座標系検証が失敗する | 成功した単位を確定する。バッチ API が内訳を返せない場合は、そのバッチの変更を戻し、独立した単位に分けて失敗箇所を確定する。 | 検証に通った Part は使用できる。頂点対応を共有する単位では一緒に確定する。 |
 
-    override void executeTask(string taskId, AutoRigTaskContext context) {
-        auto source = context.input("source").json;
-        context.publishJson("result", source);
-    }
-}
-```
+`mesh-parts` の出力に Part ごとのメッシュ証跡を加える。Part ID、素材・座標系、トポロジーの ID、使用した接合証跡、読み戻し結果を保持する。UV 登録・領域配置・リグ構築は現在のキャリア一覧との照合で、対象 Part の準備済み証跡を確認する。パラメータの共有範囲などにより複数の Part が必須であれば、その処理単位の入力として明示する。最終検証には適用済みの範囲と保留した範囲を両方載せる。
 
-The standalone framework test is in `tests/autorig_framework.d`. Run it with:
+### モデルの更新と再実行
 
-```powershell
-C:\opt\ldc-1.41\bin\dub.exe build --root=tests --compiler=C:\opt\ldc-1.41\bin\ldc2.exe --skip-registry=all
-.\out\autorig-framework-tests.exe
-```
+検出と計画は共通の観測版を参照できる。モデルへ書き込む操作は、同じ対象・共有資源への変更順を固定し、各単位の適用前に現在版との互換性を確認する。タスク全体を一回の Undo にまとめる場合も、各単位の変更には途中から取り消せる境界を設ける。単位の適用や読み戻しに失敗したら、その単位の変更を戻す。成功分を含む新しいモデル版と成功証跡を対応させて一緒に公開する。モデル版の不一致や基盤エラーで整合性を確定できない場合は、未公開の変更を戻してタスクを中断する。
 
-`AnimeFrontViewRigProcessor` now registers stage-local OSQP face projection and
-grid-depth fitting presets, plus a projection-to-editor workflow using the
-existing undoable deformation command. See [OSQP integration](osqp-integration.md)
-for inputs, build requirements, checks and the remaining full-rig migration.
+再実行は対象キーごとの入力 ID と成果を比較する。欠けていた証跡を補うと、その単位と出力を使う後続だけを再計画する。たとえば後から耳の接合証跡が揃えば、接合に必要な耳側のメッシュと、そのトポロジーに依存する UV・Welding を更新する。元の肩の証跡は再利用できる。新しい接合で以前は独立だった対象が一体の処理単位になった場合は、その範囲をまとめて再計画する。失敗・取消された再試行によって過去に確定した証跡 ID は失われない。
+
+移行は `mesh-parts` と UV 登録・Welding の境界から始める。検出失敗、候補なし、対象一件の検証失敗、既存メッシュの再利用、証跡追加後の局所再実行を確認し、同じ契約を共有 Grid や補正へ適用する。
+
+## 汎用タスクとパターン専用タスク
+
+両者を同じ実行器で扱い、**対象を選ぶ条件と、補正に必要な構造をタスクごとに宣言する**。採取は Part・Node の候補と、処理に使える根拠を出力する。条件確認は対象ごとにその根拠を検証し、揃った対象の適用計画を作る。適用は計画に含まれる対象を処理し、適用後の検証までを一単位として扱う。
+
+| タスクの種類 | 対象の選び方 | 実行条件と粒度 |
+| --- | --- | --- |
+| 汎用タスク | メッシュ生成なら Part と素材・座標系、Welding なら接合する二つのメッシュと頂点対応というように、処理に必要な構造で選ぶ。 | 処理の契約を満たす任意の領域に適用する。通常メッシュは Part、Welding は接合単位で検証する。 |
+| パターン専用タスク | 目の開閉や口の開閉のように、機構を構成する Part・Node と役割を証跡として結び付ける。 | 機構一つを処理単位とし、その方式に必要な役割と幾何条件を検証する。同じタスクで複数の目や口を処理できる。 |
+
+### パターンの採取と方式の選択
+
+専用の採取結果には、機構の対象 ID、役割ごとの Part・Node ID、輪郭や重なりなどの根拠、ローカル座標系、未確定の役割を記録する。レイヤー名は候補の補助情報に使える。役割は人体上の位置と形状、レイヤーの包含・重なり・描画順、クリップや親子関係から確認する。PSD では素材上に根拠があり、足りないのが Grid やマスクの構造であれば、構造を準備するタスクを計画に入れ、その出力を専用処理に渡す。検出で役割を確定できない場合は手動割り当てを型付き証跡として登録できる。手動入力にも同じ座標系・対象・構造の検証を適用する。
+
+専用タスクは、方式ごとに必要な役割、任意の追加機能、入力の互換性、適用後の検証条件を宣言する。たとえば基本のまばたきと、まばたきに連動する瞳・ハイライトの動きは別々に判定する。基本の開閉を成立させるために一緒に変更する Part は一単位とし、追加機能は必要な証跡が揃った場合に実行する。複数の方式を選べる場合は、プリセットが定めた優先順で、必須条件と検証条件を満たす最初の方式を選ぶ。
+
+| 例 | 基本処理の単位と条件 | 一部の証跡が不足した場合 |
+| --- | --- | --- |
+| 目の開閉 | 片目。上まぶたと開口輪郭など、選んだ閉じ方を成立させる証跡が必要。左右で共有するマスクやメッシュの整合を一緒に検証する場合は、共有範囲を一単位とする。 | 右目の証跡が不足しても、左目の条件が揃えば左目を処理する。ハイライトが未確定なら、その連動だけを保留する。 |
+| 口の開閉 | 一つの口。選んだ方式で口の輪郭と開口・閉口を定義でき、必要なクリップ構造を検証できること。 | 歯や舌が確認できない場合は、その役割を要求しない方式が定義されていれば実行する。複数の Part が共同で閉口を作る場合、その閉口に必須の役割が欠けたら該当する口を保留する。 |
+| 汎用メッシュと専用処理の組み合わせ | 汎用メッシュの検証済み出力を専用処理が使用できる。専用のトポロジーが必要なら、その仕様を満たすメッシュ生成の成果を入力にする。 | 口の構造が未確定でも、条件が揃った Part は通常メッシュを生成できる。そのメッシュを口の開閉に使うには、専用処理の条件を別途満たす必要がある。 |
+
+### 汎用処理との共有と競合
+
+専用タスクは、メッシュ生成、マスク設定、変形の登録などの共通操作を、役割付きの計画から呼び出す。汎用処理と専用処理が同じ Part を使う場合は、対象 ID に加えて変更する属性、パラメータ、キーの範囲を比較する。通常メッシュを開閉変形が使うような関係は証跡による依存として宣言する。同じ開閉キーを両方が書く場合は、専用の条件を満たした計画にそのキーの書き込みを割り当てる。合成できる場合は順序と検証方法を宣言する。どちらにも割り当てを決められない場合は、その書き込みだけを競合として報告する。
+
+専用処理の未実行時も、他の属性に対する汎用処理は採用できる。専用処理が失敗した場合に汎用処理を使うには、対象となる書き込み範囲に代替方式が定義され、汎用側の入力と検証条件が揃っている必要がある。結果には対象、選択した方式、使用した証跡 ID、保留した追加機能を残す。手動で目の役割を修正したときは、該当する目と共有条件を持つ単位だけを再計画する。
+
+## 部位タグ、履歴、証跡の共有
+
+タスク定義には対象にできる部位のタグを、実行時の処理単位・試行記録・証跡には実際に関わった部位のタグと `TargetId` を付ける。タグは `face/eye`、`face/eye/left`、`face/mouth` のように標準語彙から選ぶ。左右はモデルの解剖学上の左右を使う。親タグで検索すると子タグも対象にする。複数の部位にまたがる Welding や共有 Grid は、関係するすべての部位と `TargetId` を記録する。汎用のメッシュ生成でも、対象に部位が割り当てられていれば処理単位に同じタグを付ける。
+
+タグは検索と表示に使い、入力の結び付けには具体的な `TargetId` と証跡キーを使う。同じタグに複数の機構がある場合も、対象ごとの独立した履歴を持つ。部位の役割に割り当てる Part を変更した場合は、同じ対象の設定を新版として記録する。素材差し替えで同一の対象か判断できない場合は、候補として提示し、対象の対応が確認できたものに設定を引き継ぐ。対象を確定できなかった採取試行にも、探索した部位タグと範囲を残す。
+
+### 部位の設定を複数タスクで使う
+
+役割の割り当て、輪郭、ランドマーク、ローカル座標系は、それぞれ型付きの共有証跡として公開する。部位の共有スロットは `(TargetId, EvidenceKey)` で参照し、選択中の `EvidenceId` を保持する。たとえば左目のまぶた・白目・瞳を一度指定すると、その役割割り当てを目メッシュ、開閉、クリップ、瞳の連動に使える。開口輪郭や目の座標系も、各処理の入力契約を満たす範囲で共有する。開閉変形計画やメッシュ頂点への対応は、共有証跡 ID を入力に持つ派生証跡として記録する。
+
+タスクは、対象のどの共有スロットを読むかと、必要な型・座標系・素材版・メッシュのトポロジーを宣言する。明示的に固定した入力 ID、対象で選択済みの互換証跡、既定の採取元の順に解決する。手動で確定した共有設定は、利用者が変更または解除するまで選択を維持する。新しい自動検出結果は履歴に残し、手動設定を自動更新しない。固定した証跡や手動設定が現在の対象に適合しない場合は、その入力を使う処理単位で不一致を報告する。座標変換や対応付けで再利用できる場合は、元の ID と変換を記録した派生証跡を作る。
+
+計画は選択版と各単位の具体的な入力 ID を固定する。複数タスクが同じ未採取スロットを要求した場合は、対象、採取条件、入力 ID が一致する採取を一回にまとめる。再実行では、互換な選択済み証跡を使う。共有設定を修正した場合は新しい ID に切り替え、そのスロットを追従する単位と派生成果を再計画する。過去の ID を固定した単位は、その ID に基づいて再現できる。共有スロットの選択と履歴はプロジェクト単位で管理し、同じプロジェクトを使う別のワークフローも参照できる。保存と再読み込みには証跡ストアの永続化を使う。
+
+### 表示と API
+
+部位の画面では、選択中の役割・ランドマーク・座標系、それらを採取または手動設定した試行、採取済み・不足・対象なしの内訳、適用と適用後の検証を表示する。各処理単位から入力・出力の証跡 ID と、適用したモデル版を参照できるようにする。共有設定の編集時は、同じスロットを参照するタスクを表示し、確定後は再計画の対象を部位単位で示す。過去の実行記録はその試行時点のタグと ID を使って検索する。
+
+| API 案 | 用途 |
+| --- | --- |
+| `AutoRigTaskSpec.targetTags` と処理単位の対象参照 | タスクの対象範囲と、実行時の具体的な部位・機構を記録する。 |
+| `listEvidence({ tag, targetId, key })`、`listAttempts({ tag, targetId })` | 部位横断または個別対象の履歴を取得する。ヘッドレス実行も同じ絞り込みを使う。 |
+| `selectTargetEvidence(targetId, key, evidenceId, expectedRevision)` | 共有スロットの選択を更新する。複数の役割を同時に編集した場合は更新をまとめて確定する。 |
+| 共有スロットの追従と `Pinned(EvidenceId)` | 通常は部位の設定を共有し、個別の比較や再現では指定版を使う。 |
+
+### 部位タグを指定する再実行
+
+通常の全体実行に加え、部位タグを指定して再実行できるようにする。`face/eye` は左右を含む目を、`face/eye/left` は左目を対象にする。複数のタグを指定した場合は対象の和集合を取り、同じ処理単位は一度だけ実行する。同じタグの対象が複数ある場合は、`TargetId` も指定して絞り込める。条件確認・適用・検証の単位を対象で選び、一つのタスクに該当する単位と別部位の単位が含まれていれば、該当する単位を再実行する。タスク定義のタグは候補の絞り込みに使い、最終的な範囲は各単位の対象と書き込み先で判定する。
+
+1. 対象範囲で必要な証跡を解決する。選択済みの証跡を優先し、採取は不足した証跡に限る。採取からやり直す操作では、指定した範囲の採取を再実行する。顔全体の座標系など、指定外の部位に由来する既存証跡も、互換性があれば参照できる。指定外の証跡の新規採取や、指定外のタスクの再実行が必要なら、不足を表示して該当単位を保留する。
+2. 共有 Grid や接合などで指定外の Part も一緒に変更する必要があるときは、その単位を保留する。選択範囲内の独立した単位は続行する。たとえば左目に独立した開閉があり、左右で一体のマスクを共有している場合、左目の開閉は実行し、共有マスクの変更は保留する。実行前の計画に必要な追加タグや対象を示し、利用者が対象範囲を広げた場合に共有単位を計画し直す。
+3. モデルへの適用は現在版を基点とし、選択した単位の既存の適用結果を置き換える。指定外の成果を現在版に保持できることを確認する。トポロジーの更新などで指定外の成果を作り直す必要がある場合や、単位ごとの置き換えを検証できない場合は、該当単位を保留する。全体の整合は読み取りで検証し、別部位への補正や過去の全体チェックポイントへの復元を再実行に含めない。
+
+API 案は `plan({ tags, targetIds, refreshEvidence }, selectionRevision)` とする。既存の `execute(plan, options)` で実行し、画面とヘッドレス実行で同じ条件を使う。計画には実行対象、再利用する証跡、採取が必要な証跡、共有範囲のために保留する単位を載せる。結果には指定タグと、実際に適用・検証した対象を記録する。該当対象がない場合と、該当した単位が証跡不足や共有条件で実行できなかった場合は区別する。
+
+### タグで汎用タスクの対象を絞る API
+
+タグ付き実行では、汎用タスクの候補を列挙する前に、指定タグと現在のモデル版に対応する **確認済みの Part・Node 集合**を解決する。部位の役割割り当て、検証済みの構造関係、手動指定など、既存の型付き証跡を根拠にする。関連を表すオブジェクトは、対象の `TargetId`、Part・Node の安定 ID、関係の種類、根拠の `EvidenceId` を持つ。対象としての割り当てと、座標系などの読み取り参照を区別する。タグの親子関係は検索範囲を広げるために使う。シーンツリー上の親子関係から子孫すべてを処理対象に含めるには、その範囲を裏付ける証跡が必要になる。
+
+| API 案 | 契約 |
+| --- | --- |
+| `resolveTargetScope(selector, selectionRevision, modelRevision) -> TargetScope` | `plan` が呼び、確認済みの対象と根拠の ID を固定する。各対象には由来を残し、古い証跡や未確定の割り当ては理由付きで返す。 |
+| `processor.planUnits(scope, inputs) -> UnitPlan[]` | 汎用・専用で共通の入口とする。汎用タスクは自分の候補条件と `scope` の対象の積集合から処理単位を作る。各単位は読み取り参照と、変更の影響を受ける対象の全体を返す。 |
+| `execute(plan, options)` | 固定済み計画の範囲で適用・検証する。対象集合を設定するエディタコマンドにも、単位の対象 ID を渡す。実行前にモデル版と書き込み範囲を再検証し、関係の証跡を含めて結果に記録する。 |
+
+`TargetScope` では全体実行と、絞り込みで候補がゼロ件だった状態を区別する。タグ指定で確認済みの対象が得られない場合は、対象なし、関連の証跡不足、証跡の不一致を計画に記録し、その範囲の適用を保留する。汎用タスクの定義に部位タグが付いていなくても、実行時に渡された対象集合を扱える。対象を受け取れない一括処理は、そのタスクを安全に絞り込めるようになるまで、タグ付き実行で保留する。
+
+たとえば `face/eye/left` で `mesh-parts` を実行すると、左目に割り当てられ、かつメッシュ生成の条件を満たす Part だけが候補になる。顔 Grid を座標参照として読み取ることはできる。Welding のように両端を一緒に検証する処理では、両端が範囲内にあることを条件とする。片側だけが一致した場合は、必要な追加の対象を示してその接合を保留する。選択の根拠が変わった場合は、変わった対象とそれに依存する処理単位を再計画する。
+
+### 全体実行で使うタグ条件と証跡の認定
+
+全体実行はすべての処理を計画候補に入れる。各タスクの適用範囲は、その処理が宣言する入力条件から毎回決める。部位タグを指定する再実行では、同じ条件に選択範囲を重ねる。条件を評価する単位は Part、機構、接合、共有 Grid、モデル全体のいずれかとし、入力と書き込み先の関係を単位ごとに宣言する。
+
+タグ条件はワークフローをまたいで参照できる証跡ストアに登録する。標準条件はアプリが登録し、プロジェクトの条件を同じ名前空間で追加できる。条件は ID と版を持ち、部位タグ、対象の種別、必要な証跡の型と役割、入力モデル・素材・座標系との互換性を宣言する。条件が複数の証跡を必要とする場合は、同じ `TargetId` の証跡を組み合わせる。
+
+| API 案 | 契約 |
+| --- | --- |
+| `registerTagCondition(condition) -> ConditionId` | 必要な証跡キー・関係・対象種別と、条件の版を登録する。処理側は条件 ID を宣言する。 |
+| `publishEvidence(key, subject, value)`、`registerInputEvidence(...)` | 検出と手動入力を同じ経路で登録する。ペイロードは型付き C++ オブジェクトで保持する。 |
+| `evaluateTagCondition(conditionId, subject, evidenceIds, revisions)` | 適合・不適合・証跡不足を返し、適合した場合は対象、タグ、条件版、根拠の証跡 ID を保持する。 |
+| `resolveTargets(conditionId, selector, revisions)` | 適合した対象を計画に渡す。対象キー単位で未確定の理由も返す。 |
+
+証跡へのタグ付けは、採取元や入力者の申告に加えて、登録条件による認定を持つ。例として「左目の白目」という入力を受け取った場合、対象と素材の対応、左右、役割を確認し、開口輪郭が必要な条件では輪郭の証跡も確認する。手動で固定した証跡も同じ条件で検証する。単一の Part に対するタグ認定を共有 Grid や接合相手へ自動で継承せず、対象範囲を裏付ける別の証跡を使う。候補を見つける採取は既存タグの有無に依存させず、出力が得られた時点で認定する。
+
+認定は検索用の索引として証跡ストアで管理する。証跡のペイロードと元の ID を共有し、条件版や入力モデル版が変わったときは関係する認定だけを再評価する。計画は認定に使用した証跡 ID と条件版を固定し、適用時に書き込み対象の範囲を照合する。候補が無いと確認できた単位は `NotApplicable`、候補に必要な証跡が欠けている単位は `Blocked` とし、他の適合する単位は実行する。
+
+### 処理ごとの移行契約
+
+| 処理 | 全体実行時の入力条件と適用単位 |
+| --- | --- |
+| モデル観測、人体計測、役割検出 | 現在のモデル・素材版と対象に必要な形状情報を入力に採取する。採取した候補は役割・左右・形状に関する条件を評価して公開する。 |
+| リグの除外、領域配置、基本骨格構築 | 検証済みの素材・除外と、その骨格または領域に必要な証跡を入力とする。共有ルート作成は一単位とし、局所処理は準備済みの領域だけを使う。 |
+| 通常メッシュ、UV 登録 | 互換な素材と座標系がある Part を採用する。解剖上のタグが不明でも、処理に固有の条件が成立すれば全体実行で扱える。タグ付き実行ではタグに適合した Part を追加条件とする。 |
+| 肩・耳・腰の接合、Welding | 採取で成立した接合の両端と対応形状を入力とする。同じ頂点対応を共有する接合群を一単位とする。 |
+| 目・口の Composite と局所制御 | 機構の役割を確認した Part に限定し、片目・口・共有 Composite 単位で適用する。ハイライト、瞳連動などを別途成立する条件で選ぶ。 |
+| 深度と角度のベイク | 検証済みのボーンと Grid の組を入力とする。キーを共有する構造は一単位とし、その構造に属する対象だけに適用する。 |
+| 足補正 | 足・脚の所属、Grid と `Body::Roll` の対応、必要キーを確認する。同じ Grid に属する Part を一単位とし、片側の証跡不足で独立した Grid を止めない。 |
+| 頬補正 | 顔肌・輪郭・頭部座標系に関する証跡を入力とする。輪郭線や髪の追従を同じ補正から計算する場合は、計画に含まれる書き込み対象を一単位とする。 |
+| 後ろ髪補正と物理 | 後ろ髪や物理対象の所属と対応する座標系を確認する。後ろ髪は独立した Part、物理は入力・出力の整合が必要なチェーンを単位とする。 |
+| 追加 AutoRig | 各パターンが要求する役割の組と構造を確認する。検出・手動入力とも同じ条件で認定し、成立した組だけを変形・検証する。 |
+| 保存後の検証 | 適用済み単位の入力 ID、適用記録、保存モデルを照合する。失敗や保留の理由は対象別に併記する。 |
+
+移行の完了条件は、登録済みの全タスクが採取結果の認定または入力条件を宣言し、全体実行とタグ付き実行で同じ対象選択を通ることである。全体の整合を必要とするタスクも明示的な対象範囲と必須証跡を計画に含める。処理を分けた前後で、同じ入力・設定・適用対象のメッシュ、パラメータ値、変形値、描画順、マスク、物理バインディングを比較する。
+
+## モデルを編集するタスク
+
+観測・検出・計画は、それぞれ必要な証跡を取って独立した結果を公開する。適用タスクは基点となるモデル版と適用計画の ID を明示して実行する。エディタへの適用はメインスレッドと既存の Undo 境界を使う。適用前後のモデル版と適用した計画 ID を記録し、中断や適用失敗時には未確定の処理単位を開始前の状態に戻す。全体で確定するタスクではタスク全体を戻す。
+
+一つのモデルへ複数の補正を適用するときは、観測と計画を先に集め、互換な計画を決められた順に適用する。先の補正が失敗した場合、後の補正は最後に確定したモデル版との互換性を確認して適用する。後の補正が失敗した補正の結果を必要とする場合は、その結果を必須証跡として宣言する。複数の計画が同じ変形を編集する場合は、適用順や合成規則が定義されている組み合わせだけを受理する。
+
+同じ補正の条件を変える再実行では、その補正を適用する前の互換なモデル版から計画を適用し直す。その後の補正は、確定した順で再適用する。これにより、以前の補正を重ね掛けしたり、現在のエディタの変更を意図せず巻き戻したりするケースを防ぐ。エディタの現在版と基点が合わない場合は、履歴上の別のモデル版として結果を保持し、エディタへの反映を保留する。
+
+## 移行と受け入れ確認
+
+1. まず証跡ストアと試行履歴を追加する。既存の `state` と `program` は互換層で型付きオブジェクトに変換して登録し、モデル Blob はバッファを保持する型で登録する。既存のプリセットや UI を動かしながら ID による指定を可能にする。メモリ上の旧チェックポイントは参照を解決できる範囲で取り込む。旧出力の実体がすでに破棄されている場合は、取り込み結果に不足を記録する。
+2. `compile-rig` の観測・部位別計画・統合を分ける。足・頬・後ろ髪の補正は採取、計画、適用の単位を分ける。基本リグが動くために必要な共通の証跡と、追加補正に必要な証跡を実際の読み取り箇所に基づいて宣言する。顔の検出が失敗した場合でも、胴体に必要な証跡と互換なモデル版が揃っていれば胴体の処理を続ける。必須証跡を任意に変更する場合は、その欠如を安全に扱えることを個別に確認する。
+3. 証跡の永続化と履歴を UI・ヘッドレス入口に接続する。旧 `artifact_refs` と新しい証跡参照の対応を移行時に記録し、複合チェックポイントの復元をスロットの現在値から切り離す。
+
+| 確認ケース | 期待する結果 |
+| --- | --- |
+| 新規実行で目頭の検出が失敗する | 目頭が必須の顔タスクを `Blocked` と記録し、独立した胴体タスクは成功して動作するモデル版を公開できる。 |
+| 足で `hip.Both` の参照エラーが出る | 足の試行だけが失敗し、必要な証跡が揃う後ろ髪・頬の適用を続行できる。 |
+| 全体実行の手動入力で右目を左目として指定する | 検出で確認済みの役割との不一致を判定し、適合する別の対象を処理する。 |
+| 足で左右不明の共有 Grid と特定済みの左右の Grid がある | 共有 Grid を対象別に保留し、左右の Grid をそれぞれ処理する。後続は成功した適用結果を使う。 |
+| 同じ対象を全体実行とタグ付き再実行で選ぶ | 同じ条件 ID・版で認定し、同じ設定・入力による適用値が一致する。 |
+| 新しい採取に失敗したあと、過去の ID を固定する | 固定された証跡を使い、採取タスクの再実行なしで対象タスクを実行できる。 |
+| 証跡を手動修正して同じタスクを再実行する | 修正内容に新しい ID が付く。追従するタスクにだけ変更が波及し、旧 ID を選ぶと旧条件へ戻せる。 |
+| 採取した点群を複数のタスクで使い、同じ ID で再実行する | 型付きの読み取り専用オブジェクトを共有し、タスク間の受け渡しと再実行で JSON 変換や再パースが発生しない。 |
+| 左目の役割を一度手動指定して、開閉と瞳の連動を実行する | 両方の実行記録に同じ設定の証跡 ID が残る。部位の画面から採取・手動設定・適用・検証を追え、再実行で設定をやり直す必要がない。 |
+| 同じタグの目が複数ある状態で、一つの役割設定を変更する | 対象 ID で区別でき、変更した設定を追従する処理と、その派生成果を使う処理だけを再計画する。 |
+| 共有メッシュに関わる左右の目を検索する | 同じ処理単位が両方の部位の履歴に表示され、試行と証跡は同じ ID で参照できる。 |
+| 左目のタグで再実行する | 選択済みの左目の設定と互換な顔座標系を再利用し、左目の独立した処理だけを適用・検証する。左右を一緒に変更する共有単位は保留理由を表示する。 |
+| 左目と口のタグを指定して再実行する | 該当する単位を一度ずつ実行する。指定外の採取や編集が必要な単位は、範囲を広げるために必要なタグまたは対象を表示する。 |
+| 左目のタグを指定し、汎用メッシュ生成を実行する | タスク定義に部位タグがなくても、左目との関連が確認できた Part だけを処理し、根拠の証跡 ID を記録する。 |
+| タグ指定で確認済みの対象がゼロ件、または Welding の片側だけが一致する | ゼロ件は全体実行と区別する。片端だけが選ばれた接合は保留し、範囲内で完結する他の処理を続行する。 |
+| 別モデル・座標系・トポロジーの証跡を混ぜる | 該当タスクの起動前に不一致を報告する。互換な証跡を使う他のタスクは続行できる。 |
+| 適用中に失敗するかキャンセルする | 変更途中のモデルや候補出力は確定せず、確定済みモデル版と証跡 ID を引き続き使える。 |
+| プロジェクトを閉じて開き直す | 永続化した過去の ID を列挙・取得でき、選択履歴を使って同じ入力の計画を作れる。 |

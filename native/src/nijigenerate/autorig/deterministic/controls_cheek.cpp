@@ -432,10 +432,9 @@ static Json compileCheekCorrections(Json state, Json program,
     }
     struct EarRoot {
         Json target;
-        Slice<Point2> attachment;
+        Point2 attachment{};
         double score = std::numeric_limits<double>::infinity();
         std::uint64_t id = 0;
-        double step = 0.;
     };
     std::array<EarRoot, 2> earsBySide;
     const double faceHeight = chin-profile.temple;
@@ -451,18 +450,32 @@ static Json compileCheekCorrections(Json state, Json program,
             center[1] > profile.mouth+.10*faceHeight ||
             height < .05*faceHeight || height > .55*faceHeight) continue;
         const int side = center[0] < profile.midline(center[1]) ? -1 : 1;
-        auto& selected = earsBySide[side < 0 ? 0 : 1];
+        const auto sideIndex = side < 0 ? 0 : 1;
+        auto& selected = earsBySide[sideIndex];
         const double score = std::abs(center[1]-std::lerp(profile.eye,profile.mouth,.32));
         if (score >= selected.score) continue;
-        const auto contour = observation::ngRigAlphaContour(material,context);
-        const auto points = contracts::ngRigPoints(read(contour,"points"));
-        Slice<Point2> attachment;
-        for (const auto point : points) {
-            if (point[1] < std::lerp(bounds[1],bounds[3],.56)) continue;
-            if (side*(profile.frame.local(point)[0]-center[0]) > 0.) continue;
-            attachment.append(point);
+        Slice<Point2> outline;
+        for (const auto& sample : contourSamples[sideIndex]) {
+            if (sample.section[1] > profile.temple && sample.section[1] < chin)
+                outline.append(sample.section);
         }
-        if (!attachment.empty()) selected = {targets[id],attachment,score,id,contracts::ngRigNumber(read(contour,"pixel_step"))};
+        Slice<Point2> roots;
+        for (const auto section : outline) roots.append(toRoot(section));
+        Slice<bool> occupied;
+        observation::ngRigAlphaCoverage(material, roots,
+            compat::RetainedString::fromStaticLiteral("alpha_runs_32"), &occupied);
+        // Choose the middle sampled point of the longest opaque overlap on
+        // the frontal face outline. Keep this source point across yaw and pitch.
+        std::size_t bestStart = 0, bestLength = 0, runLength = 0;
+        for (std::size_t i = 0; i < occupied.size(); ++i) {
+            if (i && outline[i][1]-outline[i-1][1] > 1.5*step) runLength = 0;
+            runLength = occupied[i] ? runLength+1 : 0;
+            if (runLength > bestLength) {
+                bestLength = runLength;
+                bestStart = i+1-runLength;
+            }
+        }
+        if (bestLength) selected = {targets[id],roots[bestStart+(bestLength-1)/2],score,id};
     }
     struct HairTarget {
         Json target;
@@ -595,7 +608,6 @@ static Json compileCheekCorrections(Json state, Json program,
         Point2 temple, chin, seam, upper, lower;
     };
     std::map<std::size_t,YawRidge> yawRidges;
-    std::map<std::size_t,Point2> earSourcesByYaw;
     const auto fittedLandmarks=program.sourceObjectRef().if_contains("head_anatomical_landmarks");
     std::vector<Json> skinKeys;
     for (const auto& key : keys)
@@ -757,8 +769,7 @@ static Json compileCheekCorrections(Json state, Json program,
             }
         }
         const auto& ear = earsBySide[side < 0 ? 0 : 1];
-        const auto lockedEar = earSourcesByYaw.find(yaw);
-        if (side && ear.id && (!pitch || lockedEar != earSourcesByYaw.end())) {
+        if (side && ear.id) {
             for (const auto earKey : keys) {
                 if (read(earKey,"grid") != read(ear.target,"grid") || read(earKey,"key") != read(key,"key")) continue;
                 const auto axesX = contracts::ngRigNumbers(read(ear.target,"xs"));
@@ -777,12 +788,6 @@ static Json compileCheekCorrections(Json state, Json program,
                                            p[1]+frame[3]*offset[0]+frame[4]*offset[1]});
                 }
                 const auto triangles = read(read(ear.target,"mapping"),"triangles").as_array();
-                struct EarBoundaryPoint {
-                    Point2 rest;
-                    Point2 posed;
-                };
-                std::map<std::array<long,2>, EarBoundaryPoint> boundary;
-                const double earStep = ear.step;
                 const auto poseAttachment = [&](Point2 p) -> std::optional<Point2> {
                     for (const auto& triangle : triangles) {
                         const auto indices = contracts::ngRigNumbers(triangle);
@@ -799,39 +804,14 @@ static Json compileCheekCorrections(Json state, Json program,
                     }
                     return {};
                 };
-                if (pitch) {
-                    earContact = poseAttachment(lockedEar->second);
-                    if (earContact) earEvidence = record({{"source",point(lockedEar->second)}});
-                    break;
-                }
-                for (const auto p : ear.attachment) {
-                    const auto attachment = poseAttachment(p);
-                    if (!attachment) continue;
-                    const auto restCell = [&](std::size_t axis) {
-                        return std::lround((p[axis]-ear.attachment[0][axis])/earStep);
-                    };
-                    boundary.try_emplace({restCell(0),restCell(1)},EarBoundaryPoint{p,*attachment});
-                    if (consider(*attachment,(*attachment)[1]==posedM[1],earContact,horizontalEar,earDistance))
-                        earEvidence = record({{"source",point(p)}});
-                }
-                for (const auto& [cell, a] : boundary) {
-                    for (const auto& [dx,dy] : std::array<std::array<int,2>,4>{{{1,0},{0,1},{1,1},{-1,1}}}) {
-                        const auto next = boundary.find({cell[0]+dx,cell[1]+dy});
-                        if (next == boundary.end()) continue;
-                        const auto& b = next->second;
-                        if ((a.posed[1] > posedM[1]) == (b.posed[1] > posedM[1])) continue;
-                        const double t = (posedM[1]-a.posed[1])/(b.posed[1]-a.posed[1]);
-                        const Point2 hit{std::lerp(a.posed[0],b.posed[0],t),posedM[1]};
-                        if (consider(hit,true,earContact,horizontalEar,earDistance))
-                            earEvidence = record({{"source",point({std::lerp(a.rest[0],b.rest[0],t),
-                                std::lerp(a.rest[1],b.rest[1],t)})}});
-                    }
+                if (const auto attachment = poseAttachment(ear.attachment)) {
+                    consider(*attachment, std::abs((*attachment)[1]-posedM[1]) < 1e-7,
+                        earContact, horizontalEar, earDistance);
+                    earEvidence = record({{"source",point(ear.attachment)}});
                 }
                 break;
             }
         }
-        if (earContact && !pitch)
-            earSourcesByYaw.emplace(yaw,contracts::ngRigPoint(read(earEvidence,"source")));
         enforce(pitch || !side || !jawRow || earContact || neckContact,
             "Detected jaw angle has no ear or neck contact",751);
         std::optional<Point2> seam;
@@ -992,6 +972,7 @@ static Json compileCheekCorrections(Json state, Json program,
                 "standard_surface_fallback")},{"crown",point(crown)},
                 {"temple",point(anchors[0])},{"ear_attachment",point(anchors[1])},
                 {"jaw_angle",point(anchors[2])},{"chin",point(anchors[3])}});
+            if (earContact) neckJunction.sourceIndexAssignSlot("ear_contact_source") = point(ear.attachment);
         }
         const auto fittedContour = [&](double y) {
             std::size_t segment=0;

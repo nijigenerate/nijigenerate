@@ -526,7 +526,10 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         if (area>faceArea) { faceArea=area; faceMaterial=material; }
     }
     const auto face=byRole.find("face");
-    if (face!=byRole.end() && faceArea>0 && faceWidth>0. && faceBounds[3]>faceBounds[1]) {
+    const auto& headLandmarks = aa(landmarks, "head", 402);
+    const bool pairedEyes = headLandmarks.find("eye_l_outer") != headLandmarks.end() &&
+        headLandmarks.find("eye_r_outer") != headLandmarks.end();
+    if (pairedEyes && face!=byRole.end() && faceArea>0 && faceWidth>0. && faceBounds[3]>faceBounds[1]) {
         // Fit the common depth frame to the face's chin and the upper neck.
         // All head consumers use this same frame for the anatomical joints.
         const auto field=*face->second;
@@ -618,6 +621,7 @@ Json ngRigRegisterProgram(Json program, Json observation) {
                     }
                 const Point2 attachment{upperRight>upperLeft ? std::midpoint(upperLeft,upperRight) : neckCenter,
                     neckJunctionY};
+                set(program,"neck_pitch_attachment",array({neck[0],neck[1],radius}));
                 const double front=sample(skinXs,skinYs,skinDepths,
                     sub(attachment,{skinFrame[2],skinFrame[5]}));
                 neckReference=contracts::Point3{attachment[0],attachment[1],front-neckHalfDepth};
@@ -934,10 +938,11 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     // Hair layers already have their own fitted surface and placement.
     // Apply facial relief after that placement so padded face samples cannot
     // shift an entire side-hair layer.
-    const auto& headLandmarks=aa(landmarks,"head",402);
-    const auto mouthCenter=aa(headLandmarks,"mouth",402);
-    const auto mouthAxis=sub(aa(headLandmarks,"mouth_l",402),aa(headLandmarks,"mouth_r",402));
-    const auto mouthWidth=norm(mouthAxis);
+    const auto mouth = headLandmarks.find("mouth");
+    const bool hasMouth = mouth != headLandmarks.end();
+    const auto mouthCenter = hasMouth ? mouth->second : Point2{};
+    const auto mouthWidth = hasMouth
+        ? norm(sub(aa(headLandmarks,"mouth_l",402),aa(headLandmarks,"mouth_r",402))) : 0.;
     Point2 mouthRadius{.5*mouthWidth,0.};
     for (const auto& material : at(observation,"materials").sourceArrayValue()) {
         if (at(material,"static").as_bool() || at(material,"role").as_string().view()!="face_feature")
@@ -955,7 +960,7 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         const auto frame=ngRigNumbers(at(surface,"parent_to_root"));
         const auto mouthLocal=sub(mouthCenter,{frame[2],frame[5]});
         const auto neutralDepth=ngRigNumbers(at(surface,"depth_model_units"));
-        const bool mouthValid=mouthWidth>1e-6 && mouthRadius[1]>1e-6;
+        const bool mouthValid=hasMouth && mouthWidth>1e-6 && mouthRadius[1]>1e-6;
         const double mouthDepth=mouthValid ? head_surface::frontDepthAt(facialDepthMesh,mouthCenter) : 0.;
         const double mouthReference=mouthValid ? sample(xs,ys,neutralDepth,mouthLocal) : 0.;
         compat::Slice<double> depths;

@@ -6,8 +6,8 @@
 
 namespace nijigenerate::autorig::framework {
 
-enum class AutoRigValueKind : std::int32_t { FileName, Path, Json, Blob };
-enum class AutoRigTaskState : std::int32_t { Pending, Running, Succeeded, Failed, Canceled, Stale };
+enum class AutoRigValueKind : std::int32_t { FileName, Path, Json, Blob, Object };
+enum class AutoRigTaskState : std::int32_t { Pending, Running, Succeeded, Failed, Canceled, Stale, Blocked, PartiallySucceeded, NotApplicable };
 
 // Marks extraction messages without translating or replacing their descriptor.
 inline compat::RetainedStringSlice ngAutoRigMessage(compat::RetainedStringSlice message) {

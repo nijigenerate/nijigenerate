@@ -13,6 +13,7 @@ AutoRigValue restoredValue(Json stored) {
     value.kind=detail::storedKind(kind.view());
     switch (value.kind) {
     case AutoRigValueKind::Json: value.json = detail::jsonIndex(stored,"value"); break;
+    case AutoRigValueKind::Object: detail::fail(Text("Object evidence requires a native object"), 17);
     case AutoRigValueKind::Blob:
         for (const auto entry : detail::jsonArray(detail::jsonIndex(stored,"value"))) {
             const auto byte=detail::jsonInteger(entry);
@@ -106,6 +107,20 @@ void AutoRigWorkflowRun::setInput(Text id, AutoRigValue value) {
         compat::ngRequireObject(session_)->setInput(compat::ngRequireObject(processor)->targetId(str(binding.targetStep), str(binding.targetTask)), str(binding.targetPort), value);
     suppliedInputs[id] = ngCopyAutoRigValue(value); ++inputRevision_;
 }
+AutoRigScopedPlan AutoRigWorkflowRun::plan(AutoRigTargetSelector selector, Text modelIdentity, Text step) {
+    compat::Slice<Text> selected;
+    if (step.empty()) {
+        for (const auto& task : processor->flattened) selected.append(str(task.id));
+    } else {
+        stepTaskId(step);
+        const auto& subset = processor->includedTasks.at(step);
+        for (const auto& [task, id] : subset) selected.append(id);
+    }
+    return session_->plan(selected, std::move(selector), std::move(modelIdentity));
+}
+AutoRigExecutionReport AutoRigWorkflowRun::execute(const AutoRigScopedPlan& plan) {
+    return session_->execute(plan);
+}
 void AutoRigWorkflowRun::execute(bool force) {
     auto self = shared_from_this(); compat::Slice<Text> selected;
     for (const auto step : orderedSteps()) selected.append(stepTaskId(str(step.id))); compat::ngRequireObject(session_)->executeGroup(selected, force);
@@ -121,23 +136,33 @@ AutoRigWorkflowSnapshot AutoRigWorkflowRun::snapshot(bool includeArtifacts) {
     const auto receiver = weak_from_this().lock();
     AutoRigWorkflowSnapshot result; result.runId = id(); result.providerId = compat::ngRequireObject(processor)->providerId; result.workflowId = compat::ngRequireObject(processor)->workflow.id;
     const auto running = compat::ngRequireObject(session_)->isBusy(); result.state = running ? AutoRigWorkflowState::Running : AutoRigWorkflowState::Pending;
-    bool allSucceeded = true;
+    bool allSucceeded = true, anyPartial = false;
     for (const auto step : compat::ngRequireObject(processor)->workflow.steps) {
         const auto id = str(step.id); result.steps[id] = compat::ngRequireObject(session_)->task(stepTaskId(id), includeArtifacts);
-        if (detail::aaAt(result.steps, id, 390).state != AutoRigTaskState::Succeeded) allSucceeded = false;
+        const auto state = detail::aaAt(result.steps, id, 390).state;
+        if (state != AutoRigTaskState::Succeeded && state != AutoRigTaskState::NotApplicable) allSucceeded = false;
     }
+    Text firstFailure, firstBlocked;
     for (const auto spec : compat::ngRequireObject(processor)->flattened) {
         const auto task = compat::ngRequireObject(session_)->task(str(spec.id), false);
-        if (task.state == AutoRigTaskState::Failed) {
-            allSucceeded = false; if (!running) result.state = AutoRigWorkflowState::Failed; result.message = task.message;
+        if (task.state == AutoRigTaskState::PartiallySucceeded) anyPartial = true;
+        if (task.state == AutoRigTaskState::Failed || task.state == AutoRigTaskState::Blocked) {
+            allSucceeded = false;
+            if (!running) result.state = AutoRigWorkflowState::Failed;
+            auto& message = task.state == AutoRigTaskState::Failed ? firstFailure : firstBlocked;
+            if (message.empty()) message = task.message;
         } else if (task.state == AutoRigTaskState::Canceled) {
             allSucceeded = false; if (!running) result.state = AutoRigWorkflowState::Canceled; result.message = task.message;
         }
     }
     if (!running) {
         if (compat::ngRequireObject(session_)->isCanceled()) result.state = AutoRigWorkflowState::Canceled;
-        else if (allSucceeded) result.state = AutoRigWorkflowState::Succeeded;
+        else if (allSucceeded && !anyPartial) result.state = AutoRigWorkflowState::Succeeded;
+        else if (anyPartial && result.state == AutoRigWorkflowState::Pending)
+            result.state = AutoRigWorkflowState::PartiallySucceeded;
     }
+    if (result.state == AutoRigWorkflowState::Failed)
+        result.message = firstFailure.empty() ? firstBlocked : firstFailure;
     return result;
 }
 Json ngAutoRigWorkflowDiagnostics(std::shared_ptr<AutoRigWorkflowRun> run) {

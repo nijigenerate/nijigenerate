@@ -16,6 +16,7 @@
 #include <nodes/simple_physics_driver.hpp>
 #include <nijigenerate/autorig/detail/json_first_pass_reader.hpp>
 #include <cmath>
+#include <algorithm>
 
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
@@ -30,9 +31,11 @@ Json applyPhysics(Json state, Json program, Task task) {
     task->runOnMainThread([&] {
         auto puppet = project::incActivePuppet();
         const auto parameters = puppet->parameters;
-        for (auto parameter : parameters) parameter->value = parameter->defaults;
-        puppet->enableDrivers = false;
-        puppet->update();
+        if (!task->targetScope()) {
+            for (auto parameter : parameters) parameter->value = parameter->defaults;
+            puppet->enableDrivers = false;
+            puppet->update();
+        }
         const auto world = [&](auto&& self, NodeRef node) -> PhysicsAffineTransform {
             if (node == puppet->root) return {1., 0., 0., 0., 1., 0.};
             if (auto found = transforms.find(node->getUUID()); found != transforms.end()) return found->second;
@@ -71,7 +74,28 @@ Json applyPhysics(Json state, Json program, Task task) {
     auto plan = ngRigCompilePhysicsOperations(structure, assets, meshes, task);
     auto before = reviewModel(task), policy = plan.sourceIndexValue("policy");
     core::settings::SettingsJsonObject identities;
+    if (task->targetScope()) if (const auto previous = state.sourceObjectRef().if_contains("physics_identities"))
+        identities = previous->sourceObjectRef().duplicate();
     for (auto group : plan.sourceIndexValue("groups").sourceArrayValue()) {
+        std::vector<std::uint32_t> parts;
+        bool chosen = false, outside = false;
+        for (const auto& operation : group.sourceIndexValue("operations").sourceArrayValue()) {
+            const auto part = uuid(operation.sourceIndexValue("target"));
+            if (std::ranges::find(parts, part) == parts.end()) parts.push_back(part);
+            chosen |= !task->targetScope() || task->targetScope()->contains(part);
+            outside |= !task->acceptsTarget(part);
+        }
+        if (!chosen) continue;
+        if (outside) {
+            task->recordUnit({std::move(parts), framework::AutoRigTaskState::Blocked,
+                "Physics requires the complete driver chain"});
+            continue;
+        }
+        if (task->targetScope() && identities.if_contains(nativeString(group.sourceIndexValue("id")).view())) {
+            task->recordUnit({std::move(parts), framework::AutoRigTaskState::NotApplicable,
+                "An existing verified driver already owns this chain"});
+            continue;
+        }
         std::uint32_t parameterId = 0;
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
@@ -260,6 +284,7 @@ Json applyPhysics(Json state, Json program, Task task) {
                 {stringLiteralEvidence("simple_physics"), physicsId}, {stringLiteralEvidence("readback"), readback}});
             identities[identityKey] = identity;
         });
+        if (task->targetScope()) task->recordUnit({std::move(parts), framework::AutoRigTaskState::Succeeded, {}});
     }
     auto after = reviewModel(task);
     framework::Table<Json> previous;

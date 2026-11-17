@@ -931,7 +931,7 @@ msgstr "足の固定と手前側の頬の補正を適用"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:30
 msgid "Apply local rig controls"
-msgstr "局所リグ制御を適用"
+msgstr "目の開閉や口などの動きを設定する"
 
 #: source/nijigenerate/panels/autorig.d:752
 msgid "Apply review settings"
@@ -939,7 +939,7 @@ msgstr "確認・修正内容を適用"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:29
 msgid "Apply secondary physics"
-msgstr "揺れ物の物理演算を適用"
+msgstr "髪や服などに揺れを設定する"
 
 #: source/nijigenerate/commands/depth/psd_dialog.d:1106
 msgid "Apply the displayed PSD depth import dialog."
@@ -1214,7 +1214,7 @@ msgstr "適用"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:30
 msgid "Bake face and body angles"
-msgstr "顔と体の角度をベイク"
+msgstr "顔と体の角度ごとの変形を記録する"
 
 #: source/nijigenerate/commands/depth/map.d:1357
 msgid "Bake saved depth operations into per-vertex depths"
@@ -1360,7 +1360,7 @@ msgstr "ブラシツール"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:21
 msgid "Build anatomical rig"
-msgstr "解剖学的なリグを構築"
+msgstr "骨と変形用グリッドを作る"
 
 #: source/nijigenerate/panels/inspector/part.d:206
 #: native/src/nijigenerate/panels/inspector/part_run.hpp:117
@@ -1469,7 +1469,7 @@ msgstr "検証用に処理前の見た目を記録"
 
 #: native/src/nijigenerate/panels/autorig_panel.cpp
 msgid "Jaw contour correction blend"
-msgstr "顎の輪郭補正の混合率"
+msgstr "顎から頬にかけての輪郭補正の強さ"
 
 #: source/nijigenerate/windows/settings.d:586
 msgid "Capturing shortcut..."
@@ -1860,7 +1860,7 @@ msgstr "コマンド一覧"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:34
 msgid "Compile shared source domains"
-msgstr "共有する元の領域を構築"
+msgstr "共通の変形を使う部品をまとめる"
 
 #: source/nijigenerate/panels/autorig.d:819
 msgid "Completed"
@@ -2398,7 +2398,7 @@ msgstr ""
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:17
 msgid "Derive evidence and compile rig"
-msgstr "根拠を導出してリグを構築"
+msgstr "部品の役割とリグの構成を決める"
 
 #: source/nijigenerate/widgets/asyncderivedupdatedetails.d:90
 #: native/src/nijigenerate/widgets/asyncderivedupdatedetails.cpp:115
@@ -3750,7 +3750,7 @@ msgstr ""
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:50
 msgid "Imported model to anatomical rig"
-msgstr "インポート済みモデルから解剖学的リグを生成"
+msgstr "読み込んだモデルに基本リグを作る"
 
 #: source/nijigenerate/widgets/mainmenu.d:249
 #: native/src/nijigenerate/widgets/mainmenu.cpp:318
@@ -4483,7 +4483,7 @@ msgstr "メッシュの範囲"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:23
 msgid "Mesh eye and mouth mechanism composites"
-msgstr "目・口の機構コンポジットをメッシュ化"
+msgstr "目と口の Composite にメッシュを作る"
 
 #: source/nijigenerate/autorig/deterministic/presentation.d:167
 msgid "Mesh or deformation values"
@@ -4610,7 +4610,7 @@ msgstr ""
 
 #: source/nijigenerate/autorig/deterministic/presentation.d:109
 msgid "Model changes"
-msgstr "モデルの変更内容"
+msgstr "モデルの変更前と変更後"
 
 #: source/nijigenerate/panels/autorig.d:409
 msgid "Model checkpoint"
@@ -5012,18 +5012,15 @@ msgstr "OK"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:14
 msgid "Observe imported model"
-msgstr "インポート済みモデルを観測"
+msgstr "読み込んだ部品を調べる"
 
 #: source/nijigenerate/panels/autorig.d:594
 msgid "Observe the model first to configure material roles."
 msgstr "マテリアルの役割を設定するには、先にモデルの観測を実行してください。"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:53
-msgid ""
-"Observe, derive, mesh, build, bake, control and verify the imported model."
-msgstr ""
-"インポート済みモデルの観測、根拠の導出、メッシュ化、リグ構築、ベイク、制御、"
-"検証を行います。"
+msgid "Observe, derive, mesh, build, bake, control and verify the imported model."
+msgstr "部品を判定し、メッシュと骨を作って、顔や体の動きと揺れを設定します。"
 
 #: source/nijigenerate/autorig/deterministic/presentation.d:201
 msgid "Observed depth scale"
@@ -5129,7 +5126,7 @@ msgstr "開く..."
 
 #: source/nijigenerate/panels/autorig.d:403
 msgid "Operation settings are edited beside the task result below."
-msgstr "個別処理の設定は下のタスク結果で編集できます。"
+msgstr "結果を開くと、個別の変更を有効・無効にできます。"
 
 #: source/nijigenerate/widgets/asyncderivedupdatedetails.d:108
 #: native/src/nijigenerate/widgets/asyncderivedupdatedetails.cpp:138
@@ -5318,7 +5315,7 @@ msgstr "パラメータ名"
 
 #: source/nijigenerate/panels/autorig.d:547
 msgid "Parameter binding"
-msgstr "パラメータの割り当て"
+msgstr "パラメータとの関連付け"
 
 #: source/nijigenerate/autorig/deterministic/presentation.d:219
 msgid "Parameter bindings"
@@ -5558,11 +5555,11 @@ msgstr "テクスチャを事前合成"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:21
 msgid "Prepare Part meshes"
-msgstr "Partのメッシュを準備"
+msgstr "部品にメッシュを作る"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:22
 msgid "Prepare source groups and facial composites"
-msgstr "元のグループと顔のコンポジットを準備"
+msgstr "部品をまとめ、顔の描画順とクリッピングを準備する"
 
 #: source/nijigenerate/windows/settings.d:244
 msgid "Preserve"
@@ -5821,7 +5818,7 @@ msgstr "名前パターンで反転ペアを登録します。"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:26
 msgid "Register source texture placement"
-msgstr "元のテクスチャ配置を登録"
+msgstr "部品の画像とメッシュの位置を合わせる"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:45
 msgid "Regular Lasso Selection Mode"
@@ -7261,12 +7258,8 @@ msgid "Source Layer"
 msgstr ""
 
 #: source/nijigenerate/panels/autorig.d:399
-msgid ""
-"Source capture is configured in workflow arguments; classification is edited "
-"in the compile task."
-msgstr ""
-"処理前の記録はワークフロー引数、分類は「根拠を導出してリグを構築」で設定しま"
-"す。"
+msgid "Source capture is configured in workflow arguments; classification is edited in the compile task."
+msgstr "検証用の画像を記録するかは全体設定で選べます。部品の役割は役割判定の設定で変更できます。"
 
 #: source/nijigenerate/windows/psddepthmap.d:854
 #, c-format, d-format
@@ -8002,7 +7995,7 @@ msgstr "ユーザーメッセージ:"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:27
 msgid "Validate stored and effective depth"
-msgstr "保存された深度と実効深度を検証"
+msgstr "設定した深度が変形に反映されるか確認する"
 
 #: source/nijigenerate/windows/command_browser.d:603
 #: source/nijigenerate/windows/command_browser.d:777
@@ -8029,7 +8022,7 @@ msgstr "確認済み"
 
 #: source/nijigenerate/autorig/deterministic/pipeline.d:32
 msgid "Verify rig"
-msgstr "リグを検証"
+msgstr "自動リグの結果を確認する"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/point.d:491
 #: native/src/nijigenerate/viewport/common/mesheditor/tools/point.hpp:59
@@ -8829,3 +8822,536 @@ msgstr " メッシュの編集"
 
 #~ msgid "Changed fields"
 #~ msgstr "変更された項目"
+
+msgid "Input evidence"
+msgstr "この処理が使った結果"
+
+msgid "Target nodes"
+msgstr "使う部品・ノード"
+
+msgid "No confirmed targets"
+msgstr "確認済みの対象がありません"
+
+msgid "Use selected nodes"
+msgstr "ツリーで選んだ部品だけを使う"
+
+msgid "Follow detected targets"
+msgstr "自動で見つけた対象に戻す"
+
+msgid "Use this evidence"
+msgstr "この実行の結果を使う"
+
+msgid "Follow task output"
+msgstr "最新の結果を使う"
+
+msgid "Edit evidence for this input"
+msgstr "この入力の証跡を編集"
+
+msgid "Earlier attempts"
+msgstr "過去の実行"
+
+msgid "Report data"
+msgstr "検証レポートの詳細データ"
+
+msgid "Blocked"
+msgstr "入力待ち"
+
+msgid "Partially completed"
+msgstr "一部完了"
+
+msgid "Detected targets"
+msgstr "検出した対象"
+
+msgid "Detect basic rig exclusions"
+msgstr "自動リグの対象外を見つける"
+
+msgid "Collect anatomical evidence"
+msgstr "体の各部の位置を測る"
+
+msgid "Verify basic rig exclusions"
+msgstr "対象外の部品が含まれていないか確認する"
+
+msgid "Collect shoulder seam evidence"
+msgstr "肩と腕をつなぐ部品を見つける"
+
+msgid "Collect layered ear attachment evidence"
+msgstr "前後に分かれた耳の部品を見つける"
+
+msgid "Collect hip attachment evidence"
+msgstr "腰と脚をつなぐ部品を見つける"
+
+msgid "Weld matching anatomical attachment meshes"
+msgstr "つなぎ目のメッシュを Welding で接合する"
+
+msgid "Collect fixed-foot correction evidence"
+msgstr "足元を固定する補正の対象を見つける"
+
+msgid "Collect rear hair correction evidence"
+msgstr "後ろ髪の輪郭補正の対象を見つける"
+
+msgid "Collect cheek correction evidence"
+msgstr "頬の輪郭補正の対象を見つける"
+
+msgid "Apply fixed-foot corrections"
+msgstr "体を傾けたときの足元のずれを補正する"
+
+msgid "Apply rear hair corrections"
+msgstr "後ろ髪の輪郭を補正する"
+
+msgid "Apply near-cheek corrections"
+msgstr "手前側の頬の輪郭を補正する"
+
+
+msgid "Attachment welding"
+msgstr "部品のつなぎ目の接合"
+
+msgid "Detected parts and nodes"
+msgstr "見つかった部品・ノード"
+
+msgid "Changed parts and nodes"
+msgstr "変更した部品・ノード"
+
+msgid "Eligible parts and nodes"
+msgstr "処理対象の候補"
+
+msgid "Select a changed part to see what was edited"
+msgstr "変更した部品を選ぶと、変更内容が表示されます。"
+
+msgid "Detected roles"
+msgstr "部品ごとの役割"
+
+msgid "Result by target"
+msgstr "部品ごとの結果"
+
+msgid "Advanced evidence"
+msgstr "証跡の詳細と過去の実行"
+
+msgid "Include or exclude individual targets"
+msgstr "部品ごとに対象に含めるか設定"
+
+msgid "AutoRig tags"
+msgstr "再実行する部位のタグ"
+
+msgid "Rerun selected tags"
+msgstr "指定した部位を再実行"
+
+msgid "Tagged run results"
+msgstr "指定した部位の実行結果"
+
+
+msgid "One or more finishing stages failed; inspect the completion report"
+msgstr "一部の補正または検証を完了できませんでした。最終結果を開いて内訳を確認してください。"
+
+msgid "The mesh is referenced by deformation or Welding"
+msgstr "このメッシュは変形や Welding で使用中のため、作り直しを保留しました。"
+
+msgid "Existing composite must be included in the selected scope"
+msgstr "この部品を処理するには、所属する Composite 全体を対象に含めてください。"
+
+msgid "Processed parts and nodes"
+msgstr "実際に処理した部品・ノード"
+
+msgid "This step recorded no part or node changes"
+msgstr "この工程では部品やノードの変更は記録されていません。"
+
+msgid "Correction targets and settings"
+msgstr "補正の対象と設定"
+
+msgid "Body measurements"
+msgstr "体の各部を測った結果"
+
+msgid "Shoulder and arm pairs"
+msgstr "肩と腕の組み合わせ"
+
+msgid "Front and back ear pairs"
+msgstr "耳の表側と裏側の組み合わせ"
+
+msgid "Waist and leg pairs"
+msgstr "腰と脚の組み合わせ"
+
+msgid "Uses the selected past result"
+msgstr "選んだ過去の結果を使用"
+
+msgid "Uses the latest result"
+msgstr "最新の結果を使用"
+
+msgid "Waiting for a previous step"
+msgstr "前の処理の結果待ち"
+
+msgid "Processing complete"
+msgstr "成功"
+
+msgid "Needs attention"
+msgstr "要確認"
+
+msgid "Run this step"
+msgstr "この工程を実行"
+
+msgid "Adjust this step"
+msgstr "設定を見直す"
+
+msgid "Compare before and after"
+msgstr "変更前後を比べる"
+
+msgid "Settings changed. Run the step again to check the new result."
+msgstr "設定が変わりました。この工程を実行し直すと、新しい結果を確認できます。"
+
+msgid "Check that the artwork needed for the rig is present, including hidden layers."
+msgstr "非表示のレイヤーも含め、動かすのに必要な部品が揃っているか確認します。"
+
+msgid "Check that excluded parts are meant to stay still and that moving parts are still included."
+msgstr "除外した部品は静止させたいものか、動かしたい部品が除外されていないか確認します。"
+
+msgid "Check that the eyes, mouth, neck and joints line up with the artwork. Correct wrong roles or landmarks in the settings."
+msgstr "目・口・首・関節の位置が絵と合っているか確認します。ずれている場合は、部品の役割や基準点を見直します。"
+
+msgid "Check that each pair meets at the intended seam. After welding, turn or tilt the model and look for gaps or pulling."
+msgstr "つなぐ部品が正しい組み合わせか確認します。接合後は体を回したり傾けたりして、隙間や引きつれが出ないか見ます。"
+
+msgid "Select a part and check that the mesh covers the artwork and the texture sits in the right place."
+msgstr "部品を選び、メッシュが絵を覆っているか、画像が正しい位置に載っているか確認します。"
+
+msgid "Check that parts which move together are grouped and that clipping and draw order keep the eyes and mouth visible."
+msgstr "一緒に動く部品がまとまっているか、描画順やクリッピングで目と口が隠れないか確認します。"
+
+msgid "Check that the bones meet the joints and that the face, neck and clothing are placed at the right depth."
+msgstr "骨が関節の位置に合っているか、顔・首・服の奥行きの関係が自然か確認します。"
+
+msgid "Turn and tilt the face and body in both directions. Check that the head stays attached to the neck and the arms, waist and legs follow."
+msgstr "顔と体を左右・上下に動かします。顔が首から離れず、腕・腰・脚が体の動きについてくるか確認します。"
+
+msgid "Blink and open the mouth. Check that the eyes and mouth close cleanly and that highlights and clipping follow."
+msgstr "まばたきと口の開閉を試します。閉じた形が自然か、ハイライトとクリッピングが開閉についてくるか確認します。"
+
+msgid "Check which foot and leg grids are eligible before applying the correction."
+msgstr "足元の補正に使う左右の脚のグリッドが正しく選ばれているか確認します。"
+
+msgid "Tilt the body to both sides. Check that the feet hold their position and the legs do not pull away."
+msgstr "体を左右に傾け、足元がずれず、脚が腰から離れないか確認します。"
+
+msgid "Check that the selected parts belong to the back hair or skin outline this correction is meant to follow."
+msgstr "後ろ髪や顔の輪郭など、補正に必要な部品が過不足なく選ばれているか確認します。"
+
+msgid "Turn the head left, right, up and down. Check that the back hair follows the head without bulging or stepping."
+msgstr "顔を左右・上下に向け、後ろ髪が頭の形に沿って動き、輪郭に膨らみや段差が出ないか確認します。"
+
+msgid "Compare both sides of the face. Follow the outline from chin to temple and check that the cheek and hair meet without a dent or gap."
+msgstr "顔を左右に向け、顎からこめかみまでの線にくぼみがないか、頬と髪の間に隙間が出ないか確認します。"
+
+msgid "Move and stop the model. Check that the intended parts sway together and settle."
+msgstr "モデルを動かして止め、揺らす部品が一緒に動き、自然に収まるか確認します。"
+
+msgid "Review any item marked for attention, then move the model in the viewport to check its appearance."
+msgstr "要確認の項目を見直し、ビューポートでモデルを動かして見た目を確認します。"
+
+msgid "Check that the selected parts have the roles needed for this step."
+msgstr "選ばれた部品の役割がこの工程に合っているか確認します。"
+
+msgid "Move the affected parameter and check that the selected parts follow as intended."
+msgstr "対象のパラメータを動かし、選ばれた部品が意図どおりについてくるか確認します。"
+
+msgid "Groups to check: %d"
+msgstr "確認が必要な対象グループ %d 件"
+
+msgid "Parts that need attention"
+msgstr "先に確認する部品・ノード"
+
+msgid "Why these parts need attention"
+msgstr "保留・失敗の理由"
+
+msgid "Check the detected targets"
+msgstr "検出した部品を確認"
+
+msgid "Check how these parts move or look"
+msgstr "見た目や動きを確認する部品"
+
+msgid "No applicable parts were found."
+msgstr "今回のモデルでは対象になる部品が見つかりませんでした。"
+
+msgid "Changes to the selected parts"
+msgstr "選んだ部品の変更箇所"
+
+msgid "Choose targets for the next step"
+msgstr "次の工程に渡す対象を見直す"
+
+msgid "This step is using an earlier result."
+msgstr "次の工程は、以前の結果を使う設定になっています。"
+
+msgid "Other related parts and roles"
+msgstr "その他の関連部品と役割"
+
+msgid "Steps to check: %d"
+msgstr "確認が必要な工程 %d 件"
+
+msgid "Go to the first step to check"
+msgstr "最初の要確認工程を開く"
+
+msgid "Move the model in the viewport and use each step's check to judge its appearance."
+msgstr "各工程の確認項目に沿って、ビューポートでモデルを動かして見た目を確認できます。"
+
+msgid "Try the movement"
+msgstr "ここで動かして確認"
+
+msgid "Face turn and tilt"
+msgstr "顔の左右・上下"
+
+msgid "Body turn and lean"
+msgstr "体の左右・前後"
+
+msgid "Body side tilt"
+msgstr "体の左右の傾き"
+
+msgid "Left blink"
+msgstr "左目の開閉"
+
+msgid "Right blink"
+msgstr "右目の開閉"
+
+msgid "Mouth opening"
+msgstr "口の開閉"
+
+msgid "Reset these pose controls"
+msgstr "表示中のパラメータを標準値に戻す"
+
+msgid "Open the model used by this run to try its movement."
+msgstr "動きを試すには、この実行で使ったモデルを開いてください。"
+
+msgid "Steps that did not finish"
+msgstr "処理を完了できなかった工程"
+
+msgid "Workflow settings"
+msgstr "全体の設定"
+
+msgid "Rerun a specific area"
+msgstr "部位を指定して再実行"
+
+msgid "Eye area"
+msgstr "目の周辺"
+
+msgid "Face skin"
+msgstr "顔の肌"
+
+msgid "Cheek outline"
+msgstr "頬の輪郭"
+
+msgid "Waist joint"
+msgstr "腰の接合部"
+
+msgid "Open final verification"
+msgstr "最終確認の工程を開く"
+
+msgid "Rigged model"
+msgstr "リグを適用したモデル"
+
+msgid "Verification report"
+msgstr "検証レポート"
+
+msgid "In progress"
+msgstr "実行中"
+
+msgid "Review this result"
+msgstr "結果を確認"
+
+msgid "%zu of %zu steps completed · %zu need attention"
+msgstr "完了 %zu / %zu 工程　要確認 %zu 件"
+
+msgid "Review issue"
+msgstr "要確認の工程へ"
+
+msgid "Inputs and handoffs"
+msgstr "入力と引き継ぎ"
+
+msgid "Inputs from other steps"
+msgstr "受け取る結果"
+
+msgid "Outputs to other steps"
+msgstr "渡す結果"
+
+msgid "View handoff"
+msgstr "内容を見る"
+
+msgid "Open handoff with %s"
+msgstr "「%s」との引き継ぎを開く"
+
+msgid "Back to step result"
+msgstr "工程の結果に戻る"
+
+msgid "Step result tab"
+msgstr "結果"
+
+msgid "Changes tab"
+msgstr "変更前後"
+
+msgid "Waiting for the current run to finish."
+msgstr "次の処理を待っています。"
+
+msgid "Step options"
+msgstr "工程の操作"
+
+msgid "Back to the check"
+msgstr "確認画面に戻る"
+
+msgid "Next check"
+msgstr "次の確認へ"
+
+msgid "Back to first check"
+msgstr "先に見る工程へ戻る"
+
+msgid "Browse steps"
+msgstr "工程から選ぶ"
+
+msgid "Parts and roles"
+msgstr "部品と役割"
+
+msgid "Meshes, bones and seams"
+msgstr "メッシュ・骨・接合"
+
+msgid "Face and body motion"
+msgstr "顔と体の動き"
+
+msgid "Corrections and final review"
+msgstr "補正と最終確認"
+
+msgid "Start AutoRig"
+msgstr "自動リグを開始"
+
+msgid "Running selected steps"
+msgstr "指定した工程を実行中"
+
+msgid "Run options"
+msgstr "実行の操作"
+
+msgid "Check the preceding step that provides the missing result."
+msgstr "必要な結果が揃っていません。先に前の工程を確認してください。"
+
+msgid "Fixed-foot correction needs a leg Grid with one anatomical side"
+msgstr "左右どちらかの脚に割り当てられたグリッドだけを補正できます。"
+
+msgid "Fixed-foot correction requires the complete leg Grid"
+msgstr "この脚を補正するには、同じグリッドで変形する部品をすべて対象に含めてください。"
+
+msgid "One or more leg Grid inputs were unavailable"
+msgstr "一部の脚のグリッドに必要な情報が揃っていません。"
+
+msgid "Remaining items to check"
+msgstr "残りの要確認項目"
+
+msgid "Find these parts in the tree"
+msgstr "部品の親子関係を見る"
+
+msgid "Part details"
+msgstr "部品と変更の詳細"
+
+msgid "Model state"
+msgstr "モデルの処理状態"
+
+msgid "Part pairs"
+msgstr "接合する部品"
+
+#, c-format
+msgid "Part pair %zu"
+msgstr "部品の組 %zu"
+
+msgid "Rig materials"
+msgstr "リグの素材"
+
+msgid "Part unavailable in the current model"
+msgstr "現在のモデルで参照できない部品"
+
+msgid "Execution order"
+msgstr "実行順"
+
+msgid "This link only controls the order of execution."
+msgstr "この接続は実行順を指定します。"
+
+msgid "Received by task"
+msgstr "受け取り済み"
+
+msgid "Ready for next run"
+msgstr "次の実行で使用"
+
+msgid "Used in last run"
+msgstr "前回の実行で使用"
+
+msgid "Uses an edited input."
+msgstr "手動で設定した入力を使用しています。"
+
+msgid "Uses an earlier result."
+msgstr "以前の結果を使っています。"
+
+msgid "Handoff parts and nodes"
+msgstr "引き継いだ部品・ノード"
+
+msgid "Boxes are tasks. Labels on arrows show what is passed to the next task."
+msgstr "枠はタスク、矢印のラベルは引き継ぐ内容や実行順を示します。"
+
+msgid "Running: %s"
+msgstr "実行中のタスク　%s"
+
+msgid "AutoRig is running"
+msgstr "自動リグを実行中"
+
+msgid "Stopping AutoRig"
+msgstr "自動リグを中止しています"
+
+msgid "Tasks resolved in this run: %zu"
+msgstr "今回結果が確定したタスク　%zu 件"
+
+msgid "Passed from %s"
+msgstr "渡し元　%s"
+
+msgid "Uses a different result."
+msgstr "別の結果を入力に使います。"
+
+msgid "Receiving task"
+msgstr "受け取り先"
+
+msgid "Inspect sender"
+msgstr "渡し元の結果"
+
+msgid "Inspect receiver"
+msgstr "受け取り先の結果"
+
+msgid "Step inputs tab"
+msgstr "入力・対象"
+
+msgid "Evidence tab"
+msgstr "証跡"
+
+msgid "Drag to resize the task list"
+msgstr "上下にドラッグして工程一覧の高さを調整"
+
+msgid "Continue to dependent steps"
+msgstr "後続の実行"
+
+msgid "Check step inputs"
+msgstr "入力を確認"
+
+msgid "Rerun this step"
+msgstr "この工程を再実行"
+
+msgid "Prepare inputs and run"
+msgstr "不足している入力を準備して実行"
+
+#, c-format
+msgid "Waiting for %s"
+msgstr "%s を待っています"
+
+#, c-format
+msgid "Parts selected for this step: %zu"
+msgstr "実行対象の部品・ノード %zu 件"
+
+msgid "The last run used a different input."
+msgstr "前回の実行では別の入力を使いました。"
+
+msgid "No dependent steps"
+msgstr "この工程の結果を使う後続工程はありません。"
+
+msgid "Open step"
+msgstr "工程を開く"
+
+msgid "Imported model has no Parts"
+msgstr "読み込んだモデルに自動リグの対象となる部品がありません。"
+
+msgid "Landmarks measured: %d"
+msgstr "計測した基準点 %d 個"

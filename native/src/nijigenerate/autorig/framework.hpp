@@ -19,6 +19,7 @@
 #include <source_location>
 #include <string_view>
 #include <type_traits>
+#include <typeindex>
 #include <utility>
 #include <new>
 #include <stdexcept>
@@ -149,6 +150,8 @@ private:
     compat::Slice<std::uint8_t> mutableBytes;
     std::shared_ptr<const NativeBlobPayload> nativePayload;
     std::size_t jsonByteLength{};
+    std::shared_ptr<const void> objectPayload;
+    std::type_index objectType{typeid(void)};
     static AutoRigValue jsonSnapshot(Json value);
     std::size_t blobByteLength() const;
     friend class AutoRigTaskContext;
@@ -160,6 +163,19 @@ public:
     static AutoRigValue fileName(Text value);
     static AutoRigValue path(Text value);
     static AutoRigValue jsonValue(Json value);
+    template<class T> static AutoRigValue objectValue(T value) {
+        AutoRigValue result;
+        result.kind = AutoRigValueKind::Object;
+        result.objectPayload = std::make_shared<const T>(std::move(value));
+        result.objectType = typeid(T);
+        return result;
+    }
+    template<class T> std::shared_ptr<const T> object() const {
+        if (objectType != typeid(T))
+            throw std::invalid_argument("AutoRig evidence object type mismatch");
+        return std::static_pointer_cast<const T>(objectPayload);
+    }
+    template<class T> bool holdsObject() const noexcept { return objectType == typeid(T); }
     static AutoRigValue blob(compat::Slice<std::uint8_t> value);
     compat::Slice<std::uint8_t> readBlob();
     compat::ConstSlice<std::uint8_t> borrowTaskBlob();
@@ -184,8 +200,53 @@ struct AutoRigWorkflowSpec {
     Table<AutoRigValue> inputDefaults;
     bool preferred{};
 };
+// An association is valid for the model identity and selected evidence revision
+// that established it. Node IDs are the puppet's stable UUIDs.
+struct AutoRigTargetAssociation {
+    Text tag;
+    Text targetId;
+    std::uint32_t node{};
+};
+struct AutoRigTargetAssociations {
+    Text modelIdentity;
+    std::vector<AutoRigTargetAssociation> members;
+};
+struct AutoRigTagCondition {
+    Text id;
+    std::uint64_t version{1};
+    std::vector<Text> tags;
+};
+enum class AutoRigTagMatch { Matched, Mismatch, MissingEvidence };
+struct AutoRigTagEvaluation {
+    AutoRigTagMatch status{AutoRigTagMatch::MissingEvidence};
+    Text condition;
+    std::uint64_t version{};
+    std::vector<Text> evidenceIds;
+};
+
+struct AutoRigTargetSelector {
+    std::vector<Text> tags;
+    std::vector<Text> targetIds;
+    bool refreshEvidence{};
+};
+struct AutoRigTargetScope {
+    AutoRigTargetSelector selector;
+    Text modelIdentity;
+    std::vector<AutoRigTargetAssociation> targets;
+    std::vector<Text> evidenceIds;
+    Text condition;
+    std::uint64_t conditionVersion{};
+    bool contains(std::uint32_t node) const;
+};
+bool ngAutoRigTagMatches(std::string_view tag, std::string_view selector);
+struct AutoRigUnitResult {
+    std::vector<std::uint32_t> nodes;
+    AutoRigTaskState state{};
+    Text message;
+};
+
 struct AutoRigArtifact {
-    Text taskId, portId;
+    Text taskId, portId, evidenceId;
     std::uint32_t attempt{};
     AutoRigValueKind kind{};
     Text storagePath, mediaType, viewHint;
@@ -204,7 +265,38 @@ struct AutoRigTaskSnapshot {
     AutoRigTaskState state{};
     Text message;
     compat::Slice<AutoRigArtifact> artifacts;
+    Table<Text> inputEvidenceIds;
+    std::shared_ptr<const AutoRigTargetScope> scope;
+    std::vector<AutoRigUnitResult> units;
+    std::vector<Text> tags;
 };
+struct AutoRigExecutionProgress {
+    Text currentTask;
+    std::size_t resolvedTasks{};
+};
+class AutoRigScopedPlan {
+    friend class AutoRigSession;
+    Text sessionId;
+    std::uint64_t revision{};
+    std::shared_ptr<const AutoRigTargetScope> scope;
+    compat::Slice<Text> tasks;
+    AutoRigScopedPlan(Text session, std::uint64_t revision, std::shared_ptr<const AutoRigTargetScope> scope,
+        compat::Slice<Text> tasks)
+        : sessionId(std::move(session)), revision(revision), scope(std::move(scope)), tasks(std::move(tasks)) {}
+public:
+    const AutoRigTargetScope& targetScope() const { return *scope; }
+    compat::Slice<Text> taskIds() const { return tasks.duplicate(); }
+};
+struct AutoRigEvidenceInfo {
+    Text id, task, port;
+    std::uint32_t attempt{};
+    Table<Text> inputs;
+    std::shared_ptr<const AutoRigTargetScope> scope;
+};
+struct AutoRigExecutionReport {
+    std::vector<AutoRigTaskSnapshot> tasks;
+};
+
 struct IAutoRigInputContext {
     virtual ~IAutoRigInputContext() = default;
     virtual Text taskId() = 0;
@@ -290,7 +382,10 @@ class AutoRigTaskContext : public std::enable_shared_from_this<AutoRigTaskContex
     AutoRigTaskSpec spec;
     Text attemptDirectory;
     Table<AutoRigValue> inputs, outputs;
+    Table<Text> inputEvidenceIds;
     Table<AutoRigArtifact> artifacts;
+    std::shared_ptr<const AutoRigTargetScope> scope_, eligibleScope_;
+    std::vector<AutoRigUnitResult> units;
     Table<Text> reservedPreviews;
     std::uint32_t previewVersion{};
     compat::SharedDelegate<bool()> canceled;
@@ -321,6 +416,13 @@ public:
         compat::SharedDelegate<std::shared_ptr<AutoRigWorkspace>()>);
     virtual AutoRigValue contextValue(Text);
     virtual compat::Slice<Text> contextNames();
+    Text evidenceId(Text port) const;
+    const AutoRigTargetScope* targetScope() const { return scope_.get(); }
+    const AutoRigTargetScope* eligibleTargets() const { return eligibleScope_.get(); }
+    bool acceptsTarget(std::uint32_t node) const {
+        return (!scope_ || scope_->contains(node)) && (!eligibleScope_ || eligibleScope_->contains(node));
+    }
+    void recordUnit(AutoRigUnitResult result) { units.push_back(std::move(result)); }
     virtual bool hasInput(Text);
     virtual AutoRigValue input(Text);
     virtual bool isCanceled();
@@ -330,6 +432,12 @@ public:
     virtual void publishPath(Text, Text);
     virtual void publishFileName(Text, Text);
     virtual void publishJson(Text, Json);
+    template<class T> void publishEvidence(Text id, T value) {
+        publish(requireOutput(id, AutoRigValueKind::Object), AutoRigValue::objectValue(std::move(value)), {});
+    }
+    template<class T> std::shared_ptr<const T> inputEvidence(Text id) {
+        return input(std::move(id)).object<T>();
+    }
     virtual void publishBlob(Text, compat::Slice<std::uint8_t>);
     virtual void previewJson(Text, Json, Text mediaType = "application/json");
     virtual void previewBlob(Text, compat::Slice<std::uint8_t>, Text mediaType = "application/octet-stream");
@@ -344,12 +452,33 @@ class AutoRigSession : public std::enable_shared_from_this<AutoRigSession> {
     Table<AutoRigTaskSpec> specs;
     Table<Table<AutoRigValue>> suppliedInputs, committedOutputs;
     Table<AutoRigTaskSnapshot> snapshots;
+    struct EvidenceRecord {
+        Text task, port;
+        AutoRigValue value;
+    };
+    Table<EvidenceRecord> evidence;
+    Table<Table<Text>> publishedEvidence, suppliedEvidence;
+    Table<AutoRigArtifact> evidenceArtifacts;
+    Table<Table<Text>> attemptedInputs;
+    Table<compat::Slice<AutoRigTaskSnapshot>> attempts;
+    std::uint64_t nextEvidenceId{}, selectionRevision_{};
+    Table<Text> targetEvidence;
+    Table<Text> targetRestrictions;
+    Table<AutoRigTagCondition> tagConditions;
+    Table<Text> currentCheckpoint;
+    Table<AutoRigEvidenceInfo> evidenceHistory;
+    struct ScopedExecution {
+        std::shared_ptr<const AutoRigTargetScope> scope;
+        Table<Table<Text>> outputs;
+        AutoRigExecutionReport report;
+    };
     Table<std::shared_ptr<AutoRigInputContext>> inputContexts;
     Table<std::shared_ptr<AutoRigOutputContext>> outputContexts;
     AutoRigTaskActionBoundary actionBoundary;
     AutoRigEditorDispatcher editorDispatcher;
     std::atomic<bool> cancelRequested{false};
     bool busy{};
+    AutoRigExecutionProgress progress_;
     Table<AutoRigValue> sessionValues;
     Table<std::uint64_t> inputRevisions;
     std::uint64_t contextRevision_{};
@@ -357,7 +486,10 @@ class AutoRigSession : public std::enable_shared_from_this<AutoRigSession> {
     std::recursive_mutex mutex_;
     void validateDependencies(Text, Table<std::uint8_t>&);
     void invalidateDependents(Text);
-    void runTask(Text, Table<bool>&, bool);
+    Text resolveInputEvidence(Text task, Text port);
+    Text resolveOutputEvidence(Text task, Text port);
+    Text recordEvidence(Text task, Text port, AutoRigValue);
+    void runTask(Text, Table<bool>&, const Table<bool>&, ScopedExecution* = nullptr);
     void finishExecution(compat::Slice<Text>, Table<std::uint32_t>&);
 protected:
     virtual void prepareSourceClassInfo();
@@ -371,11 +503,31 @@ public:
     virtual std::size_t toHash();
     virtual bool opEquals(std::shared_ptr<AutoRigSession>);
     virtual int opCmp(std::shared_ptr<AutoRigSession>);
+    Text registerTargetAssociations(AutoRigTargetAssociations, Text slot = "manual");
+    void registerTagCondition(AutoRigTagCondition);
+    AutoRigTagEvaluation evaluateTagCondition(Text condition, Text modelIdentity, std::uint32_t node);
+    AutoRigTargetScope resolveTargets(Text condition, Text modelIdentity);
+    AutoRigTargetScope resolveTargetScope(const AutoRigTargetSelector&, Text modelIdentity,
+        std::optional<std::uint32_t> node = std::nullopt);
+    AutoRigScopedPlan plan(compat::Slice<Text> tasks, AutoRigTargetSelector, Text modelIdentity);
+    AutoRigExecutionReport execute(const AutoRigScopedPlan&);
+    Text outputEvidence(Text task, Text port, std::uint32_t attempt = 0);
+    Text inputEvidence(Text task, Text port);
+    Text boundInputEvidence(Text task, Text port);
+    Text targetRestriction(Text task);
+    void setTargetRestriction(Text task, Text model, std::optional<std::vector<std::uint32_t>> nodes);
+    compat::Slice<AutoRigTaskSnapshot> taskAttempts(Text task);
+    AutoRigEvidenceInfo evidenceInfo(Text id);
+    std::vector<AutoRigTaskSnapshot> findAttempts(const AutoRigTargetSelector&);
+    AutoRigValue readEvidence(Text id);
+    Text registerInputEvidence(Text task, Text port, AutoRigValue);
+    void bindInputEvidence(Text task, Text port, Text id);
     virtual void restoreCommittedOutputs();
     virtual Text id() { return id_; }
     virtual Text directory() { return directory_; }
     virtual Text processorId();
     virtual bool isBusy();
+    AutoRigExecutionProgress executionProgress();
     virtual Json memoryInfo();
     virtual void dispose();
     virtual bool isCanceled() { return cancelRequested.load(); }
@@ -447,6 +599,7 @@ class AutoRigSessionManager : public std::enable_shared_from_this<AutoRigSession
     Text root;
     Table<std::shared_ptr<AutoRigProcessor>> processors;
     Table<Text> processorAliases;
+    Table<AutoRigTagCondition> tagConditions;
     Table<std::shared_ptr<AutoRigSession>> sessions, closedSessions;
     AutoRigTaskActionBoundary actionBoundary;
     AutoRigEditorDispatcher editorDispatcher;
@@ -463,6 +616,7 @@ public:
     virtual int opCmp(std::shared_ptr<AutoRigSessionManager>);
     virtual void registerProcessor(std::shared_ptr<AutoRigProcessor>);
     virtual void registerProcessorAlias(Text, Text);
+    void registerTagCondition(AutoRigTagCondition);
     virtual void setTaskActionBoundary(AutoRigTaskActionBoundary value) { actionBoundary = std::move(value); }
     virtual void setEditorDispatcher(AutoRigEditorDispatcher value) { editorDispatcher = std::move(value); }
     virtual compat::Slice<std::shared_ptr<AutoRigProcessor>> listProcessors();

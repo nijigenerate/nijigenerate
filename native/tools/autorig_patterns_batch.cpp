@@ -32,6 +32,9 @@ static const char* stateName(f::AutoRigTaskState state) {
     case f::AutoRigTaskState::Failed: return "Failed";
     case f::AutoRigTaskState::Canceled: return "Canceled";
     case f::AutoRigTaskState::Stale: return "Stale";
+    case f::AutoRigTaskState::Blocked: return "Blocked";
+    case f::AutoRigTaskState::PartiallySucceeded: return "PartiallySucceeded";
+    case f::AutoRigTaskState::NotApplicable: return "NotApplicable";
     }
     throw std::runtime_error("Unknown task state");
 }
@@ -85,7 +88,11 @@ int main(int argc, char** argv) {
                 // Every processor owns its applicability checks. A failed base rig,
                 // an empty match set, or an absent authored recipe is not a batch gate.
                 session->execute(detectOnly ? "detect" : "verify");
-                if (detectOnly) {
+                const auto requested = session->task(detectOnly ? "detect" : "verify", false);
+                if (requested.state != f::AutoRigTaskState::Succeeded) {
+                    record["state"] = "failed";
+                    record["error"] = std::string(requested.message.view());
+                } else if (detectOnly) {
                     record["state"] = "detected_only";
                 } else {
                     const auto report = outputJson(session, "verify", "report");

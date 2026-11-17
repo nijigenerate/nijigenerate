@@ -146,6 +146,13 @@ int main(int argc, char** argv) {
         auto stale = model; stale.as_object().at("nodes").as_object()["name"] = "changed";
         rejects([&] { ngDeformPattern("p32", stale, selection, O{{"controls", A{control()}}}); });
         rejects([&] { manual("p32", model, 999); });
+        auto validMatch = selection.as_object().at("matches").as_array().front();
+        auto invalidMatch = validMatch;
+        invalidMatch.as_object().at("roles").as_object()["target"] = A{999};
+        const auto partial = ngDetectPattern("p32", model, O{{"mode","manual"},
+            {"matches", A{validMatch, invalidMatch}}}).as_object();
+        expect(partial.at("matches").as_array().size() == 1 && partial.at("unresolved").as_array().size() == 1,
+            "Invalid manual candidate blocked a valid structural unit");
         auto empty = ngDetectPattern("p32", model, O{{"mode","manual"},{"matches",A{}}});
         rejects([&] { ngDeformPattern("p32", model, empty, O{{"controls", A{control()}}}); });
         auto bad = control(); bad.as_object()["x"] = A{0,0,1};

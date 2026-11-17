@@ -236,6 +236,54 @@ inline std::vector<Point3> depthSection(std::span<const Point3> mesh, double y, 
     return result;
 }
 
+inline void smoothUnderEyeDepth(std::span<Point3> mesh) {
+    // These rings bound the area from the standard eye plane to the lower cheek.
+    constexpr std::size_t eyePlaneEnd = 30, lowerCheek = 37;
+    constexpr auto rightRim = reference::faceColumns-1;
+    constexpr double middle = rightRim*.5;
+    constexpr double nasalBlend = .185*middle;
+    constexpr std::size_t sideTransition = 5;
+    for (std::size_t column=0; column<=rightRim; ++column) {
+        // Rebuild the full cheek up to the facial rim, with a narrow
+        // transition into the nose's original depth.
+        const double weight=ease(std::abs(double(column)-middle)/nasalBlend);
+        if (weight==0.) continue;
+        const auto at=[&](std::size_t row) -> Point3& { return mesh[row*reference::columns+column]; };
+        const auto& start=at(eyePlaneEnd);
+        const auto& end=at(lowerCheek);
+        const double height=end[1]-start[1];
+        const double startStep=start[1]-at(eyePlaneEnd-1)[1];
+        const double endStep=at(lowerCheek+1)[1]-end[1];
+        if (std::min({height,startStep,endStep})<=1e-6) continue;
+        const double secant=(end[2]-start[2])/height;
+        const auto relativeSlope=[secant](double slope) {
+            return secant==0. ? 0. : std::clamp(slope/secant,0.,3.);
+        };
+        const double startRate=relativeSlope((start[2]-at(eyePlaneEnd-1)[2])/startStep);
+        const double endRate=relativeSlope((at(lowerCheek+1)[2]-end[2])/endStep);
+        // A monotone Hermite segment cannot develop a peak between its ends.
+        const double slopeScale=secant*3./std::max(3.,startRate+endRate);
+        for (auto row=eyePlaneEnd+1; row<lowerCheek; ++row) {
+            auto& point=at(row);
+            const double t=(point[1]-start[1])/height;
+            const double u=1.-t;
+            const double transition=std::lerp(start[2],end[2],t*t*(3.-2.*t))+
+                height*t*u*slopeScale*(u*startRate-t*endRate);
+            const double delta=weight*(transition-point[2]);
+            point[2]+=delta;
+            if (column==0 || column==rightRim) {
+                // Carry the rim change into the adjoining temple surface
+                // so the transition does not create a ridge at the seam.
+                for (std::size_t distance=1; distance<sideTransition; ++distance) {
+                    const auto sideColumn=column==0 ? reference::columns-distance : column+distance;
+                    mesh[row*reference::columns+sideColumn][2]+=
+                        delta*ease(1.-double(distance)/sideTransition);
+                }
+            }
+        }
+    }
+}
+
 inline std::optional<Fit> fit(std::span<const Row> painted, const Frame& frame,
                               double eyeY, double chinDepth, Point3 neck) {
     if (painted.size()<3) return {};
@@ -287,6 +335,7 @@ inline std::optional<Fit> fit(std::span<const Row> painted, const Frame& frame,
     result.mesh.reserve(rowCount*reference::columns);
     for (std::size_t r=0;r<rowCount;++r)
         for (std::size_t c=0;c<reference::columns;++c) result.mesh.push_back(map(standardPoint(r,c)));
+    smoothUnderEyeDepth(result.mesh);
     const std::array referenceE{reference::leftEar,reference::rightEar};
     const std::array referenceM{reference::leftJaw,reference::rightJaw};
     for (std::size_t i=0;i<2;++i) {

@@ -99,6 +99,7 @@ inline Text valueKindText(AutoRigValueKind kind) {
     case AutoRigValueKind::FileName: return Text::fromStaticLiteral("FileName");
     case AutoRigValueKind::Path: return Text::fromStaticLiteral("Path");
     case AutoRigValueKind::Json: return Text::fromStaticLiteral("Json");
+    case AutoRigValueKind::Object: return Text::fromStaticLiteral("Object");
     case AutoRigValueKind::Blob: return Text::fromStaticLiteral("Blob");
     }
     // std.conv:1083-1115 prints the signed underlying value for unnamed enums.

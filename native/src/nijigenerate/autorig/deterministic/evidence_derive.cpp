@@ -30,19 +30,14 @@ Json ngRigDeriveEvidence(Json observation) {
         setEvidence(landmarks,role,objectEvidence({{stringLiteralEvidence("xy"),pointJson(p)},{stringLiteralEvidence("provenance"),provenance},{stringLiteralEvidence("weight"),1.},{stringLiteralEvidence("method"),literalEvidence("PSD alpha quantile section")}}));
     };
     auto facial=registered::ngRigFacialLandmarks(observation);
-    const auto facialPoint = [&](std::string_view key, std::size_t line) {
-        const auto found = facial.find(key);
-        if (found == facial.end()) throw compat::ngStaticError<compat::RangeError>(
-            compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/evidence.d"), line);
-        return found->second;
-    };
-    const auto rightInner = facialPoint("eye_r_inner",469);
-    const auto rightOuter = facialPoint("eye_r_outer",469);
-    const auto rightEye = midpoint(rightInner, rightOuter);
-    const auto leftInner = facialPoint("eye_l_inner",470);
-    const auto leftOuter = facialPoint("eye_l_outer",470);
-    const auto leftEye = midpoint(leftInner, leftOuter);
-    auto headFrame = neck::ngRigInferHeadFrame(face, rightEye, leftEye);
+    const auto rightInner = facial.find("eye_r_inner"), rightOuter = facial.find("eye_r_outer");
+    const auto leftInner = facial.find("eye_l_inner"), leftOuter = facial.find("eye_l_outer");
+    const bool pairedEyes = rightInner != facial.end() && rightOuter != facial.end() &&
+        leftInner != facial.end() && leftOuter != facial.end();
+    auto headFrame = pairedEyes
+        ? neck::ngRigInferHeadFrame(face, midpoint(rightInner->second, rightOuter->second),
+            midpoint(leftInner->second, leftOuter->second))
+        : neck::ngRigInferHeadFrameFromOutline(face);
     put(stringLiteralEvidence("head_top"),ngRigPoint(atEvidence(headFrame,"head_top")));put(stringLiteralEvidence("head_root"),ngRigPoint(atEvidence(headFrame,"head_root")));
     const auto bareTorso = select({"torso"});
     const auto clothedTorso = select({"bodice", "waistwear"});

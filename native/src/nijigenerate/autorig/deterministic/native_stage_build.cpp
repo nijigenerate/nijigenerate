@@ -406,6 +406,8 @@ Json buildRig(Json state,Json program,Task task) {
             ngRigString(program,stringLiteralEvidence("kind"),stringLiteralEvidence("humanoid"))));
         Json originIds=core::settings::SettingsJsonObject{};for(auto [name,node]:origins)assignNative(originIds,name,node->getUUID());
         assignNative(result,"material_origins",originIds);assignNative(result,"rigRoot",root->getUUID());assignNative(result,"targets",targets);
+        if (const auto attachment=program.sourceObjectRef().if_contains("neck_pitch_attachment"))
+            assignNative(result,"neck_pitch_attachment",*attachment);
         assignNative(result,"program_sha256",indexNative(program,"content_sha256"));
     });
     // Grid processing is completed below, outside the main-thread callback.

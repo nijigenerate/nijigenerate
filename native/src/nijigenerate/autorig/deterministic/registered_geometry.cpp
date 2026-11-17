@@ -229,10 +229,12 @@ Landmarks ngRigFacialLandmarks(Json observation) {
         const auto found = features.find(key);
         return found == features.end() ? compat::Slice<Point2>{} : found->second;
     };
-    const double center=quantile(faceXs,.5);Landmarks result;std::array<Point2,2> eyeCenters;
+    const double center=quantile(faceXs,.5);Landmarks result;std::array<Point2,2> eyeCenters{};
+    std::array<bool,2> hasEye{};
     for(std::size_t index=0;index<2;++index) {
         const auto side=index==0?literalKey("r"):literalKey("l");compat::Slice<Point2> eye;
         for(auto p:featurePoints("sclera"))if((p[0]<center)==(index==0))eye.append(p);
+        if (eye.empty()) continue;
         compat::Slice<double> xs;for(auto p:eye)xs.append(p[0]);
         const double lo=quantile(xs,.01),hi=quantile(xs,.99);std::array<Point2,2> ends;
         for(std::size_t i=0;i<2;++i) {
@@ -242,13 +244,19 @@ Landmarks ngRigFacialLandmarks(Json observation) {
         }
         result[joinEnforceMessage(joinEnforceMessage("eye_",side.view()),"_outer")]=ends[index==0?0:1];
         result[joinEnforceMessage(joinEnforceMessage("eye_",side.view()),"_inner")]=ends[index==0?1:0];
+        hasEye[index]=true;
         eyeCenters[index]={(ends[0][0]+ends[1][0])/2,(ends[0][1]+ends[1][1])/2};
     }
     compat::Slice<double> xs,ys;for(auto p:featurePoints("nose")){xs.append(p[0]);ys.append(p[1]);}
-    result[literalKey("nose")]={quantile(xs,.5),quantile(ys,.5)};
+    if (!xs.empty()) result[literalKey("nose")]={quantile(xs,.5),quantile(ys,.5)};
     const auto mouthEntry = features.find("mouth");
     auto mouth = mouthEntry == features.end() ? featurePoints("mouth_outline") : mouthEntry->second;
-    auto u=sub(eyeCenters[1],eyeCenters[0]);const auto length=norm(u);for(auto& v:u)v/=length;Point2 v{-u[1],u[0]};
+    if (mouth.empty()) return result;
+    auto u = hasEye[0] && hasEye[1] ? sub(eyeCenters[1], eyeCenters[0]) : Point2{1., 0.};
+    const auto length = norm(u);
+    if (length > 0.) for (auto& value : u) value /= length;
+    else u = {1., 0.};
+    Point2 v{-u[1],u[0]};
     compat::Slice<double> along,cross;for(auto p:mouth){along.append(dot(p,u));cross.append(dot(p,v));}
     const double lo=quantile(along,.01),hi=quantile(along,.99),mid=quantile(cross,.5);
     result[literalKey("mouth_r")]={lo*u[0]+mid*v[0],lo*u[1]+mid*v[1]};

@@ -28,6 +28,7 @@ if(TARGET nijigenerate_autorig_panel_declarations AND TARGET nijigenerate_autori
     target_sources(nijigenerate_autorig_panel_registration PRIVATE FILE_SET HEADERS
         BASE_DIRS "${CMAKE_CURRENT_LIST_DIR}/src"
         FILES "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/detail/autorig_sessions.hpp"
+            "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/detail/autorig_resource_store.hpp"
             "${CMAKE_CURRENT_LIST_DIR}/src/nijigenerate/panels/detail/autorig_worker.hpp")
 endif()
 if(TARGET nijigenerate_autorig_panel_registration AND TARGET nijigenerate_autorig_processor

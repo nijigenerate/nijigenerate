@@ -161,6 +161,11 @@ public:
     virtual bool isApplied() const;
     virtual bool replaysCompletedResults() const;
     bool empty() override;
+    struct Savepoint {
+        std::size_t primary{}, derived{}, completion{};
+    };
+    Savepoint savepoint() const;
+    void rollbackTo(Savepoint);
     virtual void beginCheckpointRecording();
     virtual void endCheckpointRecording();
     void addAction(ActionPtr action) override;

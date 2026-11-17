@@ -2,6 +2,7 @@
 #include "native_stage.hpp"
 #include "detail/evidence.hpp"
 #include <nijigenerate/project.hpp>
+#include <nijigenerate/actions/package.hpp>
 #include <nijigenerate/commands/automesh/dynamic.hpp>
 #include <nijigenerate/viewport/vertex/automesh/grid.hpp>
 #include <nodes/part.hpp>
@@ -22,7 +23,8 @@ template<class T> Json values(const T& source) {
     return result;
 }
 }
-Json meshParts(Json state, Json program, Task task) {
+Json meshParts(Json state, Json program, Task task,
+    const std::shared_ptr<actions::AsyncGroupAction>& owner) {
     struct MeshGroup {
         compat::Slice<std::uint32_t> ids;
         float spacing{std::numeric_limits<float>::quiet_NaN()};
@@ -42,14 +44,45 @@ Json meshParts(Json state, Json program, Task task) {
         }
     NativeIntegerMap<std::uint32_t, Json> beforeFrames;
     compat::Slice<std::uint32_t> neckShadowParts;
+    core::settings::SettingsJsonArray unavailable;
+    const auto failPart = [&](std::uint32_t id, framework::Text message, framework::AutoRigTaskState status) {
+        unavailable.append(id);
+        task->recordUnit({{id}, status, std::move(message)});
+    };
     task->runOnMainThread([&] {
+        NativeIntegerMap<std::uint32_t, bool> welded;
+        if (task->targetScope()) {
+            const auto gather = [&](auto&& self, const NodeRef& node) -> void {
+                if (auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(node))
+                    for (const auto& link : part->weldedLinks) if (auto peer = link.target.lock()) {
+                        welded[part->getUUID()] = true;
+                        welded[peer->getUUID()] = true;
+                    }
+                for (auto child : node->childrenList()) self(self, child);
+            };
+            gather(gather, project::incActivePuppet()->root);
+        }
         for (auto carrier : program.sourceIndexValue("carriers").sourceArrayValue()) {
+            const auto id = uuid(carrier.sourceIndexValue("part"));
+            if (!task->acceptsTarget(id)) continue;
             auto part = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(
-                project::incActivePuppet()->findNodeById(uuid(carrier.sourceIndexValue("part"))));
-            enforceNative(bool(part),"Rig material disappeared before meshing",647);
+                project::incActivePuppet()->findNodeById(id));
+            if (!part || !part->textures[0]) {
+                failPart(id, "Mesh Part or texture is unavailable", framework::AutoRigTaskState::Blocked);
+                continue;
+            }
             auto texture = part->textures[0];
-            enforceNative(bool(texture),"Rig Part texture is missing",648);
-            const auto id = part->getUUID();
+            if (task->targetScope()) {
+                const auto puppet = project::incActivePuppet();
+                const bool bound = std::ranges::any_of(puppet->parameters, [&](const auto& parameter) {
+                    return bool(parameter->getBinding(part, "deform"));
+                });
+                if (bound || welded.contains(id) || !part->childrenList().empty()) {
+                    failPart(id, "The mesh is referenced by deformation or Welding",
+                        framework::AutoRigTaskState::Blocked);
+                    continue;
+                }
+            }
             beforeFrames[id] = frame(part->localTransform);
             // Drawing overlapping triangles on a Multiply layer applies the
             // shadow twice. A rectangular grid covers the soft alpha once.
@@ -114,30 +147,61 @@ Json meshParts(Json state, Json program, Task task) {
         });
         result = result->waitForCompletion();
         enforceNativeLazy(result->succeeded,[&] { return result->message; },680);
+        task->runOnMainThread([&] {
+            for (const auto id : ids) {
+                auto part = project::incActivePuppet()->findNodeById(id);
+                enforceNative(beforeFrames[id] == frame(part->localTransform),
+                    "Part AutoMesh changed the source coordinate frame",690);
+            }
+        });
+    };
+    const auto tryBatch = [&](const compat::Slice<std::uint32_t>& ids, auto makeProcessor) {
+        const auto attempt = [&](const compat::Slice<std::uint32_t>& batch) -> framework::Text {
+            actions::AsyncGroupAction::Savepoint saved;
+            task->runOnMainThread([&] { saved = owner->savepoint(); });
+            try {
+                applyMesh(batch, makeProcessor());
+                return {};
+            } catch (const compat::ThrowableException& error) {
+                ngRigCheckpoint(task);
+                task->runOnMainThread([&] { owner->rollbackTo(saved); });
+                return error.msg;
+            }
+        };
+        compat::Slice<std::uint32_t> applied;
+        const auto batchError = attempt(ids);
+        if (batchError.empty()) applied = ids;
+        else for (const auto id : ids) {
+            const auto error = ids.size() > 1 ? attempt({id}) : batchError;
+            if (error.empty()) applied.append(id);
+            else failPart(id, error, framework::AutoRigTaskState::Failed);
+        }
+        for (const auto id : applied) task->recordUnit({{id}, framework::AutoRigTaskState::Succeeded, {}});
+        return applied;
     };
     for (auto [key, group] : groups) {
-        std::shared_ptr<viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor> processor =
-            createNativeObject<RigPartMeshProcessor>(group.spacing, group.divisions, group.scales, group.shoulder);
-        applyMesh(group.ids, processor);
-        configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(group.ids)}, {stringLiteralEvidence("min_distance"), group.spacing},
+        const auto applied = tryBatch(group.ids, [&] {
+            return std::shared_ptr<viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor>(
+                createNativeObject<RigPartMeshProcessor>(group.spacing, group.divisions, group.scales, group.shoulder));
+        });
+        if (applied.empty()) continue;
+        configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(applied)}, {stringLiteralEvidence("min_distance"), group.spacing},
             {stringLiteralEvidence("div_per_part"), group.divisions}, {stringLiteralEvidence("scales"), values(group.scales)},
             {stringLiteralEvidence("proximal_shoulder_sampling"), group.shoulder}}));
     }
     if (!neckShadowParts.empty()) {
-        auto processor = createNativeObject<viewport::vertex::automesh::grid::GridAutoMeshProcessor>();
-        processor->xSegments = 12;
-        processor->ySegments = 12;
-        processor->ngPostParamWrite(compat::RetainedString::fromStaticLiteral("x_segments"));
-        applyMesh(neckShadowParts, processor);
-        configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(neckShadowParts)},
+        const auto applied = tryBatch(neckShadowParts, [] {
+            auto processor = createNativeObject<viewport::vertex::automesh::grid::GridAutoMeshProcessor>();
+            processor->xSegments = 12;
+            processor->ySegments = 12;
+            processor->ngPostParamWrite(compat::RetainedString::fromStaticLiteral("x_segments"));
+            return processor;
+        });
+        if (!applied.empty()) configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(applied)},
             {stringLiteralEvidence("processor"), "Grid"}}));
     }
-    task->runOnMainThread([&] {
-        for (auto [id, before] : beforeFrames) {
-            auto part = project::incActivePuppet()->findNodeById(id);
-            enforceNative(before == frame(part->localTransform),"Part AutoMesh changed the source coordinate frame",690);
-        }
-    });
+    if (!unavailable.empty() && !task->targetScope())
+        assignNative(state, "unmeshed_parts", unavailable);
     state.sourceIndexAssignSlot(compat::RetainedString::fromStaticLiteral("part_mesh_generation")) = Json(configurations);
     return state;
 }

@@ -20,6 +20,8 @@ struct AutoRigConnection {
     compat::RetainedStringSlice sourceOutput;
 };
 
+enum class AutoRigTaskPhase { Collect, Plan, Apply, Verify };
+
 struct AutoRigTaskSpec {
     compat::RetainedStringSlice id;
     compat::RetainedStringSlice label;
@@ -30,6 +32,16 @@ struct AutoRigTaskSpec {
     bool retainFailureOutputs{};
     bool ownsActionBoundary{};
     bool reclaimScratchMemory{};
+    // Forward these input ports when this stage does not publish a replacement.
+    compat::Slice<compat::RetainedStringSlice> checkpointFallbacks;
+    AutoRigTaskPhase phase{AutoRigTaskPhase::Apply};
+    compat::Slice<compat::RetainedStringSlice> targetTags;
+    bool supportsTargetScope{};
+    bool useCurrentCheckpoint{};
+    // Semantic inputs are checked in full and scoped runs. Scope hints above
+    // only decide which task definitions are relevant to a selection.
+    compat::RetainedStringSlice tagCondition;
+    compat::Slice<compat::RetainedStringSlice> conditionTags;
 };
 
 struct AutoRigWorkflowStep {

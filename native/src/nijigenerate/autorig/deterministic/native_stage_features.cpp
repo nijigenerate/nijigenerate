@@ -5,6 +5,7 @@
 #include <nijigenerate/commands/node/node_commands.hpp>
 #include <nodes/projectable.hpp>
 #include <cmath>
+#include <algorithm>
 
 namespace nijigenerate::autorig::deterministic::native_detail {
 using namespace evidence::detail;
@@ -29,6 +30,44 @@ Json prepareFeatureComposites(Json state, Json program, Task task) {
     core::settings::SettingsJsonArray composites;
     NativeIntegerMap<std::uint32_t, bool> meshed;
     for (auto [name, ids] : groups) {
+        if (const auto eligible = task->eligibleTargets(); eligible &&
+            std::ranges::any_of(ids, [&](const auto id) { return !eligible->contains(id); })) {
+            task->recordUnit({{ids.begin(), ids.end()}, framework::AutoRigTaskState::Blocked,
+                "Feature composite lacks a validated mechanism member"});
+            continue;
+        }
+        if (const auto scope = task->targetScope()) {
+            bool selected = false, outside = false;
+            for (const auto id : ids) {
+                selected |= scope->contains(id);
+                outside |= !scope->contains(id);
+            }
+            if (!selected) continue;
+            if (outside) {
+                task->recordUnit({{ids.begin(), ids.end()}, framework::AutoRigTaskState::Blocked,
+                    "Feature composite includes targets outside the selected scope"});
+                continue;
+            }
+            bool shared = false;
+            task->runOnMainThread([&] {
+                const auto puppet = project::incActivePuppet();
+                for (auto id : ids) {
+                    const auto part = puppet->findNodeById(id);
+                    if (!part) { shared = true; continue; }
+                    for (auto parent = part->parentPtr(); parent && parent != puppet->root; parent = parent->parentPtr())
+                        if (parent->typeId() == "DynamicComposite") {
+                            shared |= !scope->contains(parent->getUUID());
+                            for (const auto& parameter : puppet->parameters)
+                                shared |= bool(parameter->getBinding(parent, "deform"));
+                        }
+                }
+            });
+            if (shared) {
+                task->recordUnit({{ids.begin(), ids.end()}, framework::AutoRigTaskState::Blocked,
+                    "Existing composite must be included in the selected scope"});
+                continue;
+            }
+        }
         compat::Slice<std::uint32_t> targets;
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
@@ -115,6 +154,13 @@ Json prepareFeatureComposites(Json state, Json program, Task task) {
             });
             meshed[id]=true;
         }
+        if (task->targetScope())
+            task->recordUnit({{ids.begin(), ids.end()}, framework::AutoRigTaskState::Succeeded, {}});
+    }
+    if (task->targetScope() && state.sourceObjectRef().if_contains("feature_composites")) {
+        auto previous = state.sourceIndexValue("feature_composites").sourceArrayValue();
+        for (const auto& existing : previous)
+            if (!meshed.contains(uuid(indexNative(existing, "uuid")))) composites.append(existing);
     }
     state.sourceIndexAssignSlot(compat::RetainedString::fromStaticLiteral("feature_composites")) = Json(composites);
     state.sourceIndexAssignSlot(compat::RetainedString::fromStaticLiteral("composite_source_uv_readback")) = verifySourceFrames(state, task);

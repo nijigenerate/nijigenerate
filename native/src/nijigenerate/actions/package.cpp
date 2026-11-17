@@ -240,6 +240,24 @@ AsyncGroupActionState AsyncGroupAction::state() const { return currentState; }
 bool AsyncGroupAction::isApplied() const { return applied; }
 bool AsyncGroupAction::replaysCompletedResults() const { return replayCompleted; }
 bool AsyncGroupAction::empty() { return actions.empty() && derivedActions.empty(); }
+AsyncGroupAction::Savepoint AsyncGroupAction::savepoint() const {
+    if (!recordsCompletionOrder || pendingCount)
+        throw std::logic_error("AutoRig savepoint requires a settled action checkpoint");
+    return {actions.size(), derivedActions.size(), completionOrder.size()};
+}
+void AsyncGroupAction::rollbackTo(Savepoint point) {
+    if (pendingCount || point.primary > actions.size() || point.derived > derivedActions.size() ||
+        point.completion > completionOrder.size())
+        throw std::logic_error("Invalid AutoRig action savepoint");
+    const auto recorded = completionOrder.duplicate();
+    for (auto i = recorded.size(); i > point.completion; --i) {
+        const auto action = recorded.get(i - 1);
+        if (!delegatedCompletions.contains(action)) compat::ngRequireObject(action)->rollback();
+    }
+    actions.resize(point.primary);
+    derivedActions.resize(point.derived);
+    completionOrder.resize(point.completion);
+}
 void AsyncGroupAction::beginCheckpointRecording() {
     const auto lifetime = weak_from_this().lock();
     if (checkpointRecorder) {

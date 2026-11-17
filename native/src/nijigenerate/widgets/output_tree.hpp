@@ -56,6 +56,7 @@ protected:
     compat::RetainedString grabParam;
     detail::UuidMap<SubItemLayout> layout_;
     bool prevMouseDown=false,mouseDown=false,showRootThumb=false;
+    bool targetPicker=false;
     std::shared_ptr<nicxlive::core::Texture> rootThumbTex;
     std::shared_ptr<backend::snapshot::Snapshot> snapshot;
     ImGuiTreeNodeFlags setFlag(Resource) override;
@@ -84,7 +85,8 @@ protected:
     virtual void drawBinding(Resource,ImVec2&,ImVec2&,bool&);
     void drawTreeItem(Resource) override;
 public:
-    IconTreeOutput(std::shared_ptr<core::selector::TreeStore> store,CommandIssuerPtr issuer);
+    IconTreeOutput(std::shared_ptr<core::selector::TreeStore> store,CommandIssuerPtr issuer,
+        bool targetPicker = false);
     void onUpdate() override;
     void setResources(core::selector::SelectorArray<Resource> resources) override;
     virtual detail::UuidMap<SubItemLayout>& layout() { return layout_; }

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <initializer_list>
 #include <limits>
+#include <numeric>
 #include <span>
 #include <new>
 #include <stdexcept>
@@ -142,6 +143,17 @@ SettingsJsonValue ngRigInferHeadFrame(compat::Slice<Point2> face, Point2 eyeRigh
         {"head_top", numbers(Point2(origin[0] + low * down[0], origin[1] + low * down[1]))},
         {"head_root", numbers(Point2(origin[0] + high * down[0], origin[1] + high * down[1]))},
         {"method", Value("paired_eye_axis_and_projected_face_extent")}});
+}
+
+SettingsJsonValue ngRigInferHeadFrameFromOutline(compat::Slice<Point2> face) {
+    const auto top = section(face, 0);
+    const auto root = section(face, 1);
+    const auto length = std::hypot(root[0]-top[0], root[1]-top[1]);
+    enforce(length > 0, "Degenerate head outline", 97);
+    const Point2 down{(root[0]-top[0])/length, (root[1]-top[1])/length};
+    return object({{"origin", numbers(Point2{std::midpoint(top[0],root[0]),std::midpoint(top[1],root[1])})},
+        {"tangent", numbers(Point2{down[1],-down[0]})}, {"normal", numbers(Point2{-down[0],-down[1]})},
+        {"head_top", numbers(top)}, {"head_root", numbers(root)}, {"method", Value("painted_face_outline")}});
 }
 
 SettingsJsonValue ngRigInferNeckBase(compat::Slice<Point2> face, compat::Slice<Point2> neck,

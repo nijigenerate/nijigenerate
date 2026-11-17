@@ -10,11 +10,19 @@
 #include <compat/phobos_string_hash.hpp>
 #include <compat/object_metadata.hpp>
 #include <cstdint>
+#include <functional>
+#include <array>
+#include <optional>
 #include <memory>
 #include <mutex>
 
 namespace nijigenerate::panels::autorig {
-namespace detail { class AutoRigWorker; }
+namespace detail {
+class AutoRigWorker;
+class EvidenceNodeIndex;
+struct EvidenceResourceGroup;
+}
+struct TaskResourceSummary;
 
 // Public source class frame. Its separately owned state/method implementations
 // are not replaced with empty native defaults or a successful worker stub.
@@ -61,6 +69,13 @@ class AutoRigPanel : public Panel, public std::enable_shared_from_this<AutoRigPa
     std::uint32_t controlledRoot = 0;
     bool previousDriversEnabled = false;
     compat::RetainedStringSlice lastError;
+    std::array<char, 256> scopeTags{};
+    ::nijigenerate::autorig::framework::Text scopedResultRun;
+    DraftMap<::nijigenerate::autorig::framework::Text> reviewTaskByRun;
+    DraftMap<std::size_t> reviewHandoffByRun;
+    struct HandoffPreview;
+    DraftMap<std::shared_ptr<HandoffPreview>> handoffTargets;
+    ::nijigenerate::autorig::framework::AutoRigExecutionReport scopedResult;
     struct MaterialDraft {
         std::uint32_t attempt = 0, compiledAttempt = 0;
         std::uint64_t revision = 0;
@@ -82,6 +97,14 @@ class AutoRigPanel : public Panel, public std::enable_shared_from_this<AutoRigPa
         compat::Slice<bool> enabled;
     };
     DraftMap<ReviewDraft> reviewDrafts;
+    struct EvidenceTree;
+    std::shared_ptr<detail::EvidenceNodeIndex> evidenceNodeIndex;
+    DraftMap<std::shared_ptr<EvidenceTree>> evidenceTrees;
+    DraftMap<std::shared_ptr<const TaskResourceSummary>> resourceSummaries;
+    void renderEvidenceTree(compat::RetainedStringSlice key, const std::vector<std::uint32_t>& ids);
+    void renderEvidenceGroups(compat::RetainedStringSlice key, const std::vector<detail::EvidenceResourceGroup>& groups,
+        const std::function<void(std::uint32_t)>& editNode = {});
+    detail::EvidenceNodeIndex& evidenceIndex();
     struct WorkflowOptionsDraft {
         std::uint64_t revision = 0;
         ::nijigenerate::autorig::framework::Json options{};
@@ -92,7 +115,9 @@ class AutoRigPanel : public Panel, public std::enable_shared_from_this<AutoRigPa
     void finishWorker();
     void restoreDriverState();
     void startRun(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
-        compat::RetainedStringSlice stepId = {}, bool force = true);
+        compat::RetainedStringSlice stepId = {}, bool force = true,
+        std::optional<::nijigenerate::autorig::framework::AutoRigScopedPlan> scopedPlan = {},
+        ::nijigenerate::autorig::framework::Text taskId = {});
     compat::RetainedStringSlice presetLabel(::nijigenerate::autorig::workflow::AutoRigWorkflowPreset preset);
     void removeRun(compat::RetainedStringSlice runId);
     compat::RetainedStringSlice draftKey(
@@ -106,15 +131,16 @@ class AutoRigPanel : public Panel, public std::enable_shared_from_this<AutoRigPa
         ::nijigenerate::autorig::framework::AutoRigValueKind kind, compat::RetainedStringSlice draft);
     void applyInput(std::shared_ptr<::nijigenerate::autorig::framework::IAutoRigInputContext> context,
         ::nijigenerate::autorig::framework::AutoRigPortSpec port, compat::RetainedStringSlice draft);
-    bool renderStateTree(compat::RetainedStringSlice title, compat::RetainedStringSlice state,
-        compat::RetainedStringSlice id, ImGuiTreeNodeFlags flags);
+    bool renderStateTree(compat::RetainedStringSlice title, ::nijigenerate::autorig::framework::AutoRigTaskState state,
+        compat::RetainedStringSlice id, ImGuiTreeNodeFlags flags, bool reveal = false);
     void renderPresetPicker();
+    void renderActiveProgress();
     bool renderRun(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run);
     void renderSessionConfiguration(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run);
     void renderSessionValue(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
         compat::RetainedStringSlice name, ::nijigenerate::autorig::framework::AutoRigValueKind kind,
         compat::RetainedStringSlice current, bool contextValue);
-    void renderSessionOutput(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run);
+    bool renderSessionOutput(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run);
     void renderDefaultInputs(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
         compat::RetainedStringSlice taskId);
     void renderDefaultOutputs(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
@@ -126,7 +152,17 @@ class AutoRigPanel : public Panel, public std::enable_shared_from_this<AutoRigPa
     void renderMaterialRoles(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
         compat::RetainedStringSlice taskId);
     void renderTask(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
-        ::nijigenerate::autorig::framework::AutoRigWorkflowStep step);
+        ::nijigenerate::autorig::framework::Text taskId, compat::RetainedStringSlice stepId,
+        bool running, const std::function<void()>& renderInputs,
+        const std::function<void()>& renderNext);
+    void renderHandoff(const std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun>& run,
+        ::nijigenerate::autorig::framework::Text sourceId, ::nijigenerate::autorig::framework::Text taskId,
+        const std::vector<::nijigenerate::autorig::framework::AutoRigConnection>& ports);
+    void renderTaskEvidence(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
+        const ::nijigenerate::autorig::framework::AutoRigTaskSnapshot& task, bool details = false);
+    void renderTargetSettings(std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
+        ::nijigenerate::autorig::framework::Text task,
+        ::nijigenerate::autorig::framework::Text producerEvidence = {});
 protected:
     void prepareSourceClassInfo() override;
     void onInit() override;

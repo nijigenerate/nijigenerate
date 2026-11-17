@@ -145,7 +145,15 @@ core::settings::SettingsJsonValue ngRigCompileFixedFootCorrections(core::setting
     using core::settings::SettingsJsonArray;
     using core::settings::SettingsJsonObject;
     using core::settings::SettingsJsonValue;
-    SettingsJsonArray operations;
+    SettingsJsonArray operations, unavailable;
+    const auto recordUnavailable = [&](std::uint32_t part, framework::AutoRigTaskState status,
+        const framework::Text& message) {
+        SettingsJsonObject info;
+        info["part"] = part;
+        info["reason"] = core::settings::SettingsString(message);
+        unavailable.append(SettingsJsonValue(info));
+        if (context) context->recordUnit({{part}, status, message});
+    };
     if (contracts::ngRigString(state, compat::RetainedString::fromStaticLiteral("kind"),
             compat::RetainedString::fromStaticLiteral("humanoid")).view() != "humanoid") {
         SettingsJsonObject report;
@@ -161,60 +169,81 @@ core::settings::SettingsJsonValue ngRigCompileFixedFootCorrections(core::setting
     for (const auto target : targets) {
         if (!target.sourceIndexValue("owner").as_string().view().starts_with("leg:") ||
                 seen.contains(contracts::ngRigUnsigned(target.sourceIndexValue("grid")))) continue;
-        seen[contracts::ngRigUnsigned(target.sourceIndexValue("grid"))] = true;
-        auto prepared = controls_detail::prepareFixedFootTarget(target, landmarks);
-        SettingsJsonArray nativeKeys;
-        const bool registered=program.sourceObjectRef().if_contains("reference_template")!=nullptr;
-        if(registered) {
-            const auto allKeys=state.sourceIndexValue("native_leg_roll_keys").sourceArrayValue();
-            for(auto key:allKeys)if(contracts::ngRigUnsigned(key.sourceIndexValue("grid"))==
-                contracts::ngRigUnsigned(target.sourceIndexValue("grid")))nativeKeys.append(key);
-            controls_detail::enforce(nativeKeys.size()==5,"Expected five native leg roll keys",530);
-            bool folded=false;compat::Slice<contracts::Point2> rest;
-            for(auto y:prepared.ys)for(auto x:prepared.xs)rest.append(contracts::Point2{x,y});
-            for(auto key:nativeKeys) {
-                const auto offsets=contracts::ngRigNumbers(key.sourceIndexValue("offsets"));
-                controls_detail::enforce(offsets.size()==rest.size()*2,"Native leg roll size mismatch",531);
-                auto posed=rest.duplicate();for(std::size_t i=0;i<rest.size();++i)
-                    for(std::size_t axis=0;axis<2;++axis)posed[i][axis]+=offsets[i*2+axis];
-                try{geometry::ngRigValidateGrid(posed,prepared.xs.size(),.02,rest);}
-                catch(const compat::ThrowableException&){folded=true;}
-            }
-            if(!folded)continue;
+        const auto grid = contracts::ngRigUnsigned(target.sourceIndexValue("grid"));
+        const auto part = static_cast<std::uint32_t>(contracts::ngRigUnsigned(target.sourceIndexValue("part")));
+        if (context && !context->acceptsTarget(part)) continue;
+        seen[grid] = true;
+        const auto side = target.sourceIndexValue("side").as_string().view();
+        if (side != "L" && side != "R") {
+            recordUnavailable(part, framework::AutoRigTaskState::Blocked,
+                "Fixed-foot correction needs a leg Grid with one anatomical side");
+            continue;
         }
-        const double keys[5]{-1., -.5, 0., .5, 1.};
-        for (std::size_t index = 0; index < 5; ++index) {
-            contracts::ngRigCheckpoint(context);
-            const double angle = controls_detail::fixedFootAngle(magnitude, keys[index]);
-            std::array<contracts::Point2,3> displacement{};
+        SettingsJsonArray unitOperations;
+        try {
+            auto prepared = controls_detail::prepareFixedFootTarget(target, landmarks);
+            SettingsJsonArray nativeKeys;
+            const bool registered=program.sourceObjectRef().if_contains("reference_template")!=nullptr;
             if(registered) {
-                const auto offsets=contracts::ngRigNumbers(nativeKeys[index].sourceIndexValue("offsets"));
-                const auto& m=prepared.matrix;
-                for(std::size_t joint=0;joint<2;++joint) {
-                    const auto p=prepared.joints[joint];const auto dx=p[0]-m[2],dy=p[1]-m[5];
-                    const double lx=(m[4]*dx-m[1]*dy)/prepared.determinant;
-                    const double ly=(-m[3]*dx+m[0]*dy)/prepared.determinant;
-                    std::size_t ix=0,iy=0;
-                    while(ix+2<prepared.xs.size()&&lx>prepared.xs[ix+1])++ix;
-                    while(iy+2<prepared.ys.size()&&ly>prepared.ys[iy+1])++iy;
-                    const double u=std::clamp((lx-prepared.xs[ix])/(prepared.xs[ix+1]-prepared.xs[ix]),0.,1.);
-                    const double v=std::clamp((ly-prepared.ys[iy])/(prepared.ys[iy+1]-prepared.ys[iy]),0.,1.);
-                    contracts::Point2 local{};
-                    for(std::size_t axis=0;axis<2;++axis) {
-                        const auto a=(iy*prepared.xs.size()+ix)*2+axis;
-                        const auto b=a+prepared.xs.size()*2;
-                        local[axis]=(1-v)*((1-u)*offsets[a]+u*offsets[a+2])+v*((1-u)*offsets[b]+u*offsets[b+2]);
-                    }
-                    displacement[joint]={m[0]*local[0]+m[1]*local[1],m[3]*local[0]+m[4]*local[1]};
+                const auto allKeys=state.sourceIndexValue("native_leg_roll_keys").sourceArrayValue();
+                for(auto key:allKeys)if(contracts::ngRigUnsigned(key.sourceIndexValue("grid"))==
+                    contracts::ngRigUnsigned(target.sourceIndexValue("grid")))nativeKeys.append(key);
+                controls_detail::enforce(nativeKeys.size()==5,"Expected five native leg roll keys",530);
+                bool folded=false;compat::Slice<contracts::Point2> rest;
+                for(auto y:prepared.ys)for(auto x:prepared.xs)rest.append(contracts::Point2{x,y});
+                for(auto key:nativeKeys) {
+                    const auto offsets=contracts::ngRigNumbers(key.sourceIndexValue("offsets"));
+                    controls_detail::enforce(offsets.size()==rest.size()*2,"Native leg roll size mismatch",531);
+                    auto posed=rest.duplicate();for(std::size_t i=0;i<rest.size();++i)
+                        for(std::size_t axis=0;axis<2;++axis)posed[i][axis]+=offsets[i*2+axis];
+                    try{geometry::ngRigValidateGrid(posed,prepared.xs.size(),.02,rest);}
+                    catch(const compat::ThrowableException&){folded=true;}
                 }
+                if(!folded)continue;
             }
-            operations.append(controls_detail::fixedFootKey(target, index, angle, prepared.joints,
-                pelvis, prepared.axis, prepared.stations, prepared.xs, prepared.ys, prepared.matrix,
-                prepared.determinant, prepared.side,registered?&displacement:nullptr));
+            const double keys[5]{-1., -.5, 0., .5, 1.};
+            for (std::size_t index = 0; index < 5; ++index) {
+                contracts::ngRigCheckpoint(context);
+                const double angle = controls_detail::fixedFootAngle(magnitude, keys[index]);
+                std::array<contracts::Point2,3> displacement{};
+                if(registered) {
+                    const auto offsets=contracts::ngRigNumbers(nativeKeys[index].sourceIndexValue("offsets"));
+                    const auto& m=prepared.matrix;
+                    for(std::size_t joint=0;joint<2;++joint) {
+                        const auto p=prepared.joints[joint];const auto dx=p[0]-m[2],dy=p[1]-m[5];
+                        const double lx=(m[4]*dx-m[1]*dy)/prepared.determinant;
+                        const double ly=(-m[3]*dx+m[0]*dy)/prepared.determinant;
+                        std::size_t ix=0,iy=0;
+                        while(ix+2<prepared.xs.size()&&lx>prepared.xs[ix+1])++ix;
+                        while(iy+2<prepared.ys.size()&&ly>prepared.ys[iy+1])++iy;
+                        const double u=std::clamp((lx-prepared.xs[ix])/(prepared.xs[ix+1]-prepared.xs[ix]),0.,1.);
+                        const double v=std::clamp((ly-prepared.ys[iy])/(prepared.ys[iy+1]-prepared.ys[iy]),0.,1.);
+                        contracts::Point2 local{};
+                        for(std::size_t axis=0;axis<2;++axis) {
+                            const auto a=(iy*prepared.xs.size()+ix)*2+axis;
+                            const auto b=a+prepared.xs.size()*2;
+                            local[axis]=(1-v)*((1-u)*offsets[a]+u*offsets[a+2])+v*((1-u)*offsets[b]+u*offsets[b+2]);
+                        }
+                        displacement[joint]={m[0]*local[0]+m[1]*local[1],m[3]*local[0]+m[4]*local[1]};
+                    }
+                }
+                unitOperations.append(controls_detail::fixedFootKey(target, index, angle, prepared.joints,
+                    pelvis, prepared.axis, prepared.stations, prepared.xs, prepared.ys, prepared.matrix,
+                    prepared.determinant, prepared.side,registered?&displacement:nullptr));
+            }
+        } catch (const compat::ThrowableException& error) {
+            contracts::ngRigCheckpoint(context);
+            if (!context) throw;
+            recordUnavailable(part, framework::AutoRigTaskState::Failed, error.msg);
+            continue;
         }
+        for (const auto& operation : unitOperations) operations.append(operation);
+        if (context && !unitOperations.empty())
+            context->recordUnit({{part}, framework::AutoRigTaskState::Succeeded, {}});
     }
     SettingsJsonObject report;
     report["operations"] = SettingsJsonValue(operations);
+    if (!unavailable.empty()) report["unavailable"] = SettingsJsonValue(unavailable);
     report["method"] = "shared longitudinal cubic Hermite with fixed ankle";
     report["program_sha256"] = program.sourceIndexValue("content_sha256");
     auto result = SettingsJsonValue(report);

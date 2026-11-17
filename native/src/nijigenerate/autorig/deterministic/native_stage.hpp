@@ -6,6 +6,8 @@
 #include "native_processor.hpp"
 #include <nijigenerate/autorig/framework.hpp>
 #include <span>
+#include <vector>
+namespace nijigenerate::actions { class AsyncGroupAction; }
 namespace nijigenerate::autorig::deterministic::native_detail {
 using Json=core::settings::SettingsJsonValue;
 using Task=std::shared_ptr<framework::AutoRigTaskContext>;
@@ -23,14 +25,28 @@ compat::RetainedString editorSignature(PuppetRef);
 void settleDepthRefresh(Task);
 Json observeModel(Json,Task);
 Json prepareSourceGroups(Json,Task);
-Json meshParts(Json,Json,Task);
-Json registerSourceUV(Json,Task);
+Json meshParts(Json,Json,Task,const std::shared_ptr<actions::AsyncGroupAction>&);
+Json registerSourceUV(Json,Task,const std::shared_ptr<actions::AsyncGroupAction>&);
 Json prepareFeatureComposites(Json,Json,Task);
 Json registerDomainParents(Json,Json,Task);
 Json buildRig(Json,Json,Task);
 Json applyControls(Json,Task);
 Json weldShoulders(Json,Task);
-Json applyRearCap(Json,Json,Task);
+struct FixedFootPlan { framework::Text modelDigest; Json report; };
+struct CheekPlan { framework::Text modelDigest; Json report; };
+struct RearCapOperation {
+    std::uint32_t part;
+    std::array<unsigned, 2> key;
+    compat::Slice<float> offsets;
+};
+struct RearCapPlan {
+    framework::Text modelDigest;
+    Json silhouettes;
+    std::vector<RearCapOperation> operations;
+};
+RearCapPlan planRearCap(Json,Json,Task);
+Json applyRearCap(const RearCapPlan&,Task);
+Json applyFixedFootCorrections(Json,Json,Task);
 Json applyCheekCorrections(Json,Json,Task);
 Json validateDepthInputs(Json,Json,Task);
 Json bakeAngles(Json,Task);

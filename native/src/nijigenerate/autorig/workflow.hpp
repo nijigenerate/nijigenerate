@@ -3,7 +3,7 @@
 #include "framework.hpp"
 #include <compat/object_metadata.hpp>
 namespace nijigenerate::autorig::workflow {
-enum class AutoRigWorkflowState : std::int32_t { Pending, Running, Succeeded, Failed, Canceled };
+enum class AutoRigWorkflowState : std::int32_t { Pending, Running, Succeeded, Failed, Canceled, PartiallySucceeded };
 using namespace framework;
 struct AutoRigWorkflowPreset { Text providerId; AutoRigWorkflowSpec spec; };
 struct AutoRigWorkflowSnapshot {
@@ -56,6 +56,8 @@ public:
     virtual Text stepTaskId(Text);
     virtual compat::Slice<AutoRigWorkflowStep> orderedSteps();
     void setInput(Text, AutoRigValue) override;
+    AutoRigScopedPlan plan(AutoRigTargetSelector selector, Text modelIdentity, Text step = {});
+    AutoRigExecutionReport execute(const AutoRigScopedPlan&);
     virtual void execute(bool force = false);
     virtual void executeStep(Text, bool force = false);
     virtual void cancel();

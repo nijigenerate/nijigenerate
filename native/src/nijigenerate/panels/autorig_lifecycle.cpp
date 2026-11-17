@@ -30,7 +30,9 @@ void AutoRigPanel::finishWorker() {
 
 void AutoRigPanel::startRun(
         std::shared_ptr<::nijigenerate::autorig::workflow::AutoRigWorkflowRun> run,
-        compat::RetainedStringSlice stepId, bool force) {
+        compat::RetainedStringSlice stepId, bool force,
+        std::optional<::nijigenerate::autorig::framework::AutoRigScopedPlan> scopedPlan,
+        ::nijigenerate::autorig::framework::Text taskId) {
     const auto owner = shared_from_this();
     finishWorker();
     if (worker) return;
@@ -45,10 +47,16 @@ void AutoRigPanel::startRun(
     auto* storage = allocator.allocate(1);
     try {
         std::construct_at(storage, compat::SharedDelegate<void()>(
-        [owner, run, stepId, force] {
+        [owner, run, stepId, force, scopedPlan = std::move(scopedPlan), taskId = std::move(taskId)] {
             utils::crashdump::installNativeCrashDumpThreadHandler();
             try {
-                if (!stepId.empty()) compat::ngRequireObject(run)->executeStep(stepId.retainedString(), true);
+                if (scopedPlan) {
+                    auto report = run->execute(*scopedPlan);
+                    const std::lock_guard lock(owner->stateMonitor);
+                    owner->scopedResultRun = run->id();
+                    owner->scopedResult = std::move(report);
+                } else if (!taskId.empty()) run->session()->execute(taskId, force);
+                else if (!stepId.empty()) compat::ngRequireObject(run)->executeStep(stepId.retainedString(), true);
                 else compat::ngRequireObject(run)->execute(force);
             } catch (const compat::Throwable& error) {
                 const std::lock_guard lock(owner->stateMonitor);
@@ -98,6 +106,10 @@ void AutoRigPanel::stop() {
     contextDrafts = {};
     materialDrafts = {};
     reviewDrafts = {};
+    evidenceTrees = {};
+    evidenceNodeIndex.reset();
+    resourceSummaries = {};
+    handoffTargets = {};
     workflowOptionsDrafts = {};
 }
 

@@ -17,6 +17,52 @@ Json weldShoulders(Json state, Task task) {
     const auto weldKind = compat::RetainedString::fromStaticLiteral("weld");
     auto pairs = get(state, "shoulder_pairs", core::settings::SettingsJsonArray{}).sourceArrayValue().duplicate();
     for (auto pair : get(state, "surface_pairs", core::settings::SettingsJsonArray{}).sourceArrayValue()) pairs.append(pair);
+    core::settings::SettingsJsonArray outsideScope;
+    if (task->targetScope() || task->eligibleTargets()) {
+        // The existing algorithm refines both ends before creating links. A
+        // crossing edge would also change vertex correspondence for other edges.
+        NativeIntegerMap<std::uint32_t, bool> crossing;
+        for (const auto& pair : pairs) {
+            if (!indexNative(pair, "matching").as_bool()) continue;
+            const auto src = uuid(indexNative(pair, "source")), dst = uuid(indexNative(pair, "target"));
+            if (task->acceptsTarget(src) != task->acceptsTarget(dst)) {
+                crossing[src] = true;
+                crossing[dst] = true;
+            }
+        }
+        bool expanded;
+        do {
+            expanded = false;
+            for (const auto& pair : pairs) {
+                if (!indexNative(pair, "matching").as_bool()) continue;
+                const auto src = uuid(indexNative(pair, "source")), dst = uuid(indexNative(pair, "target"));
+                if (crossing.contains(src) == crossing.contains(dst)) continue;
+                crossing[src] = true;
+                crossing[dst] = true;
+                expanded = true;
+            }
+        } while (expanded);
+        core::settings::SettingsJsonArray selected;
+        for (const auto& pair : pairs) {
+            const auto src = uuid(indexNative(pair, "source")), dst = uuid(indexNative(pair, "target"));
+            if (get(pair, "status", "").as_string().view() == "applied_readback_verified") {
+                outsideScope.append(pair);
+                if (task->acceptsTarget(src) && task->acceptsTarget(dst))
+                    task->recordUnit({{src, dst}, framework::AutoRigTaskState::NotApplicable,
+                        "The verified Welding is already present"});
+                continue;
+            }
+            if ((!task->targetScope() && !indexNative(pair, "matching").as_bool()) ||
+                (task->acceptsTarget(src) && task->acceptsTarget(dst) && !crossing.contains(src))) selected.append(pair);
+            else {
+                outsideScope.append(pair);
+                if (indexNative(pair, "matching").as_bool() && (task->acceptsTarget(src) || task->acceptsTarget(dst)))
+                    task->recordUnit({{src, dst}, framework::AutoRigTaskState::Blocked,
+                        "Welding requires the complete shared seam"});
+            }
+        }
+        pairs = std::move(selected);
+    }
     core::settings::SettingsJsonArray operations;
     auto settings = reviewSettings(task);
     for (auto pair : pairs) operations.append(objectEvidence({
@@ -153,7 +199,11 @@ Json weldShoulders(Json state, Task task) {
         for (auto i : indices) indexValues.append(i);
         assignNative(pair, "indices", indexValues); assignNative(pair, "weight", 0.); assignNative(pair, "paired_vertices", count);
         assignNative(pair, "mesh_arrays_unchanged", true); assignNative(pair, "status", "applied_readback_verified");
+        if (task->targetScope()) task->recordUnit({
+            {uuid(indexNative(pair, "source")), uuid(indexNative(pair, "target"))},
+            framework::AutoRigTaskState::Succeeded, {}});
     }
+    for (const auto& pair : outsideScope) pairs.append(pair);
     core::settings::SettingsJsonArray shoulders, surfaces;
     for (auto pair : pairs) {
         const auto kind=get(pair,"kind","").as_string().view();

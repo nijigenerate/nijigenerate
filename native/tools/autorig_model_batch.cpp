@@ -42,9 +42,11 @@ int main(int argc, char** argv) {
     const bool capture = blinkMotion ||
         ((argc == 8 || captureWithoutPhysics) && std::string_view(argv[1]) == "--capture-inx");
     const bool customHeadYaw = argc == 5 && std::string_view(argv[3]) == "--head-yaw-degrees";
-    if (argc != 3 && !capture && !customHeadYaw) {
+    const bool tagged = argc == 5 && std::string_view(argv[3]) == "--rerun-tag";
+    if (argc != 3 && !capture && !customHeadYaw && !tagged) {
         std::cerr << "Usage: autorig_model_batch INPUT.psd OUTPUT_DIRECTORY | --open-only INPUT.inx\n"
                      "       autorig_model_batch INPUT.psd OUTPUT_DIRECTORY --head-yaw-degrees DEGREES\n"
+                     "       autorig_model_batch INPUT.psd OUTPUT_DIRECTORY --rerun-tag TAG\n"
                      "       autorig_model_batch --capture-inx INPUT.inx OUT PARAMETER CENTER_X CENTER_Y ZOOM [--no-physics]\n"
                      "       autorig_model_batch --capture-blink-motion INPUT.inx OUT PARAMETER CENTER_X CENTER_Y ZOOM [--no-physics]\n";
         return 2;
@@ -229,9 +231,17 @@ int main(int argc, char** argv) {
             boost::json::array steps;
             for (const auto& step : run->orderedSteps()) {
                 const auto snapshot = run->session()->task(run->stepTaskId(step.id.retainedString()), false);
+                boost::json::array units;
+                for (const auto& unit : snapshot.units) {
+                    if (unit.state == f::AutoRigTaskState::Succeeded) continue;
+                    boost::json::array nodes;
+                    for (const auto node : unit.nodes) nodes.push_back(node);
+                    units.push_back(boost::json::object{{"nodes", std::move(nodes)},
+                        {"state", static_cast<int>(unit.state)}, {"message", std::string(unit.message.view())}});
+                }
                 steps.push_back(boost::json::object{{"step", std::string(step.id.view())},
                     {"state", static_cast<int>(snapshot.state)}, {"attempts", snapshot.attempt},
-                    {"message", std::string(snapshot.message.view())}});
+                    {"message", std::string(snapshot.message.view())}, {"incomplete_units", std::move(units)}});
             }
             const auto snapshot = run->snapshot(false);
             std::ofstream(directory / "report.json") << boost::json::serialize(boost::json::object{
@@ -243,15 +253,11 @@ int main(int argc, char** argv) {
         std::exception_ptr failure;
         std::thread worker([&] {
             try {
-                for (const auto& step : run->orderedSteps()) {
-                    std::cout << "Stage " << step.id.view() << '\n' << std::flush;
-                    run->executeStep(step.id.retainedString());
-                    report();
-                }
+                run->execute();
             } catch (...) { failure = std::current_exception(); }
             done = true;
         });
-        while (!done) {
+        const auto pumpEditor = [&] {
             std::shared_ptr<std::packaged_task<void()>> request;
             { std::lock_guard lock(mutex); if (!pending.empty()) { request = pending.front(); pending.pop(); } }
             if (request) (*request)();
@@ -260,6 +266,24 @@ int main(int argc, char** argv) {
             core::tasks::ngTaskUpdate();
             commands::depth::bone::ngFlushDepthBoneDirtyForFrame();
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        };
+        const auto steps = run->orderedSteps();
+        std::vector<bool> announced(steps.size());
+        auto nextProgress = std::chrono::steady_clock::now();
+        while (!done) {
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= nextProgress) {
+                nextProgress = now + std::chrono::milliseconds(250);
+                for (std::size_t i = 0; i < steps.size(); ++i) {
+                    if (announced[i]) continue;
+                    const auto state = run->session()->task(run->stepTaskId(steps[i].id.retainedString()), false);
+                    if (state.state == f::AutoRigTaskState::Pending) continue;
+                    if (state.state == f::AutoRigTaskState::Running)
+                        std::cout << "Stage " << steps[i].id.view() << '\n' << std::flush;
+                    announced[i] = true;
+                }
+            }
+            pumpEditor();
         }
         worker.join();
         save("basic.inx");
@@ -276,10 +300,50 @@ int main(int argc, char** argv) {
                     run->session()->output(task, f::Text(port)).json) << '\n';
         }
         report();
+        const bool hasRig = run->hasOutput("model");
+        if (tagged && hasRig && !failure) {
+            const auto model = project::incActivePuppet();
+            f::AutoRigTargetSelector selector{{f::Text(argv[4])}, {}, false};
+            const auto plan = run->plan(std::move(selector), f::Text(std::to_string(model->root->getUUID())));
+            f::AutoRigExecutionReport taggedReport;
+            done = false;
+            std::thread scopedWorker([&] {
+                try { taggedReport = run->execute(plan); }
+                catch (...) { failure = std::current_exception(); }
+                done = true;
+            });
+            while (!done) pumpEditor();
+            scopedWorker.join();
+            if (!failure) {
+                save("tagged.inx");
+                boost::json::array targets, tasks;
+                for (const auto& target : plan.targetScope().targets)
+                    targets.push_back(boost::json::object{{"tag", target.tag.view()}, {"node", target.node}});
+                for (const auto& task : taggedReport.tasks) {
+                    boost::json::array units;
+                    for (const auto& unit : task.units) {
+                        boost::json::array nodes;
+                        for (const auto node : unit.nodes) nodes.push_back(node);
+                        units.push_back(boost::json::object{{"nodes", std::move(nodes)},
+                            {"state", static_cast<int>(unit.state)}, {"message", unit.message.view()}});
+                    }
+                    tasks.push_back(boost::json::object{{"task", task.taskId.view()},
+                        {"state", static_cast<int>(task.state)}, {"message", task.message.view()},
+                        {"units", std::move(units)}});
+                }
+                std::ofstream(directory / "tagged-report.json") << boost::json::serialize(boost::json::object{
+                    {"targets", std::move(targets)}, {"tasks", std::move(tasks)}}) << '\n';
+            }
+        }
         workflows->close(run->id());
         if (failure) std::rethrow_exception(failure);
-        std::cout << "Basic AutoRig completed\n";
-        return 0;
+        for (const auto& step : run->orderedSteps()) {
+            const auto state = run->session()->task(run->stepTaskId(step.id.retainedString()), false);
+            if (state.state == f::AutoRigTaskState::Failed || state.state == f::AutoRigTaskState::Blocked)
+                std::cout << step.id.view() << ": " << state.message.view() << '\n';
+        }
+        std::cout << "Basic AutoRig run finished\n";
+        return hasRig ? 0 : 1;
     } catch (const compat::ThrowableException& error) {
         std::cerr << error.msg.view() << '\n';
     } catch (const std::exception& error) {

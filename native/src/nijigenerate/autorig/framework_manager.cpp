@@ -44,6 +44,15 @@ void AutoRigSessionManager::registerProcessorAlias(Text previous, Text current) 
     enforce(safeId(previous) && !processors.contains(previous) && !processorAliases.contains(previous), [&] { return Text("Invalid or duplicate AutoRig processor alias"); }, 1175);
     enforce(processors.contains(current), [&] { return Text("Unknown AutoRig processor alias target"); }, 1177); processorAliases[previous] = current;
 }
+void AutoRigSessionManager::registerTagCondition(AutoRigTagCondition condition) {
+    enforce(!condition.id.empty() && condition.version && !condition.tags.empty(),
+        [&] { return Text("Invalid AutoRig tag condition"); }, 1179);
+    const auto id = condition.id;
+    const auto prior = tagConditions.find(id);
+    enforce(prior == tagConditions.end() || prior->second.version < condition.version,
+        [&] { return Text("AutoRig tag condition version must increase"); }, 1179);
+    tagConditions[id] = std::move(condition);
+}
 compat::Slice<std::shared_ptr<AutoRigProcessor>> AutoRigSessionManager::listProcessors() {
     compat::Slice<std::shared_ptr<AutoRigProcessor>> result;
     for (const auto& [id, processor] : processors) result.append(processor); return result;
@@ -61,6 +70,7 @@ std::shared_ptr<AutoRigSession> AutoRigSessionManager::createWithProcessor(std::
     auto id = ngAutoRigRandomUuid();
     auto session = std::allocate_shared<AutoRigSession>(SourceAllocator<AutoRigSession>{},
         processor, id, joined(directory, id), actionBoundary, editorDispatcher);
+    for (const auto& [key, condition] : tagConditions) session->registerTagCondition(condition);
     sessions[id] = session; return session;
 }
 std::shared_ptr<AutoRigSession> AutoRigSessionManager::reopenWithProcessor(std::shared_ptr<AutoRigProcessor> processor, Text id) {

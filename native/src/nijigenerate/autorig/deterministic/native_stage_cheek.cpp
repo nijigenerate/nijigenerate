@@ -18,8 +18,41 @@ compat::RetainedStringSlice skeletonDigest(NodeRef node) {
 }
 
 }
-Json applyCheekCorrections(Json state, Json program, Task task) {
-    auto feet = controls::ngRigCompileFixedFootCorrections(state, program, task);
+Json applyFixedFootCorrections(Json state, Json feet, Task task) {
+    if (task->targetScope() || task->eligibleTargets()) {
+        NativeIntegerMap<std::uint32_t, bool> include, exclude;
+        for (const auto& target : indexNative(state, "targets").sourceArrayValue()) {
+            const auto grid = uuid(indexNative(target, "grid"));
+            const auto part = uuid(indexNative(target, "part"));
+            if (task->acceptsTarget(part)) include[grid] = true;
+            else exclude[grid] = true;
+        }
+        core::settings::SettingsJsonArray accepted;
+        NativeIntegerMap<std::uint32_t, bool> reported;
+        for (const auto& operation : indexNative(feet, "operations").sourceArrayValue()) {
+            const auto grid = uuid(indexNative(operation, "grid"));
+            if (include.contains(grid) && !exclude.contains(grid)) accepted.append(operation);
+            else if (include.contains(grid) && !reported.contains(grid)) {
+                reported[grid] = true;
+                task->recordUnit({{grid}, framework::AutoRigTaskState::Blocked,
+                    "Fixed-foot correction requires the complete leg Grid"});
+            }
+        }
+        feet = Json(feet.sourceObjectRef().duplicate());
+        assignNative(feet, "operations", accepted);
+    }
+    if (const auto unavailable = feet.sourceObjectRef().if_contains("unavailable")) {
+        auto accepted = core::settings::SettingsJsonArray{};
+        for (const auto& item : unavailable->sourceArrayValue()) {
+            const auto part = uuid(indexNative(item, "part"));
+            if (!task->acceptsTarget(part)) continue;
+            accepted.append(item);
+            task->recordUnit({{part}, framework::AutoRigTaskState::Blocked, nativeString(indexNative(item, "reason"))});
+        }
+        feet = Json(feet.sourceObjectRef().duplicate());
+        assignNative(feet, "unavailable", accepted);
+    }
+    NativeIntegerMap<std::uint32_t, bool> appliedGrids;
     for (auto operation : indexNative(feet, "operations").sourceArrayValue()) {
         ngRigCheckpoint(task);
         auto offsets = nativeNumbers(indexNative(operation, "values"));
@@ -40,11 +73,15 @@ Json applyCheekCorrections(Json state, Json program, Task task) {
                     return context;
                 });
         });
+        appliedGrids[uuid(indexNative(operation, "grid"))] = true;
     }
+    for (const auto grid : appliedGrids.keys())
+        task->recordUnit({{grid}, framework::AutoRigTaskState::Succeeded, {}});
     settleDepthRefresh(task);
     assignNative(state, "fixed_foot_corrections", feet);
-    assignNative(state,"rear_hair_silhouettes",applyRearCap(state, program, task));
-    auto report = controls::ngRigCompileCheekCorrections(state, program, task);
+    return state;
+}
+Json applyCheekCorrections(Json state, Json report, Task task) {
     if (!indexNative(report, "applicable").as_bool()) { assignNative(state, "shape_corrections", report); return state; }
     NativeIntegerMap<std::uint64_t, bool> bound;
     NativeIntegerMap<std::uint64_t, bool> ridgeFollowers;
@@ -59,6 +96,23 @@ Json applyCheekCorrections(Json state, Json program, Task task) {
                 if (kind=="coincident_skin") coincidentSkin[id] = true;
                 break;
             }
+    if (task->targetScope() || task->eligibleTargets()) {
+        std::vector<std::uint32_t> ids;
+        bool outside = false;
+        for (auto id : bound.keys()) {
+            ids.push_back(static_cast<std::uint32_t>(id));
+            outside |= !task->acceptsTarget(static_cast<std::uint32_t>(id));
+        }
+        if (outside) {
+            task->recordUnit({std::move(ids), framework::AutoRigTaskState::Blocked,
+                "Face ridge correction requires the skin, outline and participating hair Parts"});
+            return state;
+        }
+    }
+    NativeIntegerMap<std::uint64_t, bool> priorBindings;
+    if (task->targetScope()) if (const auto previous = state.sourceObjectRef().if_contains("shape_corrections"))
+        if (const auto prior = previous->sourceObjectRef().if_contains("bound_targets"))
+            for (const auto& part : prior->sourceArrayValue()) priorBindings[ngRigUnsigned(part)] = true;
     compat::RetainedStringSlice rootSignature;
     task->runOnMainThread([&] {
         auto puppet = project::incActivePuppet(); auto parameter = parameterByName(puppet, "Face::Yaw-Pitch");
@@ -66,7 +120,7 @@ Json applyCheekCorrections(Json state, Json program, Task task) {
         const auto skinId = uuid(indexNative(report, "skin"));
         for (const auto id : coincidentSkin.keys()) {
             auto part = puppet->findNodeById(static_cast<std::uint32_t>(id));
-            if (std::ranges::any_of(puppet->parameters,
+            if (!priorBindings.contains(id) && std::ranges::any_of(puppet->parameters,
                     [&](const auto& control) { return bool(control->getBinding(part, "deform")); }))
                 bound.erase(id);
         }
@@ -75,7 +129,7 @@ Json applyCheekCorrections(Json state, Json program, Task task) {
             enforceNative((id == skinId || ridgeFollowers.contains(id) || coincidentSkin.contains(id)) &&
                 std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(part),
                 "Invalid face ridge correction Part",1413);
-            enforceNative(!parameter->getBinding(part, "deform"),
+            enforceNative(!parameter->getBinding(part, "deform") || priorBindings.contains(id),
                 "Cheek correction would overwrite an existing Part angle binding",1413);
         }
         rootSignature = skeletonDigest(puppet->findNodeById(uuid(indexNative(state, "rigRoot"))));
@@ -124,7 +178,11 @@ Json applyCheekCorrections(Json state, Json program, Task task) {
         }
     });
     core::settings::SettingsJsonArray targets;
-    for (auto id : bound.keys()) targets.append(id);
+    for (auto id : bound.keys()) {
+        targets.append(id);
+        if (task->targetScope()) task->recordUnit({{static_cast<std::uint32_t>(id)},
+            framework::AutoRigTaskState::Succeeded, {}});
+    }
     assignNative(report, "bound_targets", targets); assignNative(report, "native_grid_depth_bones_unchanged", true);
     auto unsignedReport=report.sourceObjectRef().duplicate();
     unsignedReport.erase("content_sha256");

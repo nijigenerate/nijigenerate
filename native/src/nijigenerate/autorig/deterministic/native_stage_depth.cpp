@@ -2,6 +2,7 @@
 #include "native_stage.hpp"
 #include "detail/evidence.hpp"
 #include "geometry.hpp"
+#include "registered.hpp"
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/ext/nodes/exdepthbone_node.hpp>
 #include <nijigenerate/ext/nodes/exdepthmapped.hpp>
@@ -21,6 +22,54 @@ template<class T> Json numericArray(const compat::Slice<T>& values) {
     core::settings::SettingsJsonArray result;
     for (auto value : values) result.append(value);
     return result;
+}
+
+// Head::Root and the neck skin follow the same torso grid. Restore the
+// projected neck span lost to forward pitch using that shared deformation.
+bool compensateNeckPitch(const compat::Slice<Point2>& rest,
+    const compat::Slice<double>& xs, const compat::Slice<double>& ys,
+    compat::Slice<compat::Slice<Point2>>& keys, const nicxlive::core::param::Parameter& parameter,
+    Point2 top, Point2 base, double radius) {
+    const auto length = std::hypot(base[0]-top[0], base[1]-top[1]);
+    if (length <= .1*radius || radius <= 0.) return false;
+    const Point2 axis{(base[0]-top[0])/length, (base[1]-top[1])/length};
+    compat::Slice<double> weights;
+    for (const auto point : rest) {
+        const Point2 delta{point[0]-top[0],point[1]-top[1]};
+        const auto along = delta[0]*axis[0]+delta[1]*axis[1];
+        const auto across = std::abs(delta[0]*axis[1]-delta[1]*axis[0]);
+        const auto t = std::clamp(along/length,0.,1.);
+        const auto u = std::clamp((across-radius)/radius,0.,1.);
+        weights.append((1.-t*t*(3.-2.*t))*(1.-u*u*(3.-2.*u)));
+    }
+    const compat::Slice<Point2> anchors{top,base};
+    const auto falloff = registered::ngRigSampleRegisteredDepth(xs,ys,weights,anchors);
+    const auto spanWeight = falloff[0]-falloff[1];
+    if (spanWeight < .5) return false;
+    const auto ny = parameter.axisPoints[1].size();
+    const auto neutralPitch = parameter.findClosestKeypoint(parameter.defaults).y;
+    const auto axialSpan = [&](const compat::Slice<Point2>& key) {
+        compat::Slice<double> axial;
+        for (const auto point : key) axial.append(point[0]*axis[0]+point[1]*axis[1]);
+        const auto samples = registered::ngRigSampleRegisteredDepth(xs,ys,axial,anchors);
+        return samples[1]-samples[0];
+    };
+    bool changed = false;
+    for (std::size_t x=0; x<parameter.axisPoints[0].size(); ++x) {
+        const auto neutralSpan = axialSpan(keys[x*ny+neutralPitch]);
+        for (std::size_t y=neutralPitch+1; y<ny; ++y) {
+            auto& key = keys[x*ny+y];
+            const auto compression = neutralSpan-axialSpan(key);
+            if (compression <= 0.) continue;
+            for (std::size_t i=0; i<key.size(); ++i) {
+                const auto correction = compression*weights[i]/spanWeight;
+                key[i][0] -= axis[0]*correction;
+                key[i][1] -= axis[1]*correction;
+            }
+            changed = true;
+        }
+    }
+    return changed;
 }
 }
 Json validateDepthInputs(Json state, Json program, Task task) {
@@ -261,6 +310,19 @@ Json bakeAngles(Json state, Task task) {
             auto puppet = project::incActivePuppet();
             auto parameter = parameterByName(puppet, name);
             if (name.view()=="Face::Yaw-Pitch" || name.view()=="Body::Yaw-Pitch") {
+                const auto neck = get(state,"neck_pitch_attachment",Json{});
+                NodeRef head;
+                NativeIntegerMap<std::uint32_t,bool> neckGrids;
+                if (name.view()=="Body::Yaw-Pitch" && !neck.is_null()) {
+                    const auto origins = get(state,"material_origins",Json{});
+                    const auto id = get(origins,"Head::Root",Json{});
+                    if (!id.is_null()) head=puppet->findNodeById(uuid(id));
+                    for (auto target : state.sourceIndexValue("targets").sourceArrayValue())
+                        if (nativeString(target.sourceIndexValue("role")).view()=="neck")
+                            neckGrids[uuid(target.sourceIndexValue("grid"))]=true;
+                    parameter->value=parameter->defaults;
+                    puppet->update();
+                }
                 NativeIntegerMap<std::uint32_t,bool> seen;
                 for(auto target:state.sourceIndexValue("targets").sourceArrayValue()) {
                     const auto gridId=uuid(target.sourceIndexValue("grid"));
@@ -281,9 +343,30 @@ Json bakeAngles(Json state, Task task) {
                         for(std::size_t i=0;i<rest.size();++i)posed.append(Point2{rest[i][0]+offsets[i].x,rest[i][1]+offsets[i].y});
                         keys.append(posed);
                     }
+                    bool neckCorrected = false;
+                    if (head && neckGrids.contains(gridId)) {
+                        bool carriesHead = false;
+                        for (auto parent=head->parent.lock();parent;parent=parent->parent.lock())
+                            if (parent==node) { carriesHead=true; break; }
+                        if (carriesHead) {
+                            const auto rootToGrid = core::math::source_matrix::inverse(node->transform().matrix())*
+                                puppet->root->transform().matrix();
+                            const auto worldToGrid = core::math::source_matrix::inverse(node->transform().matrix());
+                            const auto dimensions = ngRigNumbers(neck);
+                            const auto top = core::math::ngTransformHomogeneousPoint(
+                                worldToGrid*head->transform().matrix(),{0,0,0});
+                            const auto base = core::math::ngTransformHomogeneousPoint(rootToGrid,
+                                {static_cast<float>(dimensions[0]),static_cast<float>(dimensions[1]),0});
+                            const auto edge = core::math::ngTransformHomogeneousPoint(rootToGrid,
+                                {static_cast<float>(dimensions[0]+dimensions[2]),static_cast<float>(dimensions[1]),0});
+                            neckCorrected=compensateNeckPitch(rest,xs,ys,keys,*parameter,
+                                {top.x,top.y},{base.x,base.y},std::hypot(edge.x-base.x,edge.y-base.y));
+                        }
+                    }
                     const auto maximum=geometry::ngRigRepairGridInterpolation(keys,nx,ny,xs.size(),rest);
-                    if(maximum==0)continue;
+                    if(maximum==0&&!neckCorrected)continue;
                     for(std::size_t x=0;x<nx;++x)for(std::size_t y=0;y<ny;++y) {
+                        if(maximum==0 && y<=parameter->findClosestKeypoint(parameter->defaults).y)continue;
                         compat::Slice<float> offsets;
                         for(std::size_t i=0;i<rest.size();++i) {
                             offsets.append(static_cast<float>(keys[x*ny+y][i][0]-rest[i][0]));
@@ -309,7 +392,7 @@ Json bakeAngles(Json state, Task task) {
                                 if(point[0]==x&&point[1]==y)key.sourceIndexAssignSlot("offsets")=numericArray(recorded);
                             }
                     }
-                    orientationCorrections.append(objectEvidence({{stringLiteralEvidence("grid"),gridId},
+                    if(maximum>0.)orientationCorrections.append(objectEvidence({{stringLiteralEvidence("grid"),gridId},
                         {stringLiteralEvidence("parameter"),core::settings::SettingsString(name)},
                         {stringLiteralEvidence("interpolation"),true},{stringLiteralEvidence("maximum_shift"),maximum}}));
                 }

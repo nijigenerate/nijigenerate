@@ -45,8 +45,8 @@ float tripleIconSize(int size) {
     return static_cast<float>(std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(size)*3u));
 }
 }
-IconTreeOutput::IconTreeOutput(std::shared_ptr<TreeStore> store,CommandIssuerPtr issuer)
-    : ListOutput(std::move(store),std::move(issuer)) { IconSize=48; }
+IconTreeOutput::IconTreeOutput(std::shared_ptr<TreeStore> store,CommandIssuerPtr issuer, bool picker)
+    : ListOutput(std::move(store),std::move(issuer)), targetPicker(picker) { IconSize=picker ? 28 : 48; }
 ImGuiTreeNodeFlags IconTreeOutput::setFlag(Resource resource) {
     [[maybe_unused]] const auto receiver = weak_from_this().lock();
     auto flags=ListOutput::setFlag(resource);
@@ -103,6 +103,13 @@ void IconTreeOutput::drawNode(Resource res,Node node,ImVec2& minimum,ImVec2& max
         if(isNodeClicked(res)) select(node);
         maximum=ImGui::GetItemRectMax();
         ngTooltip(compat::RetainedStringSlice(ngTranslateRetained(compat::RetainedString(res->name()))));
+        if (targetPicker) {
+            ImGui::SameLine();
+            if (ImGui::Selectable(detail::outputCString(resourceLabel(res)).data(), selected,
+                    ImGuiSelectableFlags_None, {0, static_cast<float>(IconSize)})) select(node);
+            hovered |= ImGui::IsItemHovered();
+            maximum = ImGui::GetItemRectMax();
+        }
     } else {
         minimum=ImGui::GetItemRectMin();
         if(ImGui::Selectable(detail::outputCString(resourceLabel(res)).data(),selected,
@@ -110,7 +117,8 @@ void IconTreeOutput::drawNode(Resource res,Node node,ImVec2& minimum,ImVec2& max
         maximum=ImGui::GetItemRectMax();hovered=ImGui::IsItemHovered();
     }
     if(!nodeIncluded().contains(res)) ImGui::PopStyleColor(6);
-    setNodeDragSource(node);setNodeReparentDragTarget(node);
+    setNodeDragSource(node);
+    if (!targetPicker) setNodeReparentDragTarget(node);
     if(root || node->typeId()=="Part") ImGui::GetStyle().ItemSpacing=spacing;
 }
 bool IconTreeOutput::drawParameter(Resource res,ImVec2& minimum,ImVec2& maximum,bool& hovered) {
@@ -169,6 +177,7 @@ void IconTreeOutput::drawTreeItem(Resource res) {
     case ResourceType::Binding:drawBinding(res,minimum,maximum,hovered);break;
     default:minimum=ImGui::GetItemRectMin();maximum=ImGui::GetItemRectMax();break;
     }
+    if (targetPicker) return;
     const bool itemHovered=ImGui::IsItemHovered();
     constexpr auto popup="##IconTreeViewNodeView",menu="##IconTreeViewNodeMenu";
     menuOpened=menuOpened || (itemHovered && isNodeClicked(res,ImGuiMouseButton_Right));
@@ -266,7 +275,7 @@ void IconTreeOutput::onUpdate() {
                 bool subHorizontal=false;auto subParents=parents;
                 const auto childSnapshot=children().at(res);
                 for(auto child:childSnapshot) {
-                    setNodeReorderDragTarget(child,!subHorizontal);
+                    if (!targetPicker) setNodeReorderDragTarget(child,!subHorizontal);
                     const auto rect=recurse(recurse, child,subHorizontal,subParents);
                     result.Min.x=dmin(result.Min.x,rect.Min.x);result.Min.y=dmin(result.Min.y,rect.Min.y);
                     result.Max.x=dmax(result.Max.x,rect.Max.x);result.Max.y=dmax(result.Max.y,rect.Max.y);

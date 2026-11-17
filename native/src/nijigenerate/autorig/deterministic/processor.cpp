@@ -18,6 +18,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <new>
 #include <source_location>
 #include <stdexcept>
@@ -51,6 +52,57 @@ struct Field {
 Json object(std::initializer_list<Field> fields) {
     Object result;
     for (const auto& field : fields) result[field.name] = field.value;
+    return result;
+}
+AutoRigTargetAssociations targetAssociations(const Json& state, const Json& program) {
+    AutoRigTargetAssociations result;
+    const auto root = state.sourceObjectRef().if_contains("rootId");
+    if (!root || (!root->is_int64() && !root->is_uint64())) return result;
+    result.modelIdentity = Text(std::to_string(ngRigUnsigned(*root)));
+    const auto field = [](const Json& object, std::string_view key) -> std::string_view {
+        const auto value = object.sourceObjectRef().if_contains(key);
+        return value && value->is_string() ? value->as_string().view() : std::string_view{};
+    };
+    std::map<std::uint64_t, Json> materials;
+    for (const auto& material : state.sourceIndexValue("materials").sourceArrayValue())
+        materials.try_emplace(ngRigUnsigned(material.sourceIndexValue("uuid")), material);
+    for (const auto& carrier : program.sourceIndexValue("carriers").sourceArrayValue()) {
+        const auto id = ngRigUnsigned(carrier.sourceIndexValue("part"));
+        const auto material = materials.find(id);
+        if (material == materials.end()) continue;
+        const auto role = field(carrier, "role");
+        const auto feature = field(material->second, "feature");
+        const auto side = field(carrier, "side");
+        const auto owner = field(carrier, "owner");
+        std::string tag;
+        if (feature.starts_with("mouth")) tag = "face/mouth";
+        else if (feature == "sclera" || feature == "iris" || feature == "pupil" ||
+            feature == "eye_highlight" || feature == "upper_lid" || feature == "lower_lid" ||
+            feature == "eyelash" || feature == "brow" || feature == "upper" ||
+            feature == "lower" || feature == "corner" || feature == "fold") {
+            tag = "face/eye";
+            if (side == "L") tag += "/left";
+            else if (side == "R") tag += "/right";
+        } else if (role == "face") tag = "face/skin";
+        else if (role == "neck") tag = "body/neck";
+        else if (role == "torso" || role == "bodice") tag = "body/torso";
+        else if (role == "arm" || role == "hand" || role == "leg" || role == "foot") {
+            tag = role == "arm" || role == "hand" ? "body/arm" : "body/leg";
+            if (role == "hand") tag += "/hand";
+            if (role == "foot") tag += "/foot";
+            if (side == "L") tag += "/left";
+            else if (side == "R") tag += "/right";
+        } else if (role == "ear") tag = "head/ear";
+        else if (owner.starts_with("leg:")) tag = "body/leg";
+        const auto component = field(carrier, "reference_component");
+        if (component == "hair_back") tag = "head/hair/back";
+        if (!tag.empty()) result.members.push_back({
+            Text(tag), result.modelIdentity + "/" + tag, static_cast<std::uint32_t>(id)});
+        if (role == "face") result.members.push_back({"face/cheek",
+            result.modelIdentity + "/face/cheek", static_cast<std::uint32_t>(id)});
+        result.members.push_back({"rig/material", result.modelIdentity + "/material/" + std::to_string(id),
+            static_cast<std::uint32_t>(id)});
+    }
     return result;
 }
 double number(Json value) {
@@ -182,6 +234,21 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         require(report.sourceIndexValue("passed").as_bool(), "Excluded Part occurs in the basic rig program", 200);
         return;
     }
+    if (taskId == "measure-anatomy") {
+        const auto store = storage::ngRigStateStorage(context);
+        const auto state = store->restore(context->input("state").json);
+        context->publishEvidence("measurements", evidence::ngRigDeriveEvidence(state));
+        return;
+    }
+    if (taskId == "plan-fixed-foot" || taskId == "plan-rear-hair" || taskId == "plan-cheek" ||
+        taskId == "prepare-shoulders" || taskId == "detect-layered-ears" || taskId == "detect-hip-attachments") {
+        require(bool(nativeStage_), "Native evidence collection is unavailable", 190);
+        const auto store = storage::ngRigStateStorage(context);
+        const auto state = store->restore(context->input("state").json);
+        auto stage = nativeStage_;
+        stage(taskId, state, context->input("program").json, {}, context);
+        return;
+    }
     if (taskId == "compile-rig") {
         const auto start = compat::SourceMonotonicClock::now();
         const auto phase = [&](Text name) {
@@ -202,12 +269,15 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         }
         phase(text("classify-materials"));
         const auto exclusions = ngRigGet(state, key("rig_exclusions"), Json(Object{}));
-        const bool resolved = ngRigGet(exclusions, key("validated"), false).as_bool()
-            && ngRigGet(state, key("options"), Json(Object{})) == compileOptions;
-        auto observation = resolved ? state : evidence::ngRigDetectExclusions(state, compileOptions, context);
+        require(ngRigGet(exclusions, key("validated"), false).as_bool() &&
+            ngRigGet(state, key("options"), Json(Object{})) == compileOptions,
+            "Anatomical evidence does not match the rig exclusion settings", 244);
+        auto observation = state;
         ngRigCheckpoint(context);
         phase(text("derive-evidence"));
-        auto measured = evidence::ngRigDeriveEvidence(observation);
+        auto measured = *context->inputEvidence<Json>("measurements");
+        require(measured.sourceIndexValue("observation_sha256").as_string().view() == ngRigObservationDigest(observation).view(),
+            "Anatomical evidence was collected from a different observation", 250);
         compat::ngRequireObject(context)->previewJson("anatomical-evidence", measured);
         phase(text("compile-program"));
         auto compiled = program::ngRigCompileProgram(observation, measured,
@@ -217,6 +287,7 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         phase(text("retain-artifacts"));
         compat::ngRequireObject(context)->publishJson("evidence", measured);
         compat::ngRequireObject(context)->publishJson("program", compiled);
+        context->publishEvidence("target-associations", targetAssociations(state, compiled));
         compat::ngRequireObject(context)->publishJson("state", compat::ngRequireObject(store)->snapshot(state));
         phase(text("completed"));
         return;
@@ -247,7 +318,12 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
             }
             if (entry.retainFailureOutputs && taskId != "verify-saved-rig") {
                 auto attempts = ngRigGet(state, text("finish_stages"), Json(Array{})).sourceArrayValue().duplicate();
-                attempts.append(object({{"stage", Json(taskId)}, {"succeeded", Json(true)}}));
+                const auto foot = result.sourceObjectRef().if_contains("fixed_foot_corrections");
+                const auto unavailable = foot ? foot->sourceObjectRef().if_contains("unavailable") : nullptr;
+                if (taskId == "apply-fixed-foot" && unavailable && !unavailable->sourceArrayValue().empty())
+                    attempts.append(object({{"stage", Json(taskId)}, {"succeeded", Json(false)},
+                        {"error", Json("One or more leg Grid inputs were unavailable")}}));
+                else attempts.append(object({{"stage", Json(taskId)}, {"succeeded", Json(true)}}));
                 result.sourceIndexAssignSlot(key("finish_stages")) = Json(attempts);
             }
         } catch (const compat::ThrowableException& error) {
@@ -274,6 +350,13 @@ void AnimeFrontViewRigProcessor::executeTask(Text taskId, std::shared_ptr<AutoRi
         if (taskId == "verify-saved-rig") {
             auto attempts = ngRigGet(result, text("finish_stages"),
                 ngRigGet(state, text("finish_stages"), Json(Array{}))).sourceArrayValue().duplicate();
+            for (const auto name : {"apply-fixed-foot", "apply-rear-hair", "apply-shape-corrections"}) {
+                bool present = false;
+                for (const auto& attempt : attempts)
+                    if (attempt.sourceIndexValue("stage").as_string().view() == name) present = true;
+                if (!present) attempts.append(object({{"stage", Json(name)}, {"succeeded", Json(false)},
+                    {"error", Json("No correction checkpoint was published")}}));
+            }
             bool recorded = false;
             const bool verified = ngRigGet(result, text("readback_verified"), result.sourceIndexValue("passed")).as_bool();
             for (auto attempt : attempts)

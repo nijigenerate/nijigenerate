@@ -36,6 +36,10 @@ AutoRigValue AutoRigTaskContext::contextValue(Text name) {
     return ngCopyAutoRigValue(value->second);
 }
 compat::Slice<Text> AutoRigTaskContext::contextNames() { return keys(sessionValues); }
+Text AutoRigTaskContext::evidenceId(Text port) const {
+    auto found = inputEvidenceIds.find(port);
+    return found == inputEvidenceIds.end() ? Text{} : found->second;
+}
 bool AutoRigTaskContext::hasInput(Text id) { return inputs.contains(id); }
 AutoRigValue AutoRigTaskContext::input(Text id) {
     auto value = inputs.find(id); enforce(value != inputs.end(), [&] { return Text("Missing AutoRig input: " + id); }, 478);
