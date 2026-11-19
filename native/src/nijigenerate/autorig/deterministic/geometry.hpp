@@ -13,8 +13,10 @@ double ngRigVerifySourceUV(core::settings::SettingsJsonValue sourceRoot,
     core::settings::SettingsJsonValue currentRoot, double tolerance = .001);
 core::settings::SettingsJsonValue ngRigSourceUVRegistration(core::settings::SettingsJsonValue source,
     core::settings::SettingsJsonValue current);
+enum class GridOrientation { Require, Report };
 core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Point2> grid,
-    std::size_t columns, double minimumRatio = 1e-8, compat::Slice<contracts::Point2> rest = {});
+    std::size_t columns, double minimumRatio = 1e-8, compat::Slice<contracts::Point2> rest = {},
+    GridOrientation orientation = GridOrientation::Require);
 double ngRigRepairGridOrientation(compat::Slice<contracts::Point2> grid,
     std::size_t columns, compat::Slice<contracts::Point2> rest);
 double ngRigRepairGridInterpolation(compat::Slice<compat::Slice<contracts::Point2>> keys,

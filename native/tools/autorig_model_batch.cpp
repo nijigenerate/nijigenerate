@@ -1,5 +1,6 @@
 #include <nijigenerate/autorig/deterministic/processor.hpp>
 #include <nijigenerate/autorig/deterministic/native.hpp>
+#include <nijigenerate/autorig/deterministic/workflow_options.hpp>
 #include <nijigenerate/autorig/workflow.hpp>
 #include <nijigenerate/autorig/json.hpp>
 #include <nijigenerate/backend/renderer.hpp>
@@ -17,6 +18,9 @@
 #include <nijigenerate/io/project_reader.hpp>
 #include <nijigenerate/io/imagefmt/writer.hpp>
 #include <nodes/simple_physics_driver.hpp>
+#include <nodes/drawable.hpp>
+#include <nodes/grid_deformer.hpp>
+#include <dbg.hpp>
 #include <runtime_state.hpp>
 #include <timing.hpp>
 #include <atomic>
@@ -27,6 +31,7 @@
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <sstream>
 #include <thread>
 #include <boost/json.hpp>
 
@@ -43,10 +48,12 @@ int main(int argc, char** argv) {
         ((argc == 8 || captureWithoutPhysics) && std::string_view(argv[1]) == "--capture-inx");
     const bool customHeadYaw = argc == 5 && std::string_view(argv[3]) == "--head-yaw-degrees";
     const bool tagged = argc == 5 && std::string_view(argv[3]) == "--rerun-tag";
-    if (argc != 3 && !capture && !customHeadYaw && !tagged) {
+    const bool feminineChestDepth = argc == 4 && std::string_view(argv[3]) == "--feminine-chest-depth";
+    if (argc != 3 && !capture && !customHeadYaw && !tagged && !feminineChestDepth) {
         std::cerr << "Usage: autorig_model_batch INPUT.psd OUTPUT_DIRECTORY | --open-only INPUT.inx\n"
                      "       autorig_model_batch INPUT.psd OUTPUT_DIRECTORY --head-yaw-degrees DEGREES\n"
                      "       autorig_model_batch INPUT.psd OUTPUT_DIRECTORY --rerun-tag TAG\n"
+                     "       autorig_model_batch INPUT.psd OUTPUT_DIRECTORY --feminine-chest-depth\n"
                      "       autorig_model_batch --capture-inx INPUT.inx OUT PARAMETER CENTER_X CENTER_Y ZOOM [--no-physics]\n"
                      "       autorig_model_batch --capture-blink-motion INPUT.inx OUT PARAMETER CENTER_X CENTER_Y ZOOM [--no-physics]\n";
         return 2;
@@ -84,8 +91,52 @@ int main(int argc, char** argv) {
                 const float zoom = std::stof(argv[7]);
                 camera.scale = {zoom, zoom};
                 rt::inSetClearColor(0, 0, 0, 0);
+                std::vector<std::shared_ptr<rt::nodes::Node>> meshOverlays;
+                if (const auto* ids = std::getenv("NJCX_CAPTURE_MESH_IDS")) {
+                    std::istringstream list(ids);
+                    for (std::string id; std::getline(list, id, ',');) {
+                        auto mesh = puppet->findNodeById(static_cast<std::uint32_t>(std::stoul(id)));
+                        if (!std::dynamic_pointer_cast<rt::nodes::Drawable>(mesh) &&
+                            !std::dynamic_pointer_cast<rt::nodes::GridDeformer>(mesh))
+                            throw std::runtime_error("Overlay target must be a drawable or grid deformer");
+                        meshOverlays.push_back(std::move(mesh));
+                    }
+                }
                 const auto saveFrame = [&](const std::string& name) {
                     puppet->draw();
+                    for (std::size_t i=0; i<meshOverlays.size(); ++i) {
+                        const rt::math::Vec4 color = i%2==0 ? rt::math::Vec4{.1f,.9f,1.f,1.f} :
+                            rt::math::Vec4{.95f,.2f,.8f,1.f};
+                        if (const auto part = std::dynamic_pointer_cast<rt::nodes::Drawable>(meshOverlays[i])) {
+                            part->drawMeshLines(color);
+                            continue;
+                        }
+                        const auto grid = std::dynamic_pointer_cast<rt::nodes::GridDeformer>(meshOverlays[i]);
+                        const auto vertices = grid->getVertices();
+                        const auto offsets = grid->getDeformation();
+                        if (vertices.empty()) continue;
+                        std::size_t cols = 1;
+                        while (cols < vertices.size() && vertices.at(cols).y == vertices.at(0).y) ++cols;
+                        if (cols < 2 || vertices.size()%cols != 0) continue;
+                        std::vector<rt::math::Vec3> lines;
+                        const auto point = [&](std::size_t index) {
+                            auto v = vertices.at(index);
+                            if (offsets.size() == vertices.size()) v = v + offsets.at(index);
+                            return rt::math::Vec3{v.x,v.y,0};
+                        };
+                        for (std::size_t pos=0; pos<vertices.size(); ++pos) {
+                            if (pos%cols+1 < cols) {
+                                lines.push_back(point(pos)); lines.push_back(point(pos+1));
+                            }
+                            if (pos+cols < vertices.size()) {
+                                lines.push_back(point(pos)); lines.push_back(point(pos+cols));
+                            }
+                        }
+                        if (!lines.empty()) {
+                            rt::dbg::inDbgSetBuffer(std::span<const rt::math::Vec3>(lines));
+                            rt::dbg::inDbgDrawLines(color,grid->transform().matrix());
+                        }
+                    }
                     rt::inEndScene();
                     std::vector<std::uint8_t> pixels(rt::inViewportDataLength());
                     rt::inDumpViewport(pixels);
@@ -217,6 +268,7 @@ int main(int argc, char** argv) {
         auto workflows = std::make_shared<autorig::workflow::AutoRigWorkflowManager>(sessions);
         auto run = workflows->create(processor->procId(), "model-to-rig");
         boost::json::object options{{"render", false}};
+        if (feminineChestDepth) options[d::feminineChestDepthOption] = true;
         if (customHeadYaw) {
             std::size_t parsed = 0;
             const std::string input = argv[4];

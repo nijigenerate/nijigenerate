@@ -1,5 +1,6 @@
 #include "native_stage.hpp"
 #include "physics.hpp"
+#include <nijigenerate/compat/scope_exit.hpp>
 #include "review.hpp"
 #include "detail/native_stage.hpp"
 #include <nijigenerate/project.hpp>
@@ -33,8 +34,13 @@ Json applyPhysics(Json state, Json program, Task task) {
         const auto parameters = puppet->parameters;
         if (!task->targetScope()) {
             for (auto parameter : parameters) parameter->value = parameter->defaults;
-            puppet->enableDrivers = false;
-            puppet->update();
+            const bool driversWereEnabled = puppet->enableDrivers;
+            compat::ngRunWithScopeExit([&] {
+                puppet->enableDrivers = false;
+                puppet->update();
+            }, [&] {
+                puppet->enableDrivers = driversWereEnabled;
+            });
         }
         const auto world = [&](auto&& self, NodeRef node) -> PhysicsAffineTransform {
             if (node == puppet->root) return {1., 0., 0., 0., 1., 0.};

@@ -479,6 +479,20 @@ Json ngRigClassifyMaterials(Json observation,Json options,std::shared_ptr<framew
                 setEvidence(m,"anatomical_support_fraction",covered);
                 continue;
             }
+            const double fw=face[2]-face[0],fh=face[3]-face[1];
+            if (fw>0. && fh>0. && width>.06*fw && width<.64*fw &&
+                height>.08*fh && height<.55*fh && width/height>.35 && width/height<2.6) {
+                const double x=std::midpoint(b[0],b[2]),y=std::midpoint(b[1],b[3]);
+                const auto edge=x<std::midpoint(face[0],face[2])?face[0]:face[2];
+                const std::array<double,4> earZone{edge-.29*fw,face[1]+.28*fh,
+                    edge+.29*fw,face[1]+.94*fh};
+                if (std::abs(x-edge)<.22*fw && y>face[1]+.43*fh && y<face[1]+.82*fh &&
+                    fractionInside(cloud,earZone)>.75) {
+                    setEvidence(m,"role",literalEvidence("headwear"));
+                    setEvidence(m,"semantic_source",literalEvidence("compact_lateral_ear_accessory"));
+                    continue;
+                }
+            }
         }
         if(torsoSupport.empty())continue;
         const auto body=supportBounds(torsoSupport);
@@ -511,6 +525,73 @@ Json ngRigClassifyMaterials(Json observation,Json options,std::shared_ptr<framew
                 setEvidence(m,"role",literalEvidence("bodice"));
                 setEvidence(m,"semantic_source",literalEvidence("continuous_garment_covers_torso"));
             }
+        }
+    }
+    // A lock in front of the rear cap can hang on either side of the ear.
+    // Resolve its own silhouette before inheriting the role of nearby hair.
+    if (!faceSupport.empty()) {
+        const auto face=supportBounds(faceSupport);
+        const double fw=face[2]-face[0],fh=face[3]-face[1],center=std::midpoint(face[0],face[2]);
+        struct RearCap {
+            Json material;
+            compat::Slice<double> order;
+        };
+        std::vector<RearCap> caps;
+        for (const auto& material : materials) {
+            if (atEvidence(material,"static").as_bool() ||
+                atEvidence(material,"role").as_string().view()!="hair_back" ||
+                material.sourceObjectRef().if_contains("receiver")) continue;
+            const auto b=ngRigNumbers(atEvidence(material,"bounds"));
+            if (b[0]>center-.30*fw || b[2]<center+.30*fw ||
+                b[1]>face[1]+.20*fh || b[3]<face[1]+.45*fh) continue;
+            auto order=ngRigNumbers(getEvidence(material,"draw_order_zsort_path",JsonArray{}));
+            if (!order.empty()) caps.push_back({material,std::move(order)});
+        }
+        if (fw>0. && fh>0. && !caps.empty()) for (std::size_t i=0;i<materials.size();++i) {
+            auto& material=materials[i];
+            if (explicitRole[i] || atEvidence(material,"static").as_bool() ||
+                evidenceObject(material).if_contains("receiver")) continue;
+            const auto role=atEvidence(material,"role").as_string().view();
+            if (!role.empty() && role!="hair_front" && role!="hair_back") continue;
+            const auto order=ngRigNumbers(getEvidence(material,"draw_order_zsort_path",JsonArray{}));
+            if (order.empty()) continue;
+            const auto* strong=evidenceObject(material).if_contains("draw_order_cloud");
+            if (!strong) continue;
+            const auto cloud=ngRigPoints(*strong);
+            if (cloud.empty()) continue;
+            const auto b=supportBounds(cloud);
+            const double width=b[2]-b[0],height=b[3]-b[1];
+            if (width<.07*fw || width>.65*fw || height<.52*fh || height<1.3*width ||
+                b[1]>face[1]+.47*fh || b[3]<face[1]+.72*fh) continue;
+            const double side=std::midpoint(b[0],b[2])<center ? -1. : 1.;
+            std::size_t lateral=0;
+            compat::Slice<Point2> roots;
+            const double end=std::min(b[1]+.28*height,face[1]+.58*fh);
+            const auto stride=1+(cloud.size()-1)/512;
+            for (std::size_t j=0;j<cloud.size();++j) {
+                const auto p=cloud[j];
+                const double x=side*(p[0]-center);
+                if (x>.07*fw) ++lateral;
+                if (j%stride==0 && p[1]<=end && x>=.18*fw && x<=.70*fw) roots.append(p);
+            }
+            if (lateral<.90*cloud.size() || roots.size()<3) continue;
+            double overlap=0.;
+            Json support;
+            for (const auto& cap : caps) {
+                const auto length=std::min(order.size(),cap.order.size());
+                const auto mismatch=std::mismatch(order.begin(),order.begin()+length,cap.order.begin());
+                if (mismatch.first==order.begin()+length || *mismatch.first>=*mismatch.second) continue;
+                const auto covered=observation::ngRigAlphaCoverage(cap.material,roots);
+                if (covered>overlap) {
+                    overlap=covered;
+                    support=atEvidence(cap.material,"uuid");
+                }
+            }
+            if (overlap<.25) continue;
+            setEvidence(material,"role",literalEvidence("hair_side"));
+            setEvidence(material,"semantic_source",literalEvidence("lateral_lock_in_front_of_rear_cap"));
+            setEvidence(material,"anatomical_support_fraction",overlap);
+            setEvidence(material,"support_part",support);
         }
     }
     // Resolve head-rooted trailing surfaces before a generic tail is attached to the pelvis.

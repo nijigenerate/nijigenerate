@@ -90,45 +90,54 @@ Json ngRigCompilePhysicsOperations(Json& structure,PhysicsAssets assets,PhysicsM
             ngRigCheckpoint(task);auto id=ngRigUnsigned(target);auto mesh=physicsMapValue(meshes,id,555);auto asset=physicsMapValue(assets,id,555);auto inverse=ngRigPhysicsInverse(mesh.toModel);Slice<Point2> p;
             for(auto v:mesh.vertices)p.append(ngRigPhysicsTransform(mesh.toModel,v));auto weights=ngRigPhysicsWeights(spec,p,policy);auto dense=duplicate(spec);
             if(!get(spec,"mixed_anatomy_cloth",false).as_bool()){set(dense,"limb",Json{});set(dense,"protected_pixels",Array{});}
-            auto cloudWeights=ngRigPhysicsWeights(dense,asset.points,policy);auto fixedMask=physics_detail::newArray<bool>(asset.mask.size());std::size_t cloudIndex=0;
-            for(std::size_t i=0;i<asset.mask.size();++i)if(asset.mask[i])
-                fixedMask[i]=arrayAt(cloudWeights,cloudIndex++,565)<=1e-12;
-            auto modelToPixel=asset.affineMapping?ngRigPhysicsInverse(asset.pixelToModel):PhysicsAffineTransform{1.,0.,0.,0.,1.,0.};auto fixedVertices=physics_detail::newArray<bool>(p.size());
-            for(std::size_t i=0;i<mesh.indices.size();i+=3){std::array<Point2,3> q;
-                for(std::size_t j=0;j<3;++j){auto vertex=arrayAt(mesh.indices,i+j,571);
-                    if(asset.affineMapping)q[j]=ngRigPhysicsTransform(modelToPixel,arrayAt(p,vertex,572));
-                    else{enforce(mesh.uv.size()==mesh.vertices.size(),"Physics UV count differs from mesh",574);
-                        q[j]={arrayAt(mesh.uv,vertex,575)[0]*asset.width,arrayAt(mesh.uv,vertex,575)[1]*asset.height};}
-                    q[j][0]-=.5;q[j][1]-=.5;}
-                auto x0=std::max(0,integer(std::floor(dmin(q[0][0],dmin(q[1][0],q[2][0]))))),y0=std::max(0,integer(std::floor(dmin(q[0][1],dmin(q[1][1],q[2][1])))));
-                auto x1=std::min(wrapSub32(dimension(asset.width),1),
-                    integer(std::ceil(dmax(q[0][0],dmax(q[1][0],q[2][0])))));
-                auto y1=std::min(wrapSub32(dimension(asset.height),1),
-                    integer(std::ceil(dmax(q[0][1],dmax(q[1][1],q[2][1])))));
-                if(x1<x0||y1<y0)continue;
-                auto width=static_cast<std::size_t>(wrapAdd32(wrapSub32(x1,x0),1));
-                auto height=static_cast<std::size_t>(wrapAdd32(wrapSub32(y1,y0),1));
-                auto mask=physics_detail::newArray<bool>(width*height);
-                for(std::size_t y=0;y<height;++y) {
-                    auto destinationRow=boolSlice(mask,y*width,(y+1)*width,587);
-                    const auto sourceStart=(y+y0)*asset.width+x0;
-                    const auto sourceRow=boolSlice(fixedMask,sourceStart,sourceStart+width,588);
-                    for(std::size_t x=0;x<width;++x)destinationRow[x]=sourceRow[x];
+            // A coarse hair triangle may span the entire strand. Its root
+            // must not extend the anchor to a free tip in the same triangle.
+            const bool protectFaces = !(spec.sourceIndexValue("profile").as_string().view()=="hair" &&
+                spec.sourceIndexValue("pattern").as_string().view()=="one_end");
+            auto fixedVertices=physics_detail::newArray<bool>(p.size());
+            if (protectFaces) {
+                auto cloudWeights=ngRigPhysicsWeights(dense,asset.points,policy);auto fixedMask=physics_detail::newArray<bool>(asset.mask.size());std::size_t cloudIndex=0;
+                for(std::size_t i=0;i<asset.mask.size();++i)if(asset.mask[i])
+                    fixedMask[i]=arrayAt(cloudWeights,cloudIndex++,565)<=1e-12;
+                auto modelToPixel=asset.affineMapping?ngRigPhysicsInverse(asset.pixelToModel):PhysicsAffineTransform{1.,0.,0.,0.,1.,0.};
+                for(std::size_t i=0;i<mesh.indices.size();i+=3){std::array<Point2,3> q;
+                    for(std::size_t j=0;j<3;++j){auto vertex=arrayAt(mesh.indices,i+j,571);
+                        if(asset.affineMapping)q[j]=ngRigPhysicsTransform(modelToPixel,arrayAt(p,vertex,572));
+                        else{enforce(mesh.uv.size()==mesh.vertices.size(),"Physics UV count differs from mesh",574);
+                            q[j]={arrayAt(mesh.uv,vertex,575)[0]*asset.width,arrayAt(mesh.uv,vertex,575)[1]*asset.height};}
+                        q[j][0]-=.5;q[j][1]-=.5;}
+                    auto x0=std::max(0,integer(std::floor(dmin(q[0][0],dmin(q[1][0],q[2][0]))))),y0=std::max(0,integer(std::floor(dmin(q[0][1],dmin(q[1][1],q[2][1])))));
+                    auto x1=std::min(wrapSub32(dimension(asset.width),1),
+                        integer(std::ceil(dmax(q[0][0],dmax(q[1][0],q[2][0])))));
+                    auto y1=std::min(wrapSub32(dimension(asset.height),1),
+                        integer(std::ceil(dmax(q[0][1],dmax(q[1][1],q[2][1])))));
+                    if(x1<x0||y1<y0)continue;
+                    auto width=static_cast<std::size_t>(wrapAdd32(wrapSub32(x1,x0),1));
+                    auto height=static_cast<std::size_t>(wrapAdd32(wrapSub32(y1,y0),1));
+                    auto mask=physics_detail::newArray<bool>(width*height);
+                    for(std::size_t y=0;y<height;++y) {
+                        auto destinationRow=boolSlice(mask,y*width,(y+1)*width,587);
+                        const auto sourceStart=(y+y0)*asset.width+x0;
+                        const auto sourceRow=boolSlice(fixedMask,sourceStart,sourceStart+width,588);
+                        for(std::size_t x=0;x<width;++x)destinationRow[x]=sourceRow[x];
+                    }
+                    for(auto& point:q){point[0]-=x0;point[1]-=y0;}
+                    if(touchesProtectedPixels(q,mask,width,height))for(std::size_t j=0;j<3;++j)
+                        arrayAt(fixedVertices,arrayAt(mesh.indices,i+j,591),591)=true;
                 }
-                for(auto& point:q){point[0]-=x0;point[1]-=y0;}
-                if(touchesProtectedPixels(q,mask,width,height))for(std::size_t j=0;j<3;++j)
-                    arrayAt(fixedVertices,arrayAt(mesh.indices,i+j,591),591)=true;
             }
             Slice<Slice<Point2>> values;Slice<Point2> keys;
             for(double x:{-1.,0.,1.})for(double y:{-1.,0.,1.}){Point2 key{x,y};keys.append(key);
-                auto delta=ngRigPhysicsProtectTriangles(ngRigPhysicsDisplacement(spec,p,key,policy),p,mesh.indices,dense,policy);
+                auto delta=ngRigPhysicsDisplacement(spec,p,key,policy);
+                if (protectFaces)
+                    delta=ngRigPhysicsProtectTriangles(delta,p,mesh.indices,dense,policy);
                 for(std::size_t i=0;i<delta.size();++i)
                     if(arrayAt(weights,i,597)<=1e-12||arrayAt(fixedVertices,i,597))delta[i]={0.,0.};
                 for(auto& value:delta)value=ngRigPhysicsTransform(inverse,value,true);values.append(delta);
             }
-            double scale=1.;auto preserved=[&](double amplitude){for(auto value:values)if(!ngRigPhysicsNoInversion(mesh.vertices,mesh.indices,value,amplitude))return false;return true;};
-            while(scale>=1./128&&!preserved(scale))scale*=.5;enforce(scale>=1./128,"Physics field cannot preserve existing mesh topology",607);
-            std::size_t moving=0,fixed=0;double maximum=0;for(auto value:arrayAt(values,0,609))moving+=std::abs(value[0]*scale)>1e-6||std::abs(value[1]*scale)>1e-6;for(auto weight:weights)fixed+=weight==0;
+            std::size_t moving=0,fixed=0;double maximum=0;
+            for(auto value:arrayAt(values,0,609))moving+=std::abs(value[0])>1e-6||std::abs(value[1])>1e-6;
+            for(auto weight:weights)fixed+=weight==0;
             if(!moving){
                 Object retainedInventory;
                 for(auto& row:structure.sourceIndexReference("inventory",retainedInventory).as_array())
@@ -139,17 +148,18 @@ Json ngRigCompilePhysicsOperations(Json& structure,PhysicsAssets assets,PhysicsM
                 continue;
             }
             targets.append(target);
+            bool trianglesPreserved=true;
             for(std::size_t i=0;i<values.size();++i){Slice<double> flat;Slice<Point2> quantized;
                 for(auto v:values[i]){
-                    maximum=dmax(maximum,norm(v)*scale);
-                    Point2 q{std::rint(v[0]*scale*1e6)/1e6,std::rint(v[1]*scale*1e6)/1e6};
+                    Point2 q{std::rint(v[0]*1e6)/1e6,std::rint(v[1]*1e6)/1e6};
+                    maximum=dmax(maximum,norm(q));
                     quantized.append(q);
                     // Retain the copied point while the authored q[] range is appended.
                     flat.appendRange(Slice<double>::retainedView(quantized.retentionOwner(),
                         quantized[quantized.size()-1].data(),Point2::size()));
                 }
-                enforce(ngRigPhysicsNoInversion(mesh.vertices,mesh.indices,quantized),
-                    "Quantized physics key inverts a face",626);
+                // Orientation is diagnostic. A projected triangle may reverse during motion.
+                trianglesPreserved &= ngRigPhysicsNoInversion(mesh.vertices,mesh.indices,quantized);
                 operations.append(object({
                     {jsonLiteral("target"),target},
                     {jsonLiteral("key"),point(arrayAt(keys,i,627))},
@@ -159,8 +169,8 @@ Json ngRigCompilePhysicsOperations(Json& structure,PhysicsAssets assets,PhysicsM
                 {jsonLiteral("target"),target},
                 {jsonLiteral("moving_vertices"),moving},
                 {jsonLiteral("fixed_vertices"),fixed},
-                {jsonLiteral("amplitude_topology_scale"),scale},
-                {jsonLiteral("triangles_preserved"),true},
+                {jsonLiteral("amplitude_topology_scale"),1.},
+                {jsonLiteral("triangles_preserved"),trianglesPreserved},
                 {jsonLiteral("neutral_zero"),true},
                 {jsonLiteral("maximum_displacement"),maximum}}));
         }

@@ -174,6 +174,7 @@ core::settings::SettingsString componentRole(Json domain) {
         if(label.view().starts_with("headwear") || label.view().starts_with("ear:"))return literalKey("headwear");
     }
     if(owner.view()=="torso") {
+        if (label.view().starts_with("chest_volume")) return literalKey("topwear/front");
         const RegisteredStringAA<core::settings::SettingsString> roles{
             {literalKey("body"),literalKey("torso")},{literalKey("neck"),literalKey("torso")},
             {literalKey("topwear_front"),literalKey("topwear/front")},

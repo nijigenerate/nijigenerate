@@ -302,4 +302,47 @@ inline Shell decode(const Json& data) {
     }
     return shell;
 }
+
+struct SideLayer {
+    double width;
+    double separation;
+    // Ear height and depth in the shell frame, followed by the rear neck depth.
+    std::optional<Point3> rear;
+
+    double depth(const Shell& shell, Point2 root) const {
+        const auto p=shell.frame.local(root);
+        const auto row=shell.profile(p[1]);
+        const double u=std::abs(p[0]-row.center)/row.radius;
+        const double lateralWrap=head_surface::ease((u-.45)/.65);
+        // Keep the crown on the same surface and wrap progressively behind
+        // the bangs at the side of the skull.
+        const double belowCrown=head_surface::ease((p[1]-shell.top)/(.65*width));
+        const double front=shell.depth(root)-separation-.055*width*lateralWrap*belowCrown;
+        if (!rear) return front;
+        const double earY=(*rear)[0], earZ=(*rear)[1], neckZ=(*rear)[2];
+        const double belowEar=head_surface::ease((p[1]-earY)/std::max(.35*width,shell.bottom-earY));
+        const double anchor=std::lerp(earZ,neckZ,belowEar)-separation;
+        // Blend to the fitted ear and neck without a crease where their
+        // depth intersects the front surface.
+        const double band=.06*width;
+        const double blend=std::max(0.,1.-std::abs(front-anchor)/band);
+        const double back=std::min(front,anchor)-.25*band*blend*blend;
+        const double wrap=head_surface::ease((p[1]-shell.top)/std::max(.65*width,earY-shell.top));
+        return std::lerp(front,back,wrap);
+    }
+
+    Json encode() const {
+        using Array=core::settings::SettingsJsonArray;
+        Array data{width,separation};
+        if (rear) for (const double value : *rear) data.append(value);
+        return Json(data);
+    }
+
+    static SideLayer decode(const Json& data) {
+        const auto values=contracts::ngRigNumbers(data);
+        SideLayer layer{values[0],values[1],{}};
+        if (values.size()==5) layer.rear=Point3{values[2],values[3],values[4]};
+        return layer;
+    }
+};
 }

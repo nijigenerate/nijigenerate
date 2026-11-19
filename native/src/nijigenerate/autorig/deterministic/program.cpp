@@ -13,6 +13,7 @@
 #include <limits>
 #include <numbers>
 #include <span>
+#include <vector>
 namespace nijigenerate::autorig::deterministic::program {
 using namespace contracts;
 using Json=core::settings::SettingsJsonValue;
@@ -104,6 +105,101 @@ double clamp(double value,double lower,double upper){
 #endif
     return value<lower?lower:value>upper?upper:value;
 }
+// Use the same anatomical frame as the registered depth surfaces.
+auto chestCharts(const Json& observation, const Json& scaffold) {
+    native_detail::NativeIntegerMap<std::uint64_t,String> result;
+    Point2 pelvis{}, neck{}, left{}, right{};
+    for (const auto& bone : sourceArray(at(scaffold,lit("bones")))) {
+        const auto id = str(at(bone,lit("id"))).view();
+        Point2* landmark = nullptr;
+        if (id == "Pelvis") landmark = &pelvis;
+        else if (id == "Neck") landmark = &neck;
+        else if (id == "UpperArm.L") landmark = &left;
+        else if (id == "UpperArm.R") landmark = &right;
+        if (landmark) {
+            const auto point = ngRigNumbers(at(bone,lit("head")));
+            if (point.size() < 2) return result;
+            *landmark = {point[0],point[1]};
+        }
+    }
+    const double length = std::hypot(pelvis[0]-neck[0], pelvis[1]-neck[1]);
+    if (length <= 0.) return result;
+    const Point2 down{(pelvis[0]-neck[0])/length, (pelvis[1]-neck[1])/length};
+    const Point2 across{down[1], -down[0]};
+    const double width = std::abs((left[0]-right[0])*across[0]+(left[1]-right[1])*across[1]);
+    if (width <= 0.) return result;
+
+    struct Candidate {
+        std::uint64_t id;
+        String chart;
+        std::size_t area;
+        std::array<double,4> bounds;
+    };
+    std::vector<Candidate> candidates;
+    std::vector<Candidate> details;
+    bool hasTrunk = false;
+    for (const auto& material : sourceArray(at(observation,lit("materials")))) {
+        if (at(material,lit("static")).as_bool() || material.sourceObjectRef().if_contains("receiver"))
+            continue;
+        const auto role = str(at(material,lit("role"))).view();
+        if (role != "torso" && role != "bodice") continue;
+        const auto cloud = ngRigPoints(at(material,lit("cloud")));
+        if (cloud.empty()) continue;
+        const double inf = std::numeric_limits<double>::infinity();
+        double loX=inf, hiX=-inf, loY=inf, hiY=-inf, sumY=0.;
+        std::size_t leftCount=0, bridgeCount=0;
+        for (const auto p : cloud) {
+            const double dx=p[0]-pelvis[0], dy=p[1]-pelvis[1];
+            const double x=(dx*across[0]+dy*across[1])/width;
+            const double y=(dx*down[0]+dy*down[1])/length;
+            loX=std::min(loX,x); hiX=std::max(hiX,x);
+            loY=std::min(loY,y); hiY=std::max(hiY,y); sumY+=y;
+            if (x < 0.) ++leftCount;
+            if (std::abs(x) < .07) ++bridgeCount;
+        }
+        const double w=hiX-loX, h=hiY-loY, y=sumY/cloud.size();
+        const double leftFraction=static_cast<double>(leftCount)/cloud.size();
+        if (w>.65 && h>.55 && loY<-.58 && hiY>-.27 && leftFraction>.15 && leftFraction<.85) {
+            hasTrunk=true;
+            continue;
+        }
+        // Check the occupied area, not the name or the PSD layer rectangle.
+        // Exclude collars above the chest, thin bands, and full-length garments.
+        if (w>1.95 || h>.68 || loY< -1.06 || hiY>-.20 ||
+            y<-.86 || y>-.42 || h*length < .35*w*width || loX< -1.1 || hiX>1.1) continue;
+        auto chart = lit("chest_volume");
+        if (leftFraction>.84) chart=lit("chest_volume:r");
+        else if (leftFraction<.16) chart=lit("chest_volume:l");
+        else if (bridgeCount < .025*cloud.size()) continue;
+        auto& destination = w>=.30 && h>=.19 ? candidates : details;
+        destination.push_back({ngRigUnsigned(at(material,lit("uuid"))),chart,cloud.size(),
+            {loX,loY,hiX,hiY}});
+    }
+    if (!hasTrunk) return result;
+    std::size_t leftArea=0,rightArea=0,joinedArea=0;
+    for (const auto& candidate : candidates) {
+        auto& area = candidate.chart==lit("chest_volume:l") ? leftArea :
+            candidate.chart==lit("chest_volume:r") ? rightArea : joinedArea;
+        area=std::max(area,candidate.area);
+    }
+    const bool joined = joinedArea > 0 && !(leftArea && rightArea && leftArea+rightArea > joinedArea);
+    for (const auto& candidate : candidates)
+        if ((candidate.chart==lit("chest_volume"))==joined) result[candidate.id]=candidate.chart;
+    // Small unmasked highlights follow the single chest surface enclosing them.
+    for (const auto& detail : details) {
+        const Candidate* host = nullptr;
+        for (const auto& candidate : candidates) {
+            if (!result.contains(candidate.id) || detail.area >= .5*candidate.area) continue;
+            const auto& a = detail.bounds;
+            const auto& b = candidate.bounds;
+            if (a[0]<b[0] || a[1]<b[1] || a[2]>b[2] || a[3]>b[3]) continue;
+            if (host && host->chart != candidate.chart) { host=nullptr; break; }
+            host=&candidate;
+        }
+        if (host) result[detail.id]=host->chart;
+    }
+    return result;
+}
 std::size_t sizeCast(double value){
     // Source cast has no defined portable result outside the representable domain.
     // Do not invent a SIZE_MAX sentinel or clamp for that target-native domain.
@@ -133,6 +229,7 @@ Json ngRigCompileProgram(Json observation, Json evidenceValue,
         set(result,lit("content_sha256"),String(ngRigDigest(result)));return result;
     }
     auto prior=templates::ngRigHumanoidPrior(),scaffold=anatomy::ngRigSolveScaffold(evidenceValue,prior);
+    const auto chestDomains = chestCharts(observation, scaffold);
     double height=ngRigNumber(at(scaffold,lit("body_height"))),padding=height*ngRigNumber(at(prior,lit("bounds_padding_body_height"))),step=height*ngRigNumber(at(prior,lit("grid_step_body_height")));
     compat::Slice<double> faceXs;for(auto m:sourceArray(at(observation,lit("materials"))))if(!at(m,lit("static")).as_bool()&&str(at(m,lit("role")))==lit("face"))for(auto p:ngRigPoints(at(m,lit("cloud"))))faceXs.append(p[0]);
     sortNumbers(faceXs);double center=faceXs.empty()?ngRigPoint(at(at(scaffold,lit("landmarks")),lit("head_root")))[0]:median(faceXs,51);
@@ -164,6 +261,11 @@ Json ngRigCompileProgram(Json observation, Json evidenceValue,
         const auto chartSubject=str(at(grouping,lit("chart")));
         const auto chartSide=io::imageexport::detail::lowerExtension(side);
         auto chart=replaceSide(chartSubject,chartSide);
+        const auto chest = chestDomains.find(ngRigUnsigned(at(grouping,lit("uuid"))));
+        if (chest != chestDomains.end()) {
+            owner = lit("torso");
+            chart = chest->second;
+        }
         if((starts(owner,lit("arm:"))||starts(owner,lit("leg:")))&&(chart==lit("hand")||chart==lit("foot")))chart=lit("skin");
         auto parent=at(observation,lit("rootId"));auto id=owner+lit("/")+chart+lit("@semantic");
         // Side locks need independent depth surfaces. A clipped layer follows

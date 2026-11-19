@@ -17,6 +17,7 @@
 #include <nijigenerate/panels/resource.hpp>
 #include <nijigenerate/autorig/deterministic/native.hpp>
 #include <nijigenerate/autorig/deterministic/cheek_options.hpp>
+#include <nijigenerate/autorig/deterministic/workflow_options.hpp>
 #include <nijigenerate/autorig/deterministic/contracts_json.hpp>
 #include <nijigenerate/autorig/deterministic/evidence.hpp>
 #include <nijigenerate/autorig/deterministic/templates.hpp>
@@ -2293,7 +2294,12 @@ void AutoRigPanel::renderSessionConfiguration(
                     const auto blendLabel = ngTranslateCString("Upward jaw contour correction blend");
                     const bool blendChanged = ImGui::SliderFloat(blendLabel.data(), &blend, 0.f, 1.f, "%.2f",
                         ImGuiSliderFlags_AlwaysClamp);
-                    if (captureChanged || blendChanged) {
+                    bool feminineChestDepth = deterministic::contracts::ngRigGet(cached->options,
+                        compat::RetainedString::fromStaticLiteral(deterministic::feminineChestDepthOption),
+                        Json(false)).as_bool();
+                    const auto chestLabel = ngTranslateCString("Add feminine chest volume");
+                    const bool chestChanged = ImGui::Checkbox(chestLabel.data(), &feminineChestDepth);
+                    if (captureChanged || blendChanged || chestChanged) {
                         cached->options = compat::ngRequireObject(
                             compat::ngRequireObject(compat::ngRequireObject(run)->session())->inputContext(
                                 run->stepTaskId(compat::RetainedString::fromStaticLiteral("compile"))))->value(
@@ -2302,6 +2308,9 @@ void AutoRigPanel::renderSessionConfiguration(
                         if (blendChanged)
                             cached->options.sourceIndexAssignSlot(deterministic::upwardJawRidgeBlendOption) =
                                 Json(static_cast<double>(blend));
+                        if (chestChanged)
+                            cached->options.sourceIndexAssignSlot(deterministic::feminineChestDepthOption) =
+                                Json(feminineChestDepth);
                         run->setInput(compat::RetainedString::fromStaticLiteral("options"),
                             framework::AutoRigValue::jsonValue(cached->options));
                     }

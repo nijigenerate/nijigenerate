@@ -30,18 +30,8 @@ Json meshParts(Json state, Json program, Task task,
         float spacing{std::numeric_limits<float>::quiet_NaN()};
         float divisions{std::numeric_limits<float>::quiet_NaN()};
         compat::Slice<float> scales;
-        bool shoulder{};
     };
     framework::Table<MeshGroup> groups;
-    NativeIntegerMap<std::uint64_t, bool> shoulders;
-    for (auto pair : get(state, "shoulder_pairs", Json(core::settings::SettingsJsonArray{})).sourceArrayValue())
-        if (pair.sourceIndexValue("matching").as_bool()) shoulders[ngRigUnsigned(pair.sourceIndexValue("target"))]=true;
-    // Both sides of a layered attachment need contour samples at welding scale.
-    for (auto pair : get(state, "surface_pairs", Json(core::settings::SettingsJsonArray{})).sourceArrayValue())
-        if (pair.sourceIndexValue("matching").as_bool()) {
-            shoulders[ngRigUnsigned(pair.sourceIndexValue("source"))]=true;
-            shoulders[ngRigUnsigned(pair.sourceIndexValue("target"))]=true;
-        }
     NativeIntegerMap<std::uint32_t, Json> beforeFrames;
     compat::Slice<std::uint32_t> neckShadowParts;
     core::settings::SettingsJsonArray unavailable;
@@ -87,44 +77,21 @@ Json meshParts(Json state, Json program, Task task,
             // Drawing overlapping triangles on a Multiply layer applies the
             // shadow twice. A rectangular grid covers the soft alpha once.
             if (nativeString(carrier.sourceIndexValue("role")).view() == "neck" &&
-                part->blendMode == nicxlive::core::nodes::BlendMode::Multiply &&
-                !shoulders.contains(id)) {
+                part->blendMode == nicxlive::core::nodes::BlendMode::Multiply) {
                 neckShadowParts.append(id);
                 continue;
             }
             const auto widthForSpacing = texture->width();
             const auto heightForSpacing = texture->height();
-            float spacing = std::min(10.0f, std::max(1.0f,
+            const float spacing = std::min(10.0f, std::max(1.0f,
                 static_cast<float>(std::max(widthForSpacing, heightForSpacing)) / 12));
-            const bool shoulder = shoulders.contains(part->getUUID());
-            float divisions = 12;
-            compat::Slice<float> scales{.5f, 0.f};
-            if (shoulder) {
-                spacing = 1;
-                const auto widthForDivisions = texture->width();
-                const auto heightForDivisions = texture->height();
-                divisions = static_cast<float>(std::min(64., std::max(12.,
-                    std::ceil(std::max(widthForDivisions, heightForDivisions) / 4.))));
-                // Preserve all four virtual reads, including the width product
-                // before either height read, as in the Source binary expression.
-                const auto widthForRadius = static_cast<double>(texture->width());
-                const auto widthForRadiusAgain = texture->width();
-                const auto widthSquared = widthForRadius * widthForRadiusAgain;
-                const auto heightForRadius = static_cast<double>(texture->height());
-                const auto heightForRadiusAgain = texture->height();
-                const auto heightSquared = heightForRadius * heightForRadiusAgain;
-                const double radius = std::sqrt(widthSquared + heightSquared) / 2;
-                const auto count = static_cast<std::size_t>(std::max(2., std::ceil(.2 * radius / 4) + 1));
-                scales = {};
-                for (std::size_t i = 0; i < count; ++i)
-                    scales.append(static_cast<float>(.8 + .2 * i / (count - 1)));
-                scales.append(.5f); scales.append(0.f);
-            }
-            const auto configuration = objectEvidence({{stringLiteralEvidence("spacing"), spacing}, {stringLiteralEvidence("divisions"), divisions},
-                {stringLiteralEvidence("scales"), values(scales)}, {stringLiteralEvidence("shoulder"), shoulder}});
+            const float divisions = 12;
+            const compat::Slice<float> scales{.5f, 0.f};
+            const auto configuration = objectEvidence({{stringLiteralEvidence("spacing"), spacing},
+                {stringLiteralEvidence("divisions"), divisions}, {stringLiteralEvidence("scales"), values(scales)}});
             const auto key = ngRigDigest(configuration).retainedString();
             if (auto existing = groups.find(key); existing != groups.end()) existing->second.ids.append(part->getUUID());
-            else groups.try_emplace(key, MeshGroup{{part->getUUID()}, spacing, divisions, scales, shoulder});
+            else groups.try_emplace(key, MeshGroup{{part->getUUID()}, spacing, divisions, scales});
         }
     });
     core::settings::SettingsJsonArray configurations;
@@ -182,12 +149,11 @@ Json meshParts(Json state, Json program, Task task,
     for (auto [key, group] : groups) {
         const auto applied = tryBatch(group.ids, [&] {
             return std::shared_ptr<viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor>(
-                createNativeObject<RigPartMeshProcessor>(group.spacing, group.divisions, group.scales, group.shoulder));
+                createNativeObject<RigPartMeshProcessor>(group.spacing, group.divisions, group.scales));
         });
         if (applied.empty()) continue;
         configurations.append(objectEvidence({{stringLiteralEvidence("parts"), values(applied)}, {stringLiteralEvidence("min_distance"), group.spacing},
-            {stringLiteralEvidence("div_per_part"), group.divisions}, {stringLiteralEvidence("scales"), values(group.scales)},
-            {stringLiteralEvidence("proximal_shoulder_sampling"), group.shoulder}}));
+            {stringLiteralEvidence("div_per_part"), group.divisions}, {stringLiteralEvidence("scales"), values(group.scales)}}));
     }
     if (!neckShadowParts.empty()) {
         const auto applied = tryBatch(neckShadowParts, [] {

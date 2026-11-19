@@ -84,7 +84,10 @@ ControlOrientationInput prepareControlOrientation(compat::Slice<contracts::Point
         double norm = 0;
         for (auto coefficient : constraint.coefficients) norm += coefficient * coefficient;
         norm = std::sqrt(norm);
-        enforce(norm > 0, "Native control has a collapsed horizontal triangle", 170);
+        if (!(norm > 0)) {
+            prepared.requiresPlanar = true;
+            return prepared;
+        }
         for (std::size_t i = 0; i < 3; ++i)
             problem.matrix.append(solver::quadratic::SparseEntry{
                 sourceInt(row), sourceInt(constraint.indices[i]), constraint.coefficients[i] / norm});
@@ -243,9 +246,7 @@ compat::Slice<double> projectPlanarOrientation(compat::Slice<contracts::Point2> 
                 (a[1]-b[1])/face.area,(b[0]-a[0])/face.area};
             double norm=0;for(auto value:gradient) norm+=value*value;
             norm=std::sqrt(norm);
-            if (!(norm>0)) throw compat::ThrowableException(contracts::detail::copyContractMessage(
-                "Collapsed planar control triangle"),
-                compat::RetainedString::fromStaticLiteral("native/autorig/controls_orientation.cpp"),177);
+            if (!(norm>0)) return requested;
             const auto row=problem.constraints++;
             for(std::size_t j=0;j<6;++j) problem.matrix.append(SparseEntry{
                 row,std::int32_t(face.ids[j/2]*2+j%2),gradient[j]/norm});
@@ -280,9 +281,8 @@ compat::Slice<double> projectPlanarOrientation(compat::Slice<contracts::Point2> 
         if(!accepted && previous.second>=minimumRatio*.99) return values;
         if(!accepted) break;
     }
-    throw compat::ThrowableException(contracts::detail::copyContractMessage(
-        "Planar control projection cannot preserve orientation and fixed feature positions"),
-        compat::RetainedString::fromStaticLiteral("native/autorig/controls_orientation.cpp"),177);
+    contracts::ngRigCheckpoint(context);
+    return requested;
 }
 }
 
@@ -296,6 +296,9 @@ compat::Slice<double> ngRigProjectControlOrientation(compat::Slice<contracts::Po
             minimumRatio, context, smoothingLength, contourBounds);
     auto prepared = controls_detail::prepareControlOrientation(rest, triangles, offsets, minimumRatio);
     if (!prepared.requiresSolve) return offsets;
+    if (prepared.requiresPlanar)
+        return projectPlanarOrientation(rest, triangles, offsets, fixedInterpolatedPoints,
+            minimumRatio, context, smoothingLength);
     regularizeOrientation(prepared.problem, rest, triangles, smoothingLength, 1);
     for (const auto point : fixedInterpolatedPoints) for (const auto triangle : triangles.as_array()) {
         const auto indices = contracts::ngRigNumbers(triangle);

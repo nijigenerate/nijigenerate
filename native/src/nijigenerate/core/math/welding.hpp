@@ -8,6 +8,7 @@
 #include <nijigenerate/core/typed_format_vec2.hpp>
 #include <nijigenerate/core/typed_format_shared_array.hpp>
 #include <cstddef>
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -22,11 +23,22 @@ struct WeldingMeshRefinement {
     Slice<Vec2> vertices;
     Slice<std::uint16_t> indices;
     std::size_t addedVertices{};
+    bool topologyChanged{};
 };
 struct WeldingIndexPair {
     nicxlive::core::common::SharedArray<std::ptrdiff_t> forward;
     nicxlive::core::common::SharedArray<std::ptrdiff_t> reverse;
 };
+using WeldingBounds = std::array<float, 4>;
+struct WeldingSurfaceRefinement {
+    WeldingMeshRefinement first, second;
+    Slice<std::ptrdiff_t> correspondence;
+};
+WeldingSurfaceRefinement ngRefineWeldingOverlap(
+    std::span<const Vec2> firstPoints, std::span<const std::uint16_t> firstIndices,
+    std::span<const Vec2> secondPoints, std::span<const std::uint16_t> secondIndices,
+    std::optional<WeldingBounds> bounds = std::nullopt,
+    std::optional<std::array<std::size_t, 2>> originalVertexCounts = std::nullopt);
 WeldingIndexPair ngRemapWeldingLinks(std::span<const std::ptrdiff_t> forward,
     std::span<const std::ptrdiff_t> reverse, std::span<const std::ptrdiff_t> oldToNew, std::size_t newCount);
 WeldingMeshRefinement ngRefineWeldingMesh(std::span<const Vec2> fineWorld,

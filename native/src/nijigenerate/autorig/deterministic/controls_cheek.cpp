@@ -326,7 +326,7 @@ static Json compileCheekCorrections(Json state, Json program,
     if (measureReference) {
         // Evaluate the original correction with its original contour sampling.
         // The temporary triangles are used only for that evaluation. The
-        // reference is transferred to the authored Part in the second pass.
+        // reference is used when computing the outline and hair corrections.
         using Triangle = std::array<std::size_t,3>;
         std::vector<Triangle> samplingTriangles;
         for (const auto& triangle : skinTriangles.as_array()) {
@@ -570,7 +570,8 @@ static Json compileCheekCorrections(Json state, Json program,
         }
         if (role!="hair_front" && role!="hair_side") continue;
         const auto target=readControlMap(targets,id,710);
-        if (target.sourceObjectRef().if_contains("hair_shell_offset")) continue;
+        if (target.sourceObjectRef().if_contains("hair_shell_offset") ||
+            target.sourceObjectRef().if_contains("hair_side_shell")) continue;
         const auto contour = contracts::ngRigPoints(read(observation::ngRigAlphaContour(material,context),"points"));
         HairTarget hair{target,contracts::ngRigPoints(read(target,"world"))};
         for (std::size_t i=0; i<hair.adjacent.size(); ++i) {
@@ -615,52 +616,6 @@ static Json compileCheekCorrections(Json state, Json program,
         Point2 temple, chin, seam, upper, lower;
     };
     std::map<std::size_t,YawRidge> yawRidges;
-    const auto outlineLandmark = [&](std::size_t sideIndex, double row) {
-        return Point2{curve(profile.y, sideIndex == 0 ? profile.left : profile.right, row), row};
-    };
-    const auto jawLandmarkRow = [&](std::size_t sideIndex) {
-        const auto& joint = sideIndex == 0 ? head_template::leftJaw : head_template::rightJaw;
-        return jawRows[sideIndex].value_or(std::lerp(profile.temple, chin, (joint[1]-.38)/(1.-.38)));
-    };
-    const auto earLandmarkRow = [&](std::size_t sideIndex) {
-        const auto& ear = earsBySide[sideIndex];
-        const auto& joint = sideIndex == 0 ? head_template::leftEar : head_template::rightEar;
-        const double jaw = jawLandmarkRow(sideIndex);
-        const double row = ear.id ? profile.frame.local(ear.attachment)[1]
-            : std::lerp(profile.temple, chin, (joint[1]-.38)/(1.-.38));
-        return std::clamp(row, std::lerp(profile.temple, jaw, .10), std::lerp(profile.temple, jaw, .95));
-    };
-    // Positive Y points down. The repeated chin closes the stock spline.
-    const std::array pathSections{
-        chinTip, outlineLandmark(0,jawLandmarkRow(0)), outlineLandmark(0,earLandmarkRow(0)),
-        outlineLandmark(0,profile.temple), outlineLandmark(1,profile.temple),
-        outlineLandmark(1,earLandmarkRow(1)), outlineLandmark(1,jawLandmarkRow(1)), chinTip};
-    const auto cheekPathPoints = [&](const std::array<Point2,8>& landmarks) {
-        // Sample the convex J–M arc on both sides, retaining J and the
-        // blended M exactly. The common tangent at J lies along the face axis.
-        const auto jawArc = [&](Point2 jaw, double t) {
-            const auto start = profile.frame.local(landmarks.front());
-            const auto end = profile.frame.local(jaw);
-            const double across = 2.*.72*t*(1.-t)+t*t;
-            return toRoot({std::lerp(start[0],end[0],across),
-                           std::lerp(start[1],end[1],t*t)});
-        };
-        constexpr std::array progress{.18,.38,.59,.80};
-        Array points;
-        points.append(point(landmarks.front()));
-        for (const auto t : progress) points.append(point(jawArc(landmarks[1],t)));
-        for (std::size_t i = 1; i + 1 < landmarks.size(); ++i) points.append(point(landmarks[i]));
-        for (auto t = progress.rbegin(); t != progress.rend(); ++t)
-            points.append(point(jawArc(landmarks[6],*t)));
-        points.append(point(landmarks.back()));
-        return points;
-    };
-    Array pathRest, pathKeys;
-    if (!measureReference) {
-        auto rest = pathSections;
-        for (auto& section : rest) section = toRoot(section);
-        pathRest = cheekPathPoints(rest);
-    }
     const auto fittedLandmarks=program.sourceObjectRef().if_contains("head_anatomical_landmarks");
     std::vector<Json> skinKeys;
     for (const auto& key : keys)
@@ -1233,23 +1188,6 @@ static Json compileCheekCorrections(Json state, Json program,
         }
         Slice<double> residualX, residualY;
         for (const auto delta : edgeResidual) { residualX.append(delta[0]); residualY.append(delta[1]); }
-        if (!measureReference) {
-            auto landmarks = pathSections;
-            for (std::size_t i = 0; i < pathSections.size(); ++i) {
-                const auto section = pathSections[i];
-                const auto world = toRoot(section);
-                auto control = world;
-                if ((side < 0 && (i == 1 || i == 2)) || (side > 0 && (i == 5 || i == 6))) {
-                    const auto row = section[1];
-                    // The parent Grid still supplies the head rotation.
-                    const auto delta = unprojectResidual(world,
-                        {curve(edgeRows,residualX,row), curve(edgeRows,residualY,row)});
-                    control = {world[0]+delta[0], world[1]+delta[1]};
-                }
-                landmarks[i] = control;
-            }
-            pathKeys.append(record({{"key",read(key,"key")},{"points",Json(cheekPathPoints(landmarks))}}));
-        }
         const auto contourRepair = [&](Point2 world) {
             const auto p = profile.frame.local(world);
             if (!side || p[1] <= profile.temple || p[1] >= chin) return Point2{0.,0.};
@@ -1725,8 +1663,6 @@ static Json compileCheekCorrections(Json state, Json program,
         {"program_sha256", read(program, "content_sha256")}, {"depth_angle_program_sha256", read(state, "depth_angle_program_sha256")},
         {"source_uv_program_sha256", read(state, "source_uv_program_sha256")}, {"source_sha256", read(state, "source_sha256")},
         {"visually_reviewed", Json(false)}});
-    if (!measureReference)
-        report.sourceIndexAssignSlot("cheek_path") = record({{"rest",Json(pathRest)},{"keys",Json(pathKeys)}});
     return report;
 }
 

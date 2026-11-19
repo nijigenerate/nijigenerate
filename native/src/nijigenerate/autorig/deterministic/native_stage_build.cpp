@@ -147,6 +147,11 @@ Json buildRig(Json state,Json program,Task task) {
             return depth;
         }
         if (!hairShell) return depth;
+        if (const auto data=target.sourceObjectRef().if_contains("hair_side_shell")) {
+            const auto layer=hair_surface::SideLayer::decode(*data);
+            for (const auto p : world) depth.append(layer.depth(*hairShell,p)/scale);
+            return depth;
+        }
         const auto gap=target.sourceObjectRef().if_contains("hair_shell_offset");
         if (!gap) return depth;
         const double offset=ngRigNumber(*gap);

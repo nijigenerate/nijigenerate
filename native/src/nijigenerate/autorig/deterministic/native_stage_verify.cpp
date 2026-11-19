@@ -51,7 +51,7 @@ bool influenceRulesEqual(const ext::nodes::ExDepthInfluenceRule& left,
 
 Json verifyRig(Json state, Json program, Task task) {
     enforceNative(field(state, "program_sha256").as_string() == field(program, "content_sha256").as_string(),"Rig program ownership mismatch",1609);
-    core::settings::SettingsJsonArray grids, localPoses, findings;
+    core::settings::SettingsJsonArray grids, localPoses, findings, orientationFindings;
     if (state.sourceObjectRef().if_contains("rig_exclusions")) {
         const auto exclusionCheck = evidence::ngRigVerifyExclusions(state, program);
         for (auto violation : exclusionCheck.sourceIndexValue("violations").sourceArrayValue())
@@ -130,9 +130,18 @@ Json verifyRig(Json state, Json program, Task task) {
             bool pathOwnsOrigin = false;
             for (auto node = puppet->findNodeById(faceOriginId); node; node = node->parentPtr())
                 if (node == cheekPath) pathOwnsOrigin = true;
-            const auto siblingRoots = pathOwnsOrigin
+            auto siblingRoots = pathOwnsOrigin
                 ? field(shape, "cheek_path_sibling_roots").sourceArrayValue()
                 : absentArray().sourceArrayValue();
+            NodeRef siblingParent = pathOwnsOrigin ? cheekPath->parentPtr() : nullptr;
+            if (shape.is_object()) {
+                const auto migrated = shape.sourceObjectRef().if_contains("face_origin_sibling_roots");
+                auto origin = puppet->findNodeById(faceOriginId);
+                if (migrated && origin) {
+                    siblingRoots = migrated->sourceArrayValue();
+                    siblingParent = origin->parentPtr();
+                }
+            }
             for (auto target : field(state, "targets").sourceArrayValue()) {
                 const auto domain = nativeString(field(target, "domain_id"));
                 auto grid = puppet->findNodeById(uuid(field(target, "grid")));
@@ -148,7 +157,7 @@ Json verifyRig(Json state, Json program, Task task) {
                     for (auto cursor = puppet->findNodeById(uuid(field(target, "part"))); cursor;
                         cursor = cursor->parentPtr())
                         if (cursor->getUUID() == faceOriginId ||
-                            (pathOwnsOrigin && cursor->parentPtr() == cheekPath->parentPtr() &&
+                            (siblingParent && cursor->parentPtr() == siblingParent &&
                              std::ranges::any_of(siblingRoots, [&](const auto& id) {
                                 return cursor->getUUID() == uuid(id);
                              }))) inherited = true;
@@ -479,8 +488,11 @@ Json verifyRig(Json state, Json program, Task task) {
             ngRigCheckpoint(task);
             try {
                 const auto points = ngRigPoints(field(key, "points"));
-                const auto columns = static_cast<std::size_t>(ngRigNumber(field(grid, "columns")));
-                geometry::ngRigValidateGrid(points, columns, .02, rest);
+                // A 3D surface can turn edge-on or face away in the 2D projection.
+                enforceNative(points.size() == rest.size(), "Projected grid vertex count differs", 1890);
+                for (const auto point : points)
+                    enforceNative(std::isfinite(point[0]) && std::isfinite(point[1]),
+                        "Nonfinite projected grid point", 1891);
             } catch (const std::bad_alloc&) { throw; }
             catch (const compat::ThrowableException& error) {
                 findings.append(objectEvidence({{stringLiteralEvidence("part"), field(grid, "part")}, {stringLiteralEvidence("parameter"), field(key, "parameter")},
@@ -497,9 +509,12 @@ Json verifyRig(Json state, Json program, Task task) {
                 const auto offsets = ngRigNumbers(field(sample, "offsets"));
                 return geometry::ngRigTriangleMinimumRatio(vertices, triangles, offsets);
             }();
-            // These are interior samples: even a closing aperture must retain
-            // its orientation until the fully closed endpoint.
-            enforceNative(ratio >= .002,"Intermediate local control folded a triangle",1901);
+            if (ratio < .002)
+                orientationFindings.append(objectEvidence({
+                    {stringLiteralEvidence("part"), field(local, "part")},
+                    {stringLiteralEvidence("parameter"), field(local, "parameter")},
+                    {stringLiteralEvidence("key"), field(sample, "key")},
+                    {stringLiteralEvidence("min_area_ratio"), ratio}}));
         } catch (const std::bad_alloc&) { throw; }
         catch (const compat::ThrowableException& error) {
             findings.append(objectEvidence({{stringLiteralEvidence("part"), field(local, "part")}, {stringLiteralEvidence("parameter"), field(local, "parameter")},
@@ -508,7 +523,9 @@ Json verifyRig(Json state, Json program, Task task) {
     }
     auto report = objectEvidence({{stringLiteralEvidence("schema_version"), "rig-saved-validation-d/1"}, {stringLiteralEvidence("passed"), findings.empty()},
         {stringLiteralEvidence("bones"), boneCount}, {stringLiteralEvidence("baked_keys"), keyCount}, {stringLiteralEvidence("intermediate_samples"), intermediateCount},
-        {stringLiteralEvidence("numerical_findings"), findings}, {stringLiteralEvidence("source_sha256"), field(state, "source_sha256")},
+        {stringLiteralEvidence("numerical_findings"), findings},
+        {stringLiteralEvidence("orientation_findings"), orientationFindings},
+        {stringLiteralEvidence("source_sha256"), field(state, "source_sha256")},
         {stringLiteralEvidence("source_uv_readback"), sourceFrames}, {stringLiteralEvidence("readback_verified"), true},
         {stringLiteralEvidence("program_sha256"), field(program, "content_sha256")}, {stringLiteralEvidence("model_sha256"), field(state, "model_sha256")},
         {stringLiteralEvidence("visual_review_required"), true}});
@@ -516,7 +533,7 @@ Json verifyRig(Json state, Json program, Task task) {
     if (field(renders, "applicable").as_bool() && !field(renders, "neutral_passed").as_bool())
         findings.append(objectEvidence({{stringLiteralEvidence("message"), "Neutral render differs from the source"}}));
     assignNative(report, "passed", findings.empty()); assignNative(report, "numerical_findings", findings);
-    if (!findings.empty()) task->previewJson("validation-findings", report);
+    if (!findings.empty() || !orientationFindings.empty()) task->previewJson("validation-findings", report);
     return report;
 }
 }

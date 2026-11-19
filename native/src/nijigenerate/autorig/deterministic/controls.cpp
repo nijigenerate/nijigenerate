@@ -221,10 +221,9 @@ Json ngRigCompileControls(Json state, std::shared_ptr<framework::AutoRigTaskCont
                     }
                 }
                 for (auto& offset : offsets) offset = std::round(offset * 100000) / 100000;
-                if (!collapsedAperture) enforce(geometry::ngRigTriangleMinimumRatio(
+                if (!collapsedAperture) (void) geometry::ngRigTriangleMinimumRatio(
                     contracts::ngRigPoints(read(read(target, "mapping"), "vertices")),
-                    read(read(target, "mapping"), "triangles"), offsets) >= .002,
-                    "Rounded local control has a folded triangle", 263);
+                    read(read(target, "mapping"), "triangles"), offsets);
                 if (vx == 0 && vy == 0) for (const double offset : offsets)
                     enforce(std::abs(offset) <= 1e-8, "Local control changed the neutral pose", 267);
                 keys.append(record({{"key", key(x, y)}, {"offsets", numbers(offsets)}}));

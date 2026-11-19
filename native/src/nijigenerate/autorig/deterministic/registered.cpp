@@ -1,6 +1,8 @@
 #include "detail/registered.hpp"
 #include "detail/head_template_data.hpp"
 #include "detail/hair_surface.hpp"
+#include "linear.hpp"
+#include "workflow_options.hpp"
 #include <array>
 #include <map>
 #include <numbers>
@@ -19,6 +21,192 @@ Json duplicateObject(const Json& source) {
     for (const auto& member : members) result[member.name] = member.item;
     return result;
 }
+
+double neutralChestRelief(compat::Slice<double> xs, compat::Slice<double> ys,
+        compat::Slice<double> relief, Point2 p, double reference) {
+    // Coordinates are in the registered body frame, in pelvis-to-neck units.
+    constexpr double upper = -1.02;
+    constexpr double lower = -.44;
+    if (p[1] <= upper || p[1] >= lower || std::abs(p[0]) >= .53) return reference;
+    const double across = 1. - head_surface::ease((std::abs(p[0]) - .30) / .23);
+    const double along = head_surface::ease((p[1] - upper) / .14) *
+        head_surface::ease((lower - p[1]) / .12);
+    const double baseline = std::lerp(sample(xs, ys, relief, {p[0], upper}),
+        sample(xs, ys, relief, {p[0], lower}), (p[1] - upper) / (lower - upper));
+    return std::lerp(reference, baseline, across * along);
+}
+
+constexpr double defaultChestRelief = .15;
+
+double projectedChestRelief(double width, double height, double offset, double overhang) {
+    // All input lengths use the torso length as their unit. A taller outline
+    // adds relief independently of its width, offset and overhang.
+    const double linearRelief = .28*width + .12*height + .12*offset + .30*overhang;
+    // Increase the response for larger outlines while keeping the ordinary
+    // scale around the reference relief.
+    constexpr double referenceRelief = .18;
+    constexpr double extraLargePartGain = .75;
+    return linearRelief + extraLargePartGain*std::max(0.,linearRelief-referenceRelief);
+}
+
+double chestLobe(Point2 p, Point2 center, Point2 radius, double relief = defaultChestRelief) {
+    // Mirror two compact volumes around the sternum. Both fall to zero with
+    // zero slope at their edges, so the chest joins the surrounding rib cage.
+    const double x = (p[0]-center[0])/radius[0], y = (p[1]-center[1])/radius[1];
+    const double support = std::max(0., 1. - x*x - y*y);
+    return relief * support * support;
+}
+
+struct ChestArc {
+    Point2 center;
+    double top, bottom;
+    std::vector<head_surface::Row> rows;
+    bool positiveSide;
+    double crestDepth{};
+    double relief{};
+
+    double sectionCenter(Point2 span) const {
+        return std::clamp(center[0],std::lerp(span[0],span[1],.15),std::lerp(span[0],span[1],.85));
+    }
+
+    double blendAt(Point2 p, double medialExtension = 0.) const {
+        if (p[1] <= top || p[1] >= bottom) return 0.;
+        const auto span = head_surface::sample(rows,p[1]);
+        const double x = sectionCenter(span);
+        const bool onPositiveSide = p[0]>=x;
+        const double side = onPositiveSide ? span[1]-x : x-span[0];
+        if (side <= 0.) return 0.;
+        // The visible outer rim is a silhouette, not the attachment to the
+        // rib cage. Continue the curve behind that rim before handing off to
+        // the torso field, with the falloff tied to the local contour width.
+        const double radius = onPositiveSide==positiveSide ? 1.5*side : side+medialExtension;
+        const double u = (p[0]-x)/radius;
+        const double v = (p[1]-center[1])/(p[1]<center[1] ? center[1]-top : bottom-center[1]);
+        const double support = std::max(0.,1.-u*u)*std::max(0.,1.-v*v);
+        return support * support;
+    }
+};
+
+struct ChestPair {
+    const ChestArc *left{}, *right{};
+
+    explicit operator bool() const { return left && right && left->center[0] < right->center[0]; }
+
+    Point2 weights(Point2 p) const {
+        const double y = p[1];
+        if (y<=std::max(left->top,right->top) || y>=std::min(left->bottom,right->bottom))
+            return {left->blendAt(p),right->blendAt(p)};
+        const auto l = head_surface::sample(left->rows,y), r = head_surface::sample(right->rows,y);
+        const double leftWidth = l[1]-left->sectionCenter(l);
+        const double rightWidth = right->sectionCenter(r)-r[0];
+        const double width = std::min(leftWidth,rightWidth);
+        if (width<=0.) return {left->blendAt(p),right->blendAt(p)};
+        // An observed opening stays open. When the volumes meet, round the
+        // inner shoulders into one saddle instead of tapering to two flat rims.
+        const double gap = std::max(0.,r[0]-l[1]);
+        const double top = std::max(left->top,right->top), bottom = std::min(left->bottom,right->bottom);
+        const double envelope = head_surface::ease((y-top)/(.25*(bottom-top))) *
+            head_surface::ease((bottom-y)/(.25*(bottom-top)));
+        const double extension = (.45*width+.5*gap) * envelope *
+            (1.-head_surface::ease(gap/(.65*width)));
+        return {left->blendAt(p,extension),right->blendAt(p,extension)};
+    }
+};
+
+// Fit the free outer/lower rim, avoiding the upper attachment to torso and arm.
+// For a joined part, treat the center cut as an attachment, not an outer rim.
+std::optional<ChestArc> fitChestArc(const compat::Slice<Point2>& cloud, double splitX,
+        bool positive, bool joined) {
+    constexpr std::size_t bins = 40;
+    const double inf = std::numeric_limits<double>::infinity();
+    double left=inf, right=-inf, top=inf, bottom=-inf;
+    const auto onSide = [&](Point2 p) { return !joined || ((p[0]>=splitX)==positive); };
+    for (const auto p : cloud) {
+        if (!onSide(p)) continue;
+        left=std::min(left,p[0]); right=std::max(right,p[0]);
+        top=std::min(top,p[1]); bottom=std::max(bottom,p[1]);
+    }
+    if (!(right>left && bottom>top)) return {};
+    const auto half = Point2{(right-left)*.5,(bottom-top)*.5};
+    const auto mid = Point2{left+half[0],top+half[1]};
+    std::array<Point2,bins> edges;
+    edges.fill({inf,-inf});
+    for (const auto p : cloud) {
+        if (!onSide(p)) continue;
+        const auto i = std::min(bins-1,static_cast<std::size_t>((p[1]-top)/(bottom-top)*bins));
+        edges[i][0]=std::min(edges[i][0],p[0]);
+        edges[i][1]=std::max(edges[i][1],p[0]);
+    }
+
+    std::vector<head_surface::Row> rows;
+    linear::RigMatrix design, target;
+    const auto addRimPoint = [&](double x,double y) {
+        const double u=(x-mid[0])/half[0], v=(y-mid[1])/half[1];
+        design.append(linear::RigRow{u*u,v*v,u,v});
+        target.append(linear::RigRow{1.});
+    };
+    for (std::size_t i=0;i<bins;++i) {
+        const double lo=edges[i][0], hi=edges[i][1];
+        if (!(hi>lo)) continue;
+        const double t=(static_cast<double>(i)+.5)/bins;
+        const double y=std::lerp(top,bottom,t);
+        rows.push_back({y,{lo,hi}});
+        if (t>=.30 && t<=.98) addRimPoint(positive ? hi : lo,y);
+        const double inner = positive ? lo : hi;
+        if (t>=.80 && t<=.98 && (!joined || std::abs(inner-splitX)>.10*half[0]))
+            addRimPoint(inner,y);
+    }
+    if (rows.size()<bins/2) return {};
+    // Some joined illustrations show only the outer flank. In that case the
+    // ellipse can be underconstrained, but the broad part of the flank still
+    // locates the volume, and every section still uses the observed outline.
+    const auto sectionalFit = [&] {
+        double widest = 0.;
+        for (const auto& row : rows) {
+            if (row.y < std::lerp(top,bottom,.30) || row.y > std::lerp(top,bottom,.84)) continue;
+            widest=std::max(widest,row.bounds[1]-row.bounds[0]);
+        }
+        double start=inf,end=-inf;
+        for (const auto& row : rows) {
+            if (row.y < std::lerp(top,bottom,.30) || row.y > std::lerp(top,bottom,.84) ||
+                row.bounds[1]-row.bounds[0]<.95*widest) continue;
+            start=std::min(start,row.y); end=std::max(end,row.y);
+        }
+        const double y=end>=start ? std::midpoint(start,end) : mid[1];
+        const auto span=head_surface::sample(rows,y);
+        const Point2 center{std::midpoint(span[0],span[1]),y};
+        return ChestArc{center,std::lerp(top,y,.20),bottom,rows,positive};
+    };
+    if (design.size()<10) return sectionalFit();
+    linear::RigMatrix fit;
+    try {
+        fit=linear::ngRigLeastSquares(design,target);
+    } catch (const compat::ThrowableException&) {
+        return sectionalFit();
+    }
+    const double a=fit[0][0], b=fit[1][0], c=fit[2][0], d=fit[3][0];
+    if (!(a>0. && b>0.)) return sectionalFit();
+    const double u=-c/(2.*a), v=-d/(2.*b);
+    const double radius=std::sqrt((1.+a*u*u+b*v*v)/b);
+    if (!(std::abs(u)<.80 && v>-.60 && v<.86 && radius>.20 && radius<1.6)) return sectionalFit();
+    const Point2 center{mid[0]+u*half[0],mid[1]+v*half[1]};
+    const auto centerSpan = head_surface::sample(rows,center[1]);
+    if (!(center[0]>centerSpan[0] && center[0]<centerSpan[1])) return sectionalFit();
+    const double join = std::max(top,center[1]-radius*half[1]);
+    return ChestArc{center,join,bottom,std::move(rows),positive};
+}
+
+struct ChestProfile {
+    Point2 left{-.21,-.72}, right{.21,-.72}, radius{.24,.21};
+    bool hasLeft = true, hasRight = true;
+    std::optional<ChestArc> leftArc, rightArc;
+    double fallbackRelief = defaultChestRelief;
+
+    double fallbackReliefAt(Point2 p) const {
+        return (hasLeft && !leftArc ? chestLobe(p,left,radius,fallbackRelief) : 0.) +
+            (hasRight && !rightArc ? chestLobe(p,right,radius,fallbackRelief) : 0.);
+    }
+};
 // Build upper and lower slope-limited envelopes in registered model units.
 // Averaging the two preserves the local depth level instead of moving the
 // whole surface forward or backward when a transition needs room.
@@ -254,6 +442,8 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     set(scaffold,"bones",ordered);
     SettingsJsonArray drivers;
     const auto options = contracts::ngRigGet(observation, literalKey("options"), Json{});
+    const bool feminineChestDepth = contracts::ngRigGet(options,
+        literalKey(feminineChestDepthOption), Json(false)).as_bool();
     const auto headYaw = options.is_object()
         ? contracts::ngRigGet(options, literalKey("head_yaw_degrees"), Json{})
         : Json{};
@@ -291,8 +481,191 @@ Json ngRigRegisterProgram(Json program, Json observation) {
                 objectField("binding",property),objectField("values",values)}));
     }
     set(program,"native_drivers",drivers);
+    const auto domains = at(program,"domains").sourceArrayValue();
+    const bool hasChestLayers = std::ranges::any_of(domains, [](const auto& domain) {
+        return at(domain,"chart").as_string().view().starts_with("chest_volume");
+    });
+    auto bodyFrame = aa(frames,"body",289);
+    const double bodyWidth = std::hypot(bodyFrame.matrix[0],bodyFrame.matrix[2]);
+    const auto chestPoint = [&](Point2 p) -> Point2 {
+        const auto& m = bodyFrame.matrix;
+        return {bodyFrame.origin[0]+m[0]*p[0]+m[1]*p[1],
+            bodyFrame.origin[1]+m[2]*p[0]+m[3]*p[1]};
+    };
+    const auto chestCover = at(at(common,"components"),"topwear/front");
+    const auto chestCoverDepth = at(chestCover,"depth");
+    const auto chestCoverXs = ngRigNumbers(at(chestCover,"axis_x"));
+    const auto chestCoverYs = ngRigNumbers(at(chestCover,"axis_y"));
+    const auto chestCoverRelief = ngRigNumbers(at(chestCoverDepth,"relief"));
+    const double chestCoverPlane = ngRigNumber(at(chestCoverDepth,"plane_offset"));
+    const auto chestBaseDepth = [&](Point2 p) {
+        const double base = sample(chestCoverXs,chestCoverYs,chestCoverRelief,p);
+        return chestCoverPlane + neutralChestRelief(chestCoverXs,chestCoverYs,chestCoverRelief,p,base);
+    };
+    detail::RegisteredStringAA<ChestProfile> chestProfiles;
+    std::array<std::optional<ChestArc>,2> integratedChest;
+    if (feminineChestDepth) {
+        compat::Slice<Point2> torsoOutline;
+        for (const auto& domain : domains) {
+            if (at(domain,"chart").as_string().view()!="body" ||
+                at(domain,"owner").as_string().view()!="torso") continue;
+            for (const auto id : at(domain,"parts").sourceArrayValue()) {
+                const auto material = aa(materials,ngRigUnsigned(id),289);
+                if (at(material,"role").as_string().view()!="torso" ||
+                    material.sourceObjectRef().if_contains("receiver")) continue;
+                for (const auto point : ngRigPoints(at(material,"cloud")))
+                    torsoOutline.append(bodyFrame.affineTo(point));
+            }
+        }
+        const auto torsoRows = head_surface::outlineRows(torsoOutline,head_surface::Frame{},.008);
+        const auto sizeRelief = [&](Point2 center, Point2 span, double height,bool positive) {
+            const double width=(span[1]-span[0])*bodyWidth/torso;
+            const double offset=std::abs(center[0])*bodyWidth/torso;
+            double overhang = 0.;
+            if (!torsoRows.empty() && center[1]>=torsoRows.front().y && center[1]<=torsoRows.back().y) {
+                const auto torsoSpan=head_surface::sample(torsoRows,center[1]);
+                const double excess=positive ? span[1]-torsoSpan[1] : torsoSpan[0]-span[0];
+                overhang=std::max(0.,excess)*bodyWidth/torso;
+            }
+            return projectedChestRelief(width,height,offset,overhang);
+        };
+        if (!hasChestLayers) {
+            const double shoulderY=std::midpoint(bodyFrame.affineTo(upperArmLeft)[1],
+                bodyFrame.affineTo(upperArmRight)[1]);
+            const double chestY=bodyFrame.affineTo(get("Chest"))[1];
+            const double spineY=bodyFrame.affineTo(get("Spine"))[1];
+            const double top=std::lerp(shoulderY,chestY,.20);
+            const double bottom=std::lerp(chestY,spineY,.36);
+            std::vector<head_surface::Row> bestRows;
+            const auto fitRows = [&](const std::vector<head_surface::Row>& outline) {
+                std::vector<head_surface::Row> rows;
+                if (!(top<chestY && chestY<bottom)) return rows;
+                for (const auto& row : outline) {
+                    if (row.y<top || row.y>bottom || row.bounds[0]>=-.12 || row.bounds[1]<=.12 ||
+                        row.bounds[1]-row.bounds[0]>1.6) continue;
+                    rows.push_back(row);
+                }
+                if (rows.size()<5 || rows.front().y>std::lerp(top,bottom,.25) ||
+                    rows.back().y<std::lerp(top,bottom,.75) ||
+                    std::adjacent_find(rows.begin(),rows.end(),[&](const auto& a,const auto& b) {
+                        return b.y-a.y>.30*(bottom-top);
+                    })!=rows.end()) rows.clear();
+                return rows;
+            };
+            // Pick a continuous front garment outline in the chest band. A
+            // broad box alone can also describe a cape, sleeve, or accessory.
+            compat::Slice<double> bestOrder;
+            for (const auto& domain : domains) {
+                if (at(domain,"chart").as_string().view()!="topwear_front" ||
+                    at(domain,"owner").as_string().view()!="torso") continue;
+                for (const auto& id : at(domain,"parts").sourceArrayValue()) {
+                    const auto material=aa(materials,ngRigUnsigned(id),289);
+                    if (material.sourceObjectRef().if_contains("receiver")) continue;
+                    auto outline=ngRigPoints(at(material,"cloud"));
+                    for (auto& p : outline) p=bodyFrame.affineTo(p);
+                    auto rows=fitRows(head_surface::outlineRows(outline,head_surface::Frame{},.008));
+                    if (rows.empty()) continue;
+                    auto order=ngRigNumbers(ngRigGet(material,literalKey("draw_order_zsort_path"),
+                        Json(SettingsJsonArray{})));
+                    // Smaller zSort is in front. Use coverage for tied paths.
+                    if (bestRows.empty() || std::ranges::lexicographical_compare(order,bestOrder) ||
+                        (std::ranges::equal(order,bestOrder) && rows.size()>bestRows.size())) {
+                        bestRows=std::move(rows);
+                        bestOrder=std::move(order);
+                    }
+                }
+            }
+            if (bestRows.empty()) bestRows=fitRows(torsoRows);
+            if (!bestRows.empty()) {
+                for (std::size_t side=0;side<integratedChest.size();++side) {
+                    const bool positive=side==1;
+                    std::vector<head_surface::Row> rows;
+                    for (const auto& row : bestRows) {
+                        const double outer=(head_surface::sample(bestRows,row.y-.025)[side]+
+                            2.*row.bounds[side]+head_surface::sample(bestRows,row.y+.025)[side])*.25;
+                        rows.push_back({row.y,positive ? Point2{0.,outer} : Point2{outer,0.}});
+                    }
+                    const auto span=head_surface::sample(rows,chestY);
+                    const Point2 center{std::midpoint(span[0],span[1]),chestY};
+                    integratedChest[side]=ChestArc{center,top,bottom,std::move(rows),positive,0.,
+                        sizeRelief(center,span,bottom-top,positive)};
+                }
+            }
+        }
+        for (const auto& domain : domains) {
+            const auto chart = at(domain,"chart").as_string().view();
+            if (!chart.starts_with("chest_volume")) continue;
+            auto frame = bodyFrame;
+            std::array<double,4> fitted{inf,inf,-inf,-inf};
+            compat::Slice<Point2> primaryOutline;
+            double primaryArea = 0.;
+            for (const auto id : at(domain,"parts").sourceArrayValue()) {
+                const auto material = aa(materials,ngRigUnsigned(id),289);
+                if (material.sourceObjectRef().if_contains("receiver")) continue;
+                auto outline = ngRigPoints(at(material,"cloud"));
+                std::array<double,4> bounds{inf,inf,-inf,-inf};
+                for (auto& point : outline) {
+                    point=frame.affineTo(point);
+                    bounds[0]=std::min(bounds[0],point[0]); bounds[1]=std::min(bounds[1],point[1]);
+                    bounds[2]=std::max(bounds[2],point[0]); bounds[3]=std::max(bounds[3],point[1]);
+                }
+                if (bounds[2]<=bounds[0] || bounds[3]<=bounds[1]) continue;
+                const double area = (bounds[2]-bounds[0])*(bounds[3]-bounds[1]);
+                if (area > primaryArea) {
+                    primaryArea=area;
+                    primaryOutline=std::move(outline);
+                    fitted=bounds;
+                }
+            }
+            ChestProfile profile;
+            profile.hasLeft = chart != "chest_volume:l";
+            profile.hasRight = chart != "chest_volume:r";
+            if (fitted[2] > fitted[0] && fitted[3] > fitted[1]) {
+                const double center = std::midpoint(fitted[0],fitted[2]);
+                const double height = fitted[3]-fitted[1];
+                const double y = fitted[1]+.53*height;
+                const bool joined = profile.hasLeft && profile.hasRight;
+                const double half = (fitted[2]-fitted[0])*(joined ? .25 : .5);
+                profile.left=frame.toFrame(chestPoint({center-(joined ? half : 0.),y}));
+                profile.right=frame.toFrame(chestPoint({center+(joined ? half : 0.),y}));
+                profile.radius={half*1.12,.47*height};
+                profile.fallbackRelief=projectedChestRelief(2.*half*bodyWidth/torso,height,
+                    (joined ? half : std::abs(center))*bodyWidth/torso,0.);
+                const double splitX = joined ? std::clamp(0.,fitted[0]+half,fitted[2]-half) : 0.;
+                const auto fitArc = [&](bool positive) {
+                    auto arc=fitChestArc(primaryOutline,splitX,positive,joined);
+                    if (arc) {
+                        const auto span=head_surface::sample(arc->rows,arc->center[1]);
+                        const double height=arc->rows.back().y-arc->rows.front().y;
+                        const auto point=frame.toFrame(chestPoint(arc->center));
+                        arc->crestDepth=chestBaseDepth(point)+sizeRelief(arc->center,span,height,positive);
+                    }
+                    return arc;
+                };
+                if (profile.hasLeft) {
+                    profile.leftArc=fitArc(false);
+                }
+                if (profile.hasRight) {
+                    profile.rightArc=fitArc(true);
+                }
+            }
+            chestProfiles[at(domain,"id").as_string()] = profile;
+        }
+    }
+    ChestPair layeredChest;
+    for (const auto& entry : chestProfiles) {
+        if (entry.second.leftArc) layeredChest.left = &*entry.second.leftArc;
+        if (entry.second.rightArc) layeredChest.right = &*entry.second.rightArc;
+    }
+    const ChestPair integratedPair{integratedChest[0] ? &*integratedChest[0] : nullptr,
+        integratedChest[1] ? &*integratedChest[1] : nullptr};
+    const auto integratedReliefAt = [&](Point2 p) {
+        if (!integratedPair) return 0.;
+        const auto weights = integratedPair.weights(bodyFrame.affineTo(p));
+        return weights[0]*integratedPair.left->relief + weights[1]*integratedPair.right->relief;
+    };
     std::array<double,4> extent={inf,inf,-inf,-inf}; detail::RegisteredStringAA<Json> registered;
-    for(auto domain:at(program,"domains").sourceArrayValue()) {
+    for(auto domain:domains) {
         auto carrier=at(at(program,"carriers"),std::size_t{0});
         for(auto c:at(program,"carriers").sourceArrayValue()) {
             const auto carrierId=at(c,"domain_id").as_string();
@@ -300,6 +673,20 @@ Json ngRigRegisterProgram(Json program, Json observation) {
             if(carrierId.view()==domainId.view()) { carrier=c; break; }
         }
         const auto owner=at(domain,"owner").as_string();
+        const auto chart = at(domain,"chart").as_string();
+        const bool chestLayer = chart.view().starts_with("chest_volume");
+        const bool chestAttachment = chart.view()=="attachment:chest";
+        const bool splitCover = feminineChestDepth && hasChestLayers &&
+            (chart.view()=="topwear_front" || chestAttachment);
+        const bool integratedCover = integratedChest.front().has_value() && owner.view()=="torso" &&
+            (chart.view()=="body" || chart.view()=="topwear_front" || chestAttachment);
+        std::vector<ChestProfile> profiles;
+        if (feminineChestDepth) {
+            if (chestLayer) profiles.push_back(aa(chestProfiles,at(domain,"id").as_string().view(),289));
+            else if (splitCover) {
+                for (const auto& entry : chestProfiles) profiles.push_back(entry.second);
+            }
+        }
         bool bilateral=owner.view()=="arm:both" || owner.view()=="leg:both";
         const std::string_view family=owner.view().starts_with("arm:")?"arm":"leg";
         const auto role=bilateral?core::settings::SettingsString(joinEnforceMessage(family,"/r")):
@@ -343,6 +730,38 @@ Json ngRigRegisterProgram(Json program, Json observation) {
             const auto landmarkName=label.as_string();
             auto p=sub(aa(frameLandmarks,landmarkName.view(),307),origin);
             if(p[0]>=bounds[0] && p[0]<=bounds[2] && p[1]>=bounds[1] && p[1]<=bounds[3]) { ax.append(p[0]); ay.append(p[1]); }
+        }
+        const auto anchorChestPoint = [&](Point2 world, compat::Slice<double>& xAnchors,
+                compat::Slice<double>& yAnchors) {
+            const auto p = sub(world,origin);
+            if (p[0]>bounds[0] && p[0]<bounds[2]) xAnchors.append(p[0]);
+            if (p[1]>bounds[1] && p[1]<bounds[3]) yAnchors.append(p[1]);
+        };
+        const auto anchorSaddle = [&](const ChestPair& pair, compat::Slice<double>& xAnchors,
+                compat::Slice<double>& yAnchors) {
+            if (!pair) return;
+            const double top = std::max(pair.left->top,pair.right->top);
+            const double bottom = std::min(pair.left->bottom,pair.right->bottom);
+            if (top>=bottom) return;
+            for (const double t : {.25,.5,.75}) {
+                const double y = std::lerp(top,bottom,t);
+                const auto l = head_surface::sample(pair.left->rows,y);
+                const auto r = head_surface::sample(pair.right->rows,y);
+                const double saddle = std::midpoint(l[1],r[0]);
+                for (const double x : {std::midpoint(pair.left->sectionCenter(l),saddle),
+                        saddle,std::midpoint(saddle,pair.right->sectionCenter(r))})
+                    anchorChestPoint(chestPoint({x,y}),xAnchors,yAnchors);
+            }
+        };
+        const bool useLayeredPair = (chestLayer || splitCover) && static_cast<bool>(layeredChest);
+        if (useLayeredPair) anchorSaddle(layeredChest,ax,ay);
+        for (const auto& profile : profiles) {
+            const auto left = profile.leftArc ? chestPoint(profile.leftArc->center) : f.fromFrame(profile.left);
+            const auto right = profile.rightArc ? chestPoint(profile.rightArc->center) : f.fromFrame(profile.right);
+            if (profile.hasLeft) anchorChestPoint(left,ax,ay);
+            if (profile.hasRight) anchorChestPoint(right,ax,ay);
+            if (profile.hasLeft && profile.hasRight)
+                anchorChestPoint({std::midpoint(left[0],right[0]),std::midpoint(left[1],right[1])},ax,ay);
         }
         auto xs=anchoredAxis(bounds[0],bounds[2],nx,ax),ys=anchoredAxis(bounds[1],bounds[3],ny,ay);
         // Keep the original validation reads even though evaluation below reads each current component again.
@@ -389,8 +808,41 @@ Json ngRigRegisterProgram(Json program, Json observation) {
                 const auto fieldYs = ngRigNumbers(at(current,"axis_y"));
                 const auto fieldRelief = ngRigNumbers(at(at(current,"depth"),"relief"));
                 const auto framePoint = field.toFrame(p);
-                const auto sampled = sample(fieldXs,fieldYs,fieldRelief,framePoint);
+                auto sampled = sample(fieldXs,fieldYs,fieldRelief,framePoint);
+                if (role.view() == "torso" || role.view() == "topwear/front") {
+                    sampled = neutralChestRelief(fieldXs, fieldYs, fieldRelief, framePoint, sampled);
+                }
                 auto surfaceDepth = (planeOffset + sampled) * currentUnit;
+                double chestRelief = 0.;
+                const auto chestLocal = bodyFrame.affineTo(p);
+                if (useLayeredPair) {
+                    const auto weights = layeredChest.weights(chestLocal);
+                    const double clearance = chestAttachment ? .006 : 0.;
+                    const double left = (layeredChest.left->crestDepth+clearance)*currentUnit;
+                    const double right = (layeredChest.right->crestDepth+clearance)*currentUnit;
+                    // Evaluate both volumes against the same base. Sequential
+                    // interpolation lets the last lobe overwrite the saddle.
+                    surfaceDepth += (weights[0]*(left-surfaceDepth)+weights[1]*(right-surfaceDepth)) /
+                        std::max(1.,weights[0]+weights[1]);
+                } else for (const auto& profile : profiles) {
+                    chestRelief+=profile.fallbackReliefAt(framePoint);
+                    for (const auto* arc : {&profile.leftArc,&profile.rightArc}) {
+                        if (!*arc) continue;
+                        const double weight=(*arc)->blendAt(chestLocal);
+                        const double clearance=splitCover && chestAttachment ? .006 : 0.;
+                        // Blend to a common crest so the underlying torso slope
+                        // cannot pull the fitted peak toward the sternum.
+                        surfaceDepth=std::lerp(surfaceDepth,((*arc)->crestDepth+clearance)*currentUnit,weight);
+                    }
+                }
+                if (chestRelief > 0. && splitCover && chestAttachment) {
+                    // Follow the same underlying surface where the straps pass
+                    // over the bust, and blend back to their own field at its edge.
+                    const double cover = chestBaseDepth(framePoint);
+                    surfaceDepth = std::lerp(surfaceDepth,(cover+.006)*currentUnit,
+                        head_surface::ease(chestRelief/.035));
+                }
+                surfaceDepth += chestRelief * currentUnit;
                 if (role.view()=="hair_back") {
                     // The posterior cap meets the skull's middle plane at its
                     // rim, not the anterior facial surface. Keep hanging hair
@@ -420,14 +872,46 @@ Json ngRigRegisterProgram(Json program, Json observation) {
             }
             depths.append(depth/total);
         }
+        if (integratedCover && integratedPair) {
+            // Subdivide the sampled surface so the chest peaks are represented
+            // without redistributing the original samples at the waist or shoulders.
+            auto xAnchors=xs.duplicate(), yAnchors=ys.duplicate();
+            const auto anchor = [&](Point2 p) { anchorChestPoint(chestPoint(p),xAnchors,yAnchors); };
+            for (const auto& side : integratedChest) {
+                const auto& arc=*side;
+                const auto span=head_surface::sample(arc.rows,arc.center[1]);
+                anchor({span[arc.positiveSide ? 1 : 0],arc.center[1]});
+                anchor(arc.center);
+                for (const double y : {arc.top,std::midpoint(arc.top,arc.center[1]),
+                        std::midpoint(arc.center[1],arc.bottom),arc.bottom})
+                    anchor({arc.center[0],y});
+            }
+            anchor({0.,integratedChest.front()->center[1]});
+            anchorSaddle(integratedPair,xAnchors,yAnchors);
+            auto refinedXs=anchoredAxis(bounds[0],bounds[2],0,xAnchors);
+            auto refinedYs=anchoredAxis(bounds[1],bounds[3],0,yAnchors);
+            compat::Slice<Point2> refinedPoints;
+            compat::Slice<double> refinedDepths;
+            for (double y : refinedYs) for (double x : refinedXs) {
+                const Point2 p{x+origin[0],y+origin[1]};
+                refinedPoints.append(p);
+                // Use one additive field for the body, cloth, and its attachments.
+                refinedDepths.append(sample(xs,ys,depths,{x,y})+integratedReliefAt(p)*torso);
+            }
+            xs=std::move(refinedXs); ys=std::move(refinedYs);
+            points=std::move(refinedPoints); depths=std::move(refinedDepths);
+        }
         set(carrier,"xs",numbersJson(xs)); set(carrier,"ys",numbersJson(ys)); set(carrier,"points",ngRigPointsJson(points));
         set(carrier,"parent_to_root",array({1.,0.,origin[0],0.,1.,origin[1]}));
         set(carrier,"bounds",array({bounds[0]+origin[0],bounds[1]+origin[1],bounds[2]+origin[0],bounds[3]+origin[1]}));
         set(carrier,"depth_model_units",numbersJson(depths));
         set(carrier,"reference_component",bilateral?
-            core::settings::SettingsString(joinEnforceMessage(family,"/both")):role);
+            core::settings::SettingsString(joinEnforceMessage(family,"/both")):(chestLayer ? chart : role));
         if(auto binding=component.sourceObjectRef().if_contains("bone_binding");binding && !bilateral) {
             set(carrier,"bones",at(*binding,"bones")); set(carrier,"bone_influence_rule",at(*binding,"influence_rule"));
+        } else if ((splitCover || integratedCover) && chestAttachment) {
+            set(carrier,"bones",array({literalKey("Pelvis"),literalKey("Spine"),literalKey("Chest"),
+                literalKey("Neck")}));
         }
         auto b=ngRigNumbers(at(carrier,"bounds"));
         for(std::size_t i=0;i<2;++i) {
@@ -509,7 +993,11 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     const double torsoPlane=ngRigNumber(at(torsoDepth,"plane_offset"))+
         ngRigNumber(at(at(common,"bone_z"),at(torsoDepth,"origin").as_string().view()));
     const auto torsoZ = [&](Point2 p) {
-        return torso*(torsoPlane+sample(torsoXs,torsoYs,torsoRelief,torsoFrame.toFrame(p)));
+        const auto point = torsoFrame.toFrame(p);
+        const double reference = sample(torsoXs, torsoYs, torsoRelief, point);
+        const double volume = integratedReliefAt(p);
+        return torso * (torsoPlane + neutralChestRelief(
+            torsoXs, torsoYs, torsoRelief, point, reference) + volume);
     };
     Json neckMaterial, faceMaterial;
     std::size_t faceArea=0;
@@ -862,78 +1350,66 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     }
     if (hairShell) {
         set(program,"front_hair_shell",hair_surface::encode(*hairShell));
-        const auto filmDepth=[&](Json& surface, double offset) {
+        const auto paintSideHair=[&](Json& surface, double separation, int sideOfFace) {
+            hair_surface::SideLayer layer{faceWidth,separation,{}};
+            if (sideOfFace<0) {
+                const auto landmarks=at(program,"head_anatomical_landmarks");
+                const auto left=ngRigNumbers(at(landmarks,"left_ear"));
+                const auto right=ngRigNumbers(at(landmarks,"right_ear"));
+                const auto leftLocal=hairShell->frame.local({left[0],left[1]});
+                const auto rightLocal=hairShell->frame.local({right[0],right[1]});
+                const auto bounds=ngRigNumbers(at(surface,"bounds"));
+                const auto center=hairShell->frame.local({std::midpoint(bounds[0],bounds[2]),
+                    std::midpoint(bounds[1],bounds[3])});
+                const bool onLeft=center[0]<std::midpoint(leftLocal[0],rightLocal[0]);
+                layer.rear=contracts::Point3{onLeft ? leftLocal[1] : rightLocal[1],onLeft ? left[2] : right[2],
+                    ngRigNumber(at(landmarks,"neck_back"))};
+            }
+            compat::Slice<double> depths;
+            for (const auto p : ngRigPoints(at(surface,"points"))) depths.append(layer.depth(*hairShell,p));
+            set(surface,"depth_model_units",numbersJson(depths));
+            set(surface,"hair_side_shell",layer.encode());
+            set(surface,"hair_depth_side_of_face",sideOfFace);
+        };
+        const auto compareDrawOrder=[](const auto& a, const auto& b) {
+            for (std::size_t i=0; i<std::min(a.size(),b.size()); ++i) {
+                if (a[i]>b[i]) return -1; // Larger zSort is drawn farther back.
+                if (a[i]<b[i]) return 1;
+            }
+            return 0;
+        };
+        const auto faceOrder=ngRigNumbers(ngRigGet(faceMaterial,literalKey("draw_order_zsort_path"),
+            Json(SettingsJsonArray{})));
+        std::set<Json*> paintedSideHair;
+        for (auto& [side,layers] : sideLayers) {
+            std::stable_sort(layers.begin(),layers.end(),[&](const auto& a,const auto& b) {
+                if (a.drawOrder.empty()!=b.drawOrder.empty()) return !a.drawOrder.empty();
+                const int order=compareDrawOrder(a.drawOrder,b.drawOrder);
+                if (order) return order<0;
+                if (a.drawOrder.size()!=b.drawOrder.size()) return a.drawOrder.size()<b.drawOrder.size();
+                return a.sourceOrder<b.sourceOrder;
+            });
+            std::erase_if(layers,[&](const auto& layer) {
+                return !paintedSideHair.insert(layer.surface).second;
+            });
+            for (std::size_t rank=0; rank<layers.size(); ++rank) {
+                const auto& layer=layers[rank];
+                const double separation=(.004+.012*(layers.size()-rank-1.)/layers.size())*faceWidth;
+                paintSideHair(*layer.surface,separation,compareDrawOrder(layer.drawOrder,faceOrder));
+            }
+        }
+        for (const auto& domain : at(program,"domains").sourceArrayValue()) {
+            auto& surface=aa(registered,at(domain,"id").as_string().view(),401);
+            const auto role=at(surface,"reference_component").as_string().view();
+            if (role.starts_with("hair_side/") && !paintedSideHair.contains(&surface))
+                paintSideHair(surface,.004*faceWidth,0);
+            if (role!="hair_front") continue;
+            const double offset=.012*faceWidth;
             compat::Slice<double> depths;
             for (const auto p : ngRigPoints(at(surface,"points"))) depths.append(hairShell->depth(p)+offset);
             set(surface,"depth_model_units",numbersJson(depths));
             set(surface,"hair_shell_offset",offset);
-        };
-        if (const auto fringe=byRole.find("hair_front"); fringe!=byRole.end()) {
-            filmDepth(*fringe->second,.012*faceWidth);
         }
-    }
-    const auto compareDrawOrder = [](const auto& a, const auto& b) {
-        for (std::size_t i=0; i<std::min(a.size(),b.size()); ++i) {
-            if (a[i]>b[i]) return -1; // Larger zSort is drawn farther back.
-            if (a[i]<b[i]) return 1;
-        }
-        return 0;
-    };
-    const auto faceOrder = faceMaterial.is_null() ? compat::Slice<double>{} :
-        ngRigNumbers(ngRigGet(faceMaterial,literalKey("draw_order_zsort_path"),Json(SettingsJsonArray{})));
-    std::set<Json*> paintedSideHair;
-    for (auto& [side,layers] : sideLayers) {
-        std::stable_sort(layers.begin(),layers.end(),[&](const auto& a,const auto& b) {
-            // Old observations can lack a zSort path. Keep their source order.
-            if (a.drawOrder.empty()!=b.drawOrder.empty()) return !a.drawOrder.empty();
-            const int order=compareDrawOrder(a.drawOrder,b.drawOrder);
-            if (order) return order<0;
-            if (a.drawOrder.size()!=b.drawOrder.size()) return a.drawOrder.size()<b.drawOrder.size();
-            return a.sourceOrder<b.sourceOrder;
-        });
-        for (std::size_t rank=0; rank<layers.size(); ++rank) {
-            auto& layer=layers[rank];
-            auto& surface=*layer.surface;
-            if (!paintedSideHair.insert(&surface).second) continue;
-            const int sideOfFace=compareDrawOrder(layer.drawOrder,faceOrder);
-            const auto points=ngRigPoints(at(surface,"points"));
-            auto depths=ngRigNumbers(at(surface,"depth_model_units"));
-            const double rankFactor=(rank+1.)/layers.size();
-            const double gap=(.012+.005*(sideOfFace<0 ? 1.-rankFactor : rankFactor))*faceWidth;
-            double shift=hairShell ? gap : 0.;
-            if (hairShell) for (std::size_t i=0;i<points.size();++i) depths[i]=hairShell->depth(points[i]);
-            if (sideOfFace && face!=byRole.end()) {
-                const auto& skin=*face->second;
-                const auto xs=ngRigNumbers(at(skin,"xs")), ys=ngRigNumbers(at(skin,"ys"));
-                const auto z=ngRigNumbers(at(skin,"depth_model_units"));
-                const auto m=ngRigNumbers(at(skin,"parent_to_root"));
-                const double det=m[0]*m[4]-m[1]*m[3];
-                if (std::abs(det)>1e-10) {
-                    shift=sideOfFace<0 ? std::min(0.,shift) : std::max(0.,shift);
-                    for (std::size_t i=0;i<points.size();++i) {
-                        const double x=points[i][0]-m[2], y=points[i][1]-m[5];
-                        const double skinDepth=sample(xs,ys,z,{(m[4]*x-m[1]*y)/det,(m[0]*y-m[3]*x)/det});
-                        const double offset=skinDepth+sideOfFace*gap-depths[i];
-                        shift=sideOfFace<0 ? std::min(shift,offset) : std::max(shift,offset);
-                    }
-                    set(surface,"hair_depth_side_of_face",sideOfFace);
-                }
-            }
-            for (auto& depth : depths) depth+=shift;
-            set(surface,"depth_model_units",numbersJson(depths));
-            if (hairShell) set(surface,"hair_shell_offset",shift);
-        }
-    }
-    if (hairShell) for (const auto& domain : at(program,"domains").sourceArrayValue()) {
-        auto& surface=aa(registered,at(domain,"id").as_string().view(),401);
-        const auto part=at(surface,"reference_component").as_string().view();
-        if ((!part.starts_with("hair_side/") || paintedSideHair.contains(&surface)) && part!="hair_front") continue;
-        if (surface.sourceObjectRef().if_contains("hair_shell_offset")) continue;
-        const double offset=.012*faceWidth;
-        compat::Slice<double> depths;
-        for (const auto p : ngRigPoints(at(surface,"points"))) depths.append(hairShell->depth(p)+offset);
-        set(surface,"depth_model_units",numbersJson(depths));
-        set(surface,"hair_shell_offset",offset);
     }
     // Hair layers already have their own fitted surface and placement.
     // Apply facial relief after that placement so padded face samples cannot

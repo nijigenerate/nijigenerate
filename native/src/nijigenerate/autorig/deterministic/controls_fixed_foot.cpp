@@ -123,7 +123,7 @@ core::settings::SettingsJsonValue fixedFootKey(core::settings::SettingsJsonValue
         offsets.append(local[1]);
         posed.append(contracts::Point2{x + local[0], y + local[1]});
     }
-    auto validation = geometry::ngRigValidateGrid(posed, xs.size(), .05, rest);
+    auto validation = geometry::ngRigValidateGrid(posed, xs.size(), .05, rest, geometry::GridOrientation::Report);
     SettingsJsonObject operation;
     operation["grid"] = target.sourceIndexValue("grid");
     operation["parameter"] = "Body::Roll";
@@ -196,8 +196,9 @@ core::settings::SettingsJsonValue ngRigCompileFixedFootCorrections(core::setting
                     controls_detail::enforce(offsets.size()==rest.size()*2,"Native leg roll size mismatch",531);
                     auto posed=rest.duplicate();for(std::size_t i=0;i<rest.size();++i)
                         for(std::size_t axis=0;axis<2;++axis)posed[i][axis]+=offsets[i*2+axis];
-                    try{geometry::ngRigValidateGrid(posed,prepared.xs.size(),.02,rest);}
-                    catch(const compat::ThrowableException&){folded=true;}
+                    const auto validation = geometry::ngRigValidateGrid(posed,prepared.xs.size(),.02,rest,
+                        geometry::GridOrientation::Report);
+                    folded |= !validation.sourceIndexValue("local_orientation_preserved").as_bool();
                 }
                 if(!folded)continue;
             }

@@ -10,6 +10,7 @@
 #include <functional>
 #include <string_view>
 #include <new>
+#include <ranges>
 #include <source_location>
 #include <stdexcept>
 #include <type_traits>
@@ -261,5 +262,225 @@ Slice<std::ptrdiff_t> ngMatchWeldingVertices(std::span<const Vec2> source,
         indices[candidate.source] = static_cast<std::ptrdiff_t>(candidate.target);
     }
     return indices;
+}
+
+namespace {
+constexpr float overlapTolerance = .001f;
+using Triangle = std::array<std::uint16_t, 3>;
+
+double cross(Vec2 a, Vec2 b) {
+    return double(a.x) * b.y - double(a.y) * b.x;
+}
+
+WeldingBounds vertexBounds(std::span<const Vec2> vertices) {
+    WeldingBounds box{INFINITY, INFINITY, -INFINITY, -INFINITY};
+    for (auto p : vertices) {
+        box[0]=std::min(box[0],p.x); box[1]=std::min(box[1],p.y);
+        box[2]=std::max(box[2],p.x); box[3]=std::max(box[3],p.y);
+    }
+    return box;
+}
+
+std::array<double,3> edgeDistances(Vec2 p, const std::array<Vec2,3>& face) {
+    const double winding=cross(subtract(face[1],face[0]),subtract(face[2],face[0]));
+    if (std::abs(winding)<1e-12) return {-INFINITY,-INFINITY,-INFINITY};
+    std::array<double,3> result;
+    for (std::size_t i=0;i<3;++i) {
+        const auto edge=subtract(face[(i+1)%3],face[i]);
+        result[i]=std::copysign(1.,winding)*cross(edge,subtract(p,face[i]))/std::hypot(edge.x,edge.y);
+    }
+    return result;
+}
+
+class WeldingTriangleIndex {
+public:
+    WeldingTriangleIndex(std::span<const Vec2> vertices, std::span<const std::uint16_t> indices)
+        : vertices(vertices), box(vertexBounds(vertices)) {
+        if (indices.size()%3 || std::ranges::any_of(indices,[&](auto i){return i>=vertices.size();}))
+            throw std::runtime_error("Invalid Welding mesh triangles");
+        if (vertices.empty()) return;
+        if (std::ranges::any_of(vertices,[](Vec2 p){return !std::isfinite(p.x)||!std::isfinite(p.y);}))
+            throw std::runtime_error("Nonfinite Welding mesh vertex");
+        for (std::size_t i=0;i<indices.size();i+=3) {
+            const Triangle face{indices[i],indices[i+1],indices[i+2]};
+            const auto bounds=vertexBounds(points(face));
+            const auto [x0,y0]=cell({bounds[0]-overlapTolerance,bounds[1]-overlapTolerance});
+            const auto [x1,y1]=cell({bounds[2]+overlapTolerance,bounds[3]+overlapTolerance});
+            for (auto x=x0;x<=x1;++x) for (auto y=y0;y<=y1;++y)
+                buckets[y*width+x].push_back(faces.size());
+            faces.push_back(face);
+        }
+    }
+
+    std::vector<std::size_t> at(Vec2 p) const {
+        std::vector<std::size_t> result;
+        if (faces.empty() || p.x<box[0]-overlapTolerance || p.x>box[2]+overlapTolerance ||
+            p.y<box[1]-overlapTolerance || p.y>box[3]+overlapTolerance) return result;
+        const auto [x,y]=cell(p);
+        for (auto face : buckets[y*width+x])
+            if (std::ranges::min(edgeDistances(p,points(faces[face])))>=-overlapTolerance)
+                result.push_back(face);
+        return result;
+    }
+
+    std::vector<Triangle> faces;
+private:
+    static constexpr int width=48;
+    std::array<int,2> cell(Vec2 p) const {
+        const auto axis=[](float x,float low,float high) {
+            return static_cast<int>(std::clamp((double(x)-low)/std::max(.001,double(high)-low)*width,0.,width-1.));
+        };
+        return {axis(p.x,box[0],box[2]),axis(p.y,box[1],box[3])};
+    }
+    std::array<Vec2,3> points(const Triangle& face) const {
+        return {vertices[face[0]],vertices[face[1]],vertices[face[2]]};
+    }
+    std::span<const Vec2> vertices;
+    WeldingBounds box;
+    std::array<std::vector<std::size_t>,width*width> buckets;
+};
+
+class OverlapVertices {
+public:
+    explicit OverlapVertices(WeldingMeshRefinement& mesh, float tolerance = overlapTolerance)
+        : mesh(mesh), tolerance(tolerance) {
+        for (std::size_t i=0; i<mesh.vertices.size(); ++i) record(i);
+    }
+    std::size_t find(Vec2 point) const {
+        const auto [x,y]=cell(point);
+        auto nearest=mesh.vertices.size();
+        float nearestDistance=tolerance*tolerance;
+        for (int dx=-1; dx<=1; ++dx) for (int dy=-1; dy<=1; ++dy) {
+            const auto bucket=buckets.find({x+dx,y+dy});
+            if (bucket==buckets.end()) continue;
+            for (auto i : bucket->second) {
+                const auto delta=subtract(mesh.vertices[i],point);
+                const auto squared=delta.x*delta.x+delta.y*delta.y;
+                if (squared<nearestDistance || (squared==nearestDistance && i<nearest)) {
+                    nearestDistance=squared;
+                    nearest=i;
+                }
+            }
+        }
+        return nearest;
+    }
+    std::uint16_t get(Vec2 point) {
+        const auto nearest=find(point);
+        return nearest<mesh.vertices.size() ? static_cast<std::uint16_t>(nearest) : add(point);
+    }
+    std::uint16_t add(Vec2 point) {
+        const auto nearest=mesh.vertices.size();
+        if (nearest>std::numeric_limits<std::uint16_t>::max())
+            throw std::runtime_error("Welding overlap exceeds the mesh vertex limit");
+        mesh.vertices.append(point);
+        ++mesh.addedVertices;
+        record(nearest);
+        return static_cast<std::uint16_t>(nearest);
+    }
+private:
+    std::array<std::int64_t,2> cell(Vec2 p) const {
+        return {static_cast<std::int64_t>(std::floor(p.x/tolerance)),
+            static_cast<std::int64_t>(std::floor(p.y/tolerance))};
+    }
+    void record(std::size_t index) {
+        auto bucket=buckets[cell(mesh.vertices[index])];
+        static_cast<std::vector<std::size_t>&>(bucket).push_back(index);
+    }
+    WeldingMeshRefinement& mesh;
+    float tolerance;
+    PairMap<std::int64_t,std::vector<std::size_t>> buckets;
+};
+
+}
+
+WeldingSurfaceRefinement ngRefineWeldingOverlap(
+    std::span<const Vec2> firstPoints, std::span<const std::uint16_t> firstIndices,
+    std::span<const Vec2> secondPoints, std::span<const std::uint16_t> secondIndices,
+    std::optional<WeldingBounds> bounds,
+    std::optional<std::array<std::size_t, 2>> originalVertexCounts) {
+    const WeldingTriangleIndex first(firstPoints,firstIndices), second(secondPoints,secondIndices);
+    const auto withinBounds=[&](Vec2 p) {
+        return !bounds || (p.x>=(*bounds)[0] && p.y>=(*bounds)[1] &&
+            p.x<=(*bounds)[2] && p.y<=(*bounds)[3]);
+    };
+    WeldingMeshRefinement samples;
+    constexpr float mergeDistance=.25f;
+    OverlapVertices representatives(samples,mergeDistance);
+    const auto gather=[&](auto points, auto indices, std::size_t limit, const WeldingTriangleIndex& other) {
+        std::vector<std::ptrdiff_t> group(points.size(),-1);
+        std::vector<bool> used(points.size());
+        for (auto i : indices) used[i]=true;
+        for (std::size_t i=0;i<std::min(points.size(),limit);++i)
+            if (used[i] && withinBounds(points[i]) && !other.at(points[i]).empty())
+                group[i]=representatives.get(points[i]);
+        return group;
+    };
+    const auto limits = originalVertexCounts.value_or(std::array{firstPoints.size(), secondPoints.size()});
+    const auto firstGroups=gather(firstPoints,firstIndices,limits[0],second);
+    const auto secondGroups=gather(secondPoints,secondIndices,limits[1],first);
+    WeldingSurfaceRefinement result{
+        {duplicateArray(firstPoints),{},0},{duplicateArray(secondPoints),{},0},
+        allocateValues<std::ptrdiff_t>(firstPoints.size(),-1)};
+    const auto refine=[&](auto& mesh,const WeldingTriangleIndex& input,auto groups,auto original) {
+        OverlapVertices vertices(mesh);
+        std::vector<std::uint16_t> shared;
+        for (auto p : samples.vertices) shared.push_back(vertices.get(p));
+        std::vector<std::vector<std::size_t>> insertions(input.faces.size());
+        for (std::size_t i=0;i<shared.size();++i)
+            for (auto face : input.at(samples.vertices[i]))
+                insertions[face].push_back(i);
+        const auto canDraw=[&](const Triangle& face) {
+            const auto a=mesh.vertices[face[0]], b=mesh.vertices[face[1]], c=mesh.vertices[face[2]];
+            return std::abs(cross(subtract(b,a),subtract(c,a)))>1e-12;
+        };
+        std::vector<bool> used(mesh.vertices.size());
+        for (std::size_t i=0;i<input.faces.size();++i) {
+            auto triangle=input.faces[i];
+            const auto originalTriangle=triangle;
+            for (auto& j : triangle)
+                if (groups[j]>=0) j=shared[groups[j]];
+            std::vector<Triangle> faces;
+            if (triangle==originalTriangle || canDraw(triangle)) faces.push_back(triangle);
+            for (auto sample : insertions[i]) {
+                const auto point=shared[sample];
+                const auto count=faces.size();
+                for (std::size_t j=0;j<count;++j) {
+                    const auto face=faces[j];
+                    if (std::ranges::find(face,point)!=face.end()) continue;
+                    const auto sides=edgeDistances(mesh.vertices[point],
+                        {mesh.vertices[face[0]],mesh.vertices[face[1]],mesh.vertices[face[2]]});
+                    if (std::ranges::min(sides)<-overlapTolerance) continue;
+                    bool replaced=false;
+                    for (std::size_t k=0;k<3;++k) {
+                        const Triangle split{face[k],face[(k+1)%3],point};
+                        if (sides[k]<=overlapTolerance || !canDraw(split)) continue;
+                        if (!replaced) { faces[j]=split; replaced=true; }
+                        else faces.push_back(split);
+                    }
+                }
+            }
+            for (const auto& face : faces) for (auto point : face) {
+                mesh.indices.append(point);
+                used[point]=true;
+            }
+        }
+        const std::span<const std::uint16_t> generated(mesh.indices.data(),mesh.indices.size());
+        mesh.topologyChanged=!std::ranges::equal(generated,original);
+        std::vector<std::ptrdiff_t> indices(shared.size(),-1);
+        for (std::size_t i=0;i<shared.size();++i)
+            if (used[shared[i]]) indices[i]=shared[i];
+        return indices;
+    };
+    if (samples.vertices.empty()) {
+        result.first.indices=duplicateArray(firstIndices);
+        result.second.indices=duplicateArray(secondIndices);
+        return result;
+    }
+    const auto a=refine(result.first,first,firstGroups,firstIndices);
+    const auto b=refine(result.second,second,secondGroups,secondIndices);
+    result.correspondence.resize(result.first.vertices.size(),-1);
+    for (std::size_t i=0;i<a.size();++i)
+        if (a[i]>=0 && b[i]>=0) result.correspondence[a[i]]=b[i];
+    return result;
 }
 }

@@ -119,7 +119,8 @@ Json ngRigEvaluateTemplate(Json request) {
     auto rotated = ngRigRotate(xyz, pivot, pose); compat::Slice<Point2> projected;
     for (auto p : rotated) projected.append(Point2{p[0], p[1]});
     projected = ngRigLocalCorrections(projected, uv, pose, {0., 0., 0.}, member(definition, "correction_rules"), parameters, width);
-    auto posedValidation = ngRigValidateGrid(projected, xs.size()); Object result;
+    auto posedValidation = ngRigValidateGrid(projected, xs.size(), 1e-8, guide, GridOrientation::Report);
+    Object result;
     result[Text::fromStaticLiteral("schema_version")] =
         core::settings::SettingsString(Text::fromStaticLiteral("rig-template-surface-d/1"));
     result[Text::fromStaticLiteral("template")] = member(definition, "id");

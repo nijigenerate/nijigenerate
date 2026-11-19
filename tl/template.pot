@@ -1439,6 +1439,10 @@ msgstr ""
 msgid "Upward jaw contour correction blend"
 msgstr ""
 
+#: native/src/nijigenerate/panels/autorig_panel.cpp
+msgid "Add feminine chest volume"
+msgstr ""
+
 #: source/nijigenerate/windows/settings.d:586
 msgid "Capturing shortcut..."
 msgstr ""

@@ -66,6 +66,55 @@ std::shared_ptr<actions::mesh::MeshDisconnectAction> IncMeshEditorOneDrawable::n
 
 namespace {
 thread_local bool refiningWeldingMesh = false;
+void applyWeldingRefinement(const std::shared_ptr<nicxlive::core::nodes::Drawable>& drawable,
+    const core::math::welding::WeldingMeshRefinement& refinement) {
+    if (!refinement.addedVertices && !refinement.topologyChanged) return;
+    auto& sourceMesh = drawable->nicxlive::core::nodes::Drawable::getMesh();
+    auto mesh = common::mesh::IncMesh::create(sourceMesh, drawable->mesh);
+    mesh->vertices.resize(0);
+    compat::Slice<compat::Vec3u> triangles;
+    for (std::size_t i = 0; i < refinement.indices.size(); i += 3)
+        triangles.append({refinement.indices[i], refinement.indices[i + 1], refinement.indices[i + 2]});
+    nicxlive::core::math::Vec2Array positions(refinement.vertices.size());
+    for (std::size_t i = 0; i < refinement.vertices.size(); ++i) positions.set(i, refinement.vertices[i]);
+    mesh->importVertsAndTris(positions, triangles);
+    for (std::size_t i = 0, count = drawable->getVertices().size(); i < count; ++i)
+        compat::ngRequireObject(mesh->vertices[i])->originalIndex = i;
+    mesh->refresh();
+    core::math::mesh::applyMeshToTarget(drawable, mesh->vertices, &mesh, true);
+}
+
+void applyWeldingSurface(const std::shared_ptr<nicxlive::core::nodes::Drawable>& drawable,
+    const core::math::welding::WeldingMeshRefinement& refinement) {
+    if (!refinement.addedVertices && !refinement.topologyChanged) return;
+    using nicxlive::core::nodes::MeshData;
+    using core::math::mesh::MeshVertex;
+    // Keep the triangles produced by inserting the missing seam vertices.
+    auto& source = drawable->nicxlive::core::nodes::Drawable::getMesh();
+    struct ExplicitFaces {
+        MeshData* source;
+        compat::Slice<MeshVertex*> vertices;
+        MeshData data;
+        MeshData export_() const { return data; }
+        bool isBasedOn(MeshData& mesh) const { return source == &mesh; }
+    } prepared{&source, {}, {}};
+    std::vector<MeshVertex> samples(refinement.vertices.size());
+    prepared.vertices.resize(samples.size());
+    prepared.data.origin = source.origin;
+    prepared.data.vertices.resize(samples.size());
+    prepared.data.uvs.resize(samples.size());
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        auto& vertex = samples[i];
+        vertex.position = refinement.vertices[i];
+        if (i < source.vertices.size()) vertex.originalIndex = i;
+        prepared.vertices[i] = &vertex;
+        prepared.data.vertices.set(i, vertex.position);
+        prepared.data.uvs.set(i, vertex.position);
+    }
+    prepared.data.indices.resize(refinement.indices.size());
+    std::copy(refinement.indices.begin(), refinement.indices.end(), prepared.data.indices.begin());
+    core::math::mesh::applyMeshToTarget(drawable, prepared.vertices, &prepared, true);
+}
 }
 std::size_t ngRefineWeldingSeams(std::shared_ptr<nicxlive::core::nodes::Drawable> first,
     std::shared_ptr<nicxlive::core::nodes::Drawable> second) {
@@ -75,7 +124,6 @@ std::size_t ngRefineWeldingSeams(std::shared_ptr<nicxlive::core::nodes::Drawable
     if (!std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(coarse) ||
         !std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(fine)) return 0;
     using Vec2 = nicxlive::core::math::Vec2;
-    using Vec2Array = nicxlive::core::math::Vec2Array;
     compat::Slice<Vec2> coarseWorld, coarseLocal, fineWorld;
     const auto coarseVertices = coarse->getVertices();
     for (std::size_t i = 0; i < coarseVertices.size(); ++i) {
@@ -103,21 +151,53 @@ std::size_t ngRefineWeldingSeams(std::shared_ptr<nicxlive::core::nodes::Drawable
     if (!refinement.addedVertices) return 0;
     refiningWeldingMesh = true;
     struct Reset { ~Reset() { refiningWeldingMesh = false; } } reset;
-    auto& sourceMesh = coarse->nicxlive::core::nodes::Drawable::getMesh();
-    const auto sourceMeshOwner = coarse->mesh;
-    auto mesh = common::mesh::IncMesh::create(sourceMesh, sourceMeshOwner);
-    mesh->vertices.resize(0);
-    compat::Slice<compat::Vec3u> triangles;
-    for (std::size_t i = 0; i < refinement.indices.size(); i += 3)
-        triangles.append({refinement.indices[i], refinement.indices[i + 1], refinement.indices[i + 2]});
-    Vec2Array positions(refinement.vertices.size());
-    for (std::size_t i = 0; i < refinement.vertices.size(); ++i) positions.set(i, refinement.vertices[i]);
-    mesh->importVertsAndTris(positions, triangles);
-    for (std::size_t i = 0,count=coarse->getVertices().size(); i < count; ++i)
-        compat::ngRequireObject(mesh->vertices[i])->originalIndex = i;
-    mesh->refresh();
-    core::math::mesh::applyMeshToTarget(coarse, mesh->vertices, &mesh, true);
+    applyWeldingRefinement(coarse, refinement);
     return refinement.addedVertices;
+}
+
+WeldingOverlap ngPrepareWeldingOverlap(
+    const std::shared_ptr<nicxlive::core::nodes::Drawable>& first,
+    const std::shared_ptr<nicxlive::core::nodes::Drawable>& second,
+    const nicxlive::core::math::Mat4& rootToWorld,
+    std::optional<std::array<float, 4>> bounds, std::array<std::size_t, 2> originalVertexCounts) {
+    using nicxlive::core::math::Vec2;
+    const auto worldToRoot = core::math::source_matrix::inverse(rootToWorld);
+    const auto firstToRoot = worldToRoot * first->transform().matrix();
+    const auto secondToRoot = worldToRoot * second->transform().matrix();
+    const auto inRoot = [](const auto& drawable, const auto& transform) {
+        std::vector<Vec2> points;
+        const auto& vertices = drawable->getVertices();
+        points.reserve(vertices.size());
+        for (std::size_t i = 0; i < vertices.size(); ++i) {
+            const auto v = vertices.at(i);
+            const auto p = core::math::ngTransformHomogeneousPoint(transform, {v.x, v.y, 0});
+            points.push_back({p.x, p.y});
+        }
+        return points;
+    };
+    const auto a = inRoot(first, firstToRoot), b = inRoot(second, secondToRoot);
+    const auto& ai = first->nicxlive::core::nodes::Drawable::getMesh().indices;
+    const auto& bi = second->nicxlive::core::nodes::Drawable::getMesh().indices;
+    auto shared = core::math::welding::ngRefineWeldingOverlap(a, {ai.data(), ai.size()},
+        b, {bi.data(), bi.size()}, bounds, originalVertexCounts);
+    const auto refine = [](const auto& drawable, const auto& toRoot, const auto& rootVertices, auto& refinement) {
+        const auto toLocal = core::math::source_matrix::inverse(toRoot);
+        const auto& original = drawable->getVertices();
+        for (std::size_t i = 0; i < refinement.vertices.size(); ++i) {
+            const auto v = refinement.vertices[i];
+            if (i < rootVertices.size() && v.x == rootVertices[i].x && v.y == rootVertices[i].y) {
+                refinement.vertices[i] = original.at(i);
+                continue;
+            }
+            const auto p = core::math::ngTransformHomogeneousPoint(toLocal, {v.x, v.y, 0});
+            refinement.vertices[i] = {p.x, p.y};
+        }
+        applyWeldingSurface(drawable, refinement);
+    };
+    refine(first, firstToRoot, a, shared.first);
+    refine(second, secondToRoot, b, shared.second);
+    return {std::move(shared.correspondence), shared.first.addedVertices + shared.second.addedVertices,
+        shared.first.topologyChanged || shared.second.topologyChanged};
 }
 
 std::shared_ptr<base::IncMeshEditorOne> ngGetEditorFor(std::shared_ptr<nicxlive::core::nodes::Node> target) {

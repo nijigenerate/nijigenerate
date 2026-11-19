@@ -11,8 +11,10 @@
 #include <nijigenerate/compat/range_error.hpp>
 #include <nijigenerate/ext/nodes/path_vertices.hpp>
 #include <concepts>
+#include <array>
 #include <functional>
 #include <new>
+#include <optional>
 #include <source_location>
 #include <stdexcept>
 #include <string>
@@ -331,6 +333,16 @@ template<class Vertices> void drawPointSubset(Vertices subset, nicxlive::core::m
 }
 std::size_t ngRefineWeldingSeams(std::shared_ptr<nicxlive::core::nodes::Drawable> first,
     std::shared_ptr<nicxlive::core::nodes::Drawable> second);
+struct WeldingOverlap {
+    compat::Slice<std::ptrdiff_t> indices;
+    std::size_t addedVertices{};
+    bool topologyChanged{};
+};
+WeldingOverlap ngPrepareWeldingOverlap(
+    const std::shared_ptr<nicxlive::core::nodes::Drawable>& first,
+    const std::shared_ptr<nicxlive::core::nodes::Drawable>& second,
+    const nicxlive::core::math::Mat4& rootToWorld,
+    std::optional<std::array<float, 4>> bounds, std::array<std::size_t, 2> originalVertexCounts);
 void incUpdateWeldedPoints(std::shared_ptr<nicxlive::core::nodes::Drawable> drawable,
     compat::ConstSlice<std::ptrdiff_t> remap);
 std::shared_ptr<base::IncMeshEditorOne> ngGetEditorFor(std::shared_ptr<nicxlive::core::nodes::Node> target);

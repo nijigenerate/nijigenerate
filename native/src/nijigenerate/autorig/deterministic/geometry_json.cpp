@@ -295,7 +295,7 @@ double ngRigRepairGridInterpolation(compat::Slice<compat::Slice<contracts::Point
 }
 
 core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Point2> grid,
-    std::size_t columns, double minimumRatio, compat::Slice<contracts::Point2> rest) {
+    std::size_t columns, double minimumRatio, compat::Slice<contracts::Point2> rest, GridOrientation orientation) {
     const auto enforce = []<std::size_t N>(bool condition, const char (&message)[N], std::size_t sourceLine) {
         if (!condition) throw compat::ThrowableException{contracts::detail::copyContractMessage(std::string_view(message, N - 1)),
             compat::RetainedString::fromStaticLiteral("source/nijigenerate/autorig/deterministic/geometry.d"),
@@ -316,6 +316,7 @@ core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Poi
     const std::size_t rows = grid.size() / columns, cells = (rows - 1) * (columns - 1);
     const double reference = (high[0] - low[0]) * (high[1] - low[1]) / cells;
     double smallest = std::numeric_limits<double>::infinity(), smallestRatio = smallest;
+    bool orientationPreserved = true;
     for (std::size_t y = 0; y < rows - 1; ++y) for (std::size_t x = 0; x < columns - 1; ++x) {
         const auto p00 = grid[y * columns + x], p10 = grid[y * columns + x + 1];
         const auto p01 = grid[(y + 1) * columns + x], p11 = grid[(y + 1) * columns + x + 1];
@@ -332,9 +333,11 @@ core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Poi
         }
         const auto threshold = maximum(std::numeric_limits<double>::min(), cellReference * minimumRatio);
         for (const auto value : corners) {
-            enforce(value > threshold, "Folded or degenerate rig grid", 162);
+            orientationPreserved &= value > threshold;
+            if (orientation == GridOrientation::Require)
+                enforce(value > threshold, "Folded or degenerate rig grid", 162);
             smallest = minimum(smallest, value);
-            smallestRatio = minimum(smallestRatio, value / cellReference);
+            smallestRatio = minimum(smallestRatio, cellReference > 0 ? value / cellReference : 0.);
         }
     }
     core::settings::SettingsJsonObject result;
@@ -342,7 +345,8 @@ core::settings::SettingsJsonValue ngRigValidateGrid(compat::Slice<contracts::Poi
     result[compat::RetainedString::fromStaticLiteral("min_jacobian")] = core::settings::SettingsJsonValue(smallest);
     result[compat::RetainedString::fromStaticLiteral("reference_cell_area")] = core::settings::SettingsJsonValue(reference);
     result[compat::RetainedString::fromStaticLiteral("min_area_ratio")] = core::settings::SettingsJsonValue(smallestRatio);
-    result[compat::RetainedString::fromStaticLiteral("local_orientation_preserved")] = core::settings::SettingsJsonValue(true);
+    result[compat::RetainedString::fromStaticLiteral("local_orientation_preserved")] =
+        core::settings::SettingsJsonValue(orientationPreserved);
     result[compat::RetainedString::fromStaticLiteral("global_injectivity_tested")] = core::settings::SettingsJsonValue(false);
     return core::settings::SettingsJsonValue(result);
 }

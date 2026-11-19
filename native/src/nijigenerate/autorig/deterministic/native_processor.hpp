@@ -9,7 +9,7 @@ namespace nijigenerate::autorig::deterministic::native_detail {
 class RigPartMeshProcessor : public viewport::vertex::automesh::optimum::OptimumAutoMeshProcessor {
 public:
     explicit RigPartMeshProcessor(float spacing, float divisions = 12,
-        compat::Slice<float> scales = {}, bool shoulder = false);
+        compat::Slice<float> scales = {});
 protected:
     void prepareSourceClassInfo() override {
         OptimumAutoMeshProcessor::prepareSourceClassInfo();

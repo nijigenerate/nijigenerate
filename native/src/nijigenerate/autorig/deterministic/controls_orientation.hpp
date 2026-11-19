@@ -11,6 +11,7 @@ struct ControlOrientationInput {
     compat::Slice<double> originalOffsets;
     double minimum = std::numeric_limits<double>::infinity();
     bool requiresSolve = false;
+    bool requiresPlanar = false;
     solver::quadratic::QuadraticProblem problem;
     solver::quadratic::SolverOptions options;
 };

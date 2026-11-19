@@ -3,10 +3,12 @@
 #include "geometry.hpp"
 #include "review.hpp"
 #include "detail/evidence.hpp"
+#include <algorithm>
+#include <cmath>
+#include <vector>
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/core/math/homogeneous.hpp>
 #include <nijigenerate/viewport/common/mesheditor/operations/impl.hpp>
-#include <nijigenerate/commands/node/welding_commands.hpp>
 #include <nijigenerate/actions/node_hierarchy_actions.hpp>
 #include <nijigenerate/core/actionstack.hpp>
 
@@ -70,7 +72,29 @@ Json weldShoulders(Json state, Task task) {
         {stringLiteralEvidence("enabled"), ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair))},
         {stringLiteralEvidence("plan"), ngRigReviewCompact(pair)}}));
     task->previewJson("review-operations", operations);
-    for (auto& pair : pairs) {
+    const auto overlapBounds = [](Json pair) -> std::optional<std::array<float, 4>> {
+        if (stringGet(pair, "kind", "") == "hip_attachment") {
+            const auto box = ngRigNumbers(indexNative(pair, "seam_region"));
+            return std::array<float, 4>{float(box[0]), float(box[1]), float(box[2]), float(box[3])};
+        }
+        if (get(pair, "upper_arm_length", Json{}).is_null()) return std::nullopt;
+        const auto origin = ngRigNumbers(indexNative(pair, "origin"));
+        const auto radius = .30 * ngRigNumber(indexNative(pair, "upper_arm_length"));
+        return std::array<float, 4>{float(origin[0]-radius), float(origin[1]-radius),
+            float(origin[0]+radius), float(origin[1]+radius)};
+    };
+    using viewport::common::mesheditor::operations::impl::WeldingOverlap;
+    // Each pair contributes its shared vertices once. Reapplying the overlay
+    // to progressively refined meshes multiplies the cuts.
+    std::vector<std::optional<WeldingOverlap>> seams(pairs.size());
+    NativeIntegerMap<std::uint32_t, std::size_t> originalVertexCounts;
+    const auto originalCount = [&](const auto& part) {
+        const auto id = part->getUUID();
+        if (!originalVertexCounts.contains(id)) originalVertexCounts[id] = part->getVertices().size();
+        return originalVertexCounts.find(id)->second;
+    };
+    for (std::size_t i=0; i<pairs.size(); ++i) {
+        auto& pair = pairs[i];
         if (!ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair))) {
             assignNative(pair, "status", "disabled_by_user"); continue;
         }
@@ -82,16 +106,22 @@ Json weldShoulders(Json state, Task task) {
             auto target = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "target"))));
             enforceNative(source && target,"Shoulder welding Part disappeared",1287);
             auto originalSource = textureMapping(source), originalTarget = textureMapping(target);
-            auto added = viewport::common::mesheditor::operations::impl::ngRefineWeldingSeams(source, target);
-            assignNative(pair, "refined_vertices", added);
+            auto prepared = viewport::common::mesheditor::operations::impl::ngPrepareWeldingOverlap(
+                source, target, puppet->root->transform().matrix(), overlapBounds(pair),
+                {originalCount(source), originalCount(target)});
+            seams[i] = prepared;
+            if (!prepared.addedVertices && !prepared.topologyChanged) return;
+            assignNative(pair, "refined_vertices",
+                ngRigUnsigned(get(pair, "refined_vertices", 0)) + prepared.addedVertices);
             auto beforeSource = textureMapping(source), beforeTarget = textureMapping(target);
             for (const auto& meshes : {std::array<Json, 2>{originalSource, beforeSource},
                 std::array<Json, 2>{originalTarget, beforeTarget}}) {
                 enforceNative(indexNative(meshes[1], "vertices").sourceArrayValue().size() >= indexNative(meshes[0], "vertices").sourceArrayValue().size(),"Shoulder refinement removed original vertices",1295);
-                for (const auto field : {"vertices", "uv"}) {
-                    const auto samples = indexNative(meshes[0], field).sourceArrayValue();
-                    for (std::size_t i = 0; i < samples.size(); ++i)
-                        enforceNative(samples[i] == readNativeArray(indexNative(meshes[1], field).sourceArrayValue(),i,1298),"Shoulder refinement changed an original sample",1298);
+                const auto before = ngRigPoints(indexNative(meshes[0], "vertices"));
+                const auto after = ngRigPoints(indexNative(meshes[1], "vertices"));
+                for (std::size_t i = 0; i < before.size(); ++i) {
+                    enforceNative(std::hypot(before[i][0]-after[i][0], before[i][1]-after[i][1]) <= .004,
+                        "Welding moved an original vertex beyond rounding tolerance", 1298);
                 }
                 geometry::ngRigVerifySourceUV(meshes[0], meshes[1]);
             }
@@ -108,68 +138,48 @@ Json weldShoulders(Json state, Task task) {
         });
     }
     // Finish every shared mesh edit before predicting or creating any link.
-    for (auto& pair : pairs) {
+    for (std::size_t i=0; i<pairs.size(); ++i) {
+        auto& pair=pairs[i];
         if (!ngRigReviewEnabled(settings, ngRigReviewOperationId(weldKind, pair)) || !indexNative(pair, "matching").as_bool()) continue;
         ngRigCheckpoint(task);
-        compat::Slice<Point2> sourcePoints, targetPoints, sourceInRoot, targetInRoot;
-        Json beforeSource, beforeTarget;
-        const bool hipAttachment = stringGet(pair,"kind","") == "hip_attachment";
-        const auto region = hipAttachment ? ngRigNumbers(indexNative(pair,"seam_region")) : compat::Slice<double>{};
-        const auto inRegion = [&](Point2 p) {
-            return p[0]>=region[0] && p[0]<=region[2] && p[1]>=region[1] && p[1]<=region[3];
-        };
-        task->runOnMainThread([&] {
-            auto puppet = project::incActivePuppet();
-            auto source = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "source"))));
-            auto target = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "target"))));
-            enforceNative(source && target,"Shoulder welding Part disappeared",1326);
-            beforeSource = textureMapping(source); beforeTarget = textureMapping(target);
-            for (auto p : ngRigPoints(indexNative(beforeSource, "vertices"))) {
-                auto point = core::math::ngTransformHomogeneousPoint(source->transform().matrix(),
-                    {static_cast<float>(p[0]), static_cast<float>(p[1]), 0});
-                sourcePoints.append(Point2{point.x, point.y});
-                if (hipAttachment) sourceInRoot.append(toRoot(source,p[0],p[1]));
-            }
-            for (auto p : ngRigPoints(indexNative(beforeTarget, "vertices"))) {
-                auto point = core::math::ngTransformHomogeneousPoint(target->transform().matrix(),
-                    {static_cast<float>(p[0]), static_cast<float>(p[1]), 0});
-                targetPoints.append(Point2{point.x, point.y});
-                if (hipAttachment) targetInRoot.append(toRoot(target,p[0],p[1]));
-            }
-        });
         compat::Slice<std::ptrdiff_t> indices;
         std::size_t count = 0;
-        for (std::size_t i = 0; i < sourcePoints.size(); ++i) {
-            if (i % 256 == 0) ngRigCheckpoint(task);
-            if (hipAttachment && !inRegion(sourceInRoot[i])) { indices.append(-1); continue; }
-            auto p = sourcePoints[i]; double nearest = INFINITY; std::ptrdiff_t index = -1;
-            for (std::size_t j = 0; j < targetPoints.size(); ++j) {
-                if (hipAttachment && !inRegion(targetInRoot[j])) continue;
-                auto q = targetPoints[j]; auto dx = p[0] - q[0], dy = p[1] - q[1];
-                double distance = dx * dx + dy * dy;
-                if (distance < nearest) { nearest = distance; index = static_cast<std::ptrdiff_t>(j); }
-            }
-            indices.append(nearest < 16 ? index : -1);
-            if (nearest < 16) ++count;
-        }
-        if (count < (hipAttachment ? 3u : 1u)) { assignNative(pair, "status", "no_native_vertex_pairs"); continue; }
         task->runOnMainThread([&] {
             auto puppet = project::incActivePuppet();
             auto source = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "source"))));
             auto target = std::dynamic_pointer_cast<nicxlive::core::nodes::Part>(puppet->findNodeById(uuid(indexNative(pair, "target"))));
-            if (hipAttachment) {
-                const auto retained=actions::node::Indices::retainedView(
-                    indices.retentionOwner(),indices.data(),indices.size());
-                core::actionstack::incActionPush(std::allocate_shared<actions::node::DrawableAddWeldingAction>(
-                    nicxlive::core::d_runtime::SourceAllocator<actions::node::DrawableAddWeldingAction>{},
-                    source,target,retained,0.f));
-            } else commandSource(
-                [&] {
-                    return createNativeObject<commands::node::welding::AddWeldingCommand>(target, 0);
-                },
-                [&] {
-                    return editorContext({source});
-                });
+            enforceNative(source && target, "Welding Part disappeared", 1326);
+            enforceNative(seams[i].has_value(), "Missing Welding vertex correspondence", 1334);
+            indices = seams[i]->indices.duplicate();
+            indices.resize(source->getVertices().size(), -1);
+            const auto beforeSource = textureMapping(source), beforeTarget = textureMapping(target);
+            const auto src = ngRigPoints(indexNative(beforeSource, "vertices"));
+            const auto dst = ngRigPoints(indexNative(beforeTarget, "vertices"));
+            compat::Slice<std::ptrdiff_t> reverse;
+            reverse.resize(dst.size(), -1);
+            for (std::size_t i = 0; i < indices.size(); ++i) {
+                const auto j=indices[i];
+                if (j < 0) continue;
+                enforceNative(static_cast<std::size_t>(j)<reverse.size() && reverse[j]<0,
+                    "Welding overlap is not one-to-one", 1341);
+                reverse[j]=static_cast<std::ptrdiff_t>(i);
+                const auto a = toRoot(source, src[i][0], src[i][1]);
+                const auto b = toRoot(target, dst[j][0], dst[j][1]);
+                enforceNative(std::hypot(a[0]-b[0], a[1]-b[1]) <= .0021,
+                    "Welding overlap vertices do not coincide", 1344);
+                ++count;
+            }
+            if (count == 0) return;
+            const auto retained=actions::node::Indices::retainedView(
+                indices.retentionOwner(), indices.data(), indices.size());
+            core::actionstack::incActionPush(std::allocate_shared<actions::node::DrawableAddWeldingAction>(
+                nicxlive::core::d_runtime::SourceAllocator<actions::node::DrawableAddWeldingAction>{},
+                source, target, retained, 0.f));
+            const auto otherLinks=target->weldedLinks;
+            enforceNative(std::ranges::any_of(otherLinks,[&](const auto& link) {
+                return link.target.lock()==source && link.weight==1.f &&
+                    std::ranges::equal(link.indices,reverse);
+            }), "Welding inverse differs from the shared surface", 1361);
             bool found = false;
             const auto links = source->weldedLinks;
             for (auto link : links) if (link.target.lock() == target) {
@@ -195,6 +205,10 @@ Json weldShoulders(Json state, Task task) {
             }
             enforceNative(found && textureMapping(source) == beforeSource && textureMapping(target) == beforeTarget,"Shoulder welding changed native mesh arrays or failed to create its link",1369);
         });
+        if (count == 0) {
+            assignNative(pair, "status", "no_shared_surface");
+            continue;
+        }
         core::settings::SettingsJsonArray indexValues;
         for (auto i : indices) indexValues.append(i);
         assignNative(pair, "indices", indexValues); assignNative(pair, "weight", 0.); assignNative(pair, "paired_vertices", count);
