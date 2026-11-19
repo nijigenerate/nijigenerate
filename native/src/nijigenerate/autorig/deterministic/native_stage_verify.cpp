@@ -120,6 +120,19 @@ Json verifyRig(Json state, Json program, Task task) {
                         {stringLiteralEvidence("expected"),field(definition,"origin")}}));
             }
             framework::Table<bool> checked;
+            const auto faceOrigin = field(program, "hierarchy", "face_origin");
+            const auto faceOriginId = faceOrigin.is_null() ? 0u : uuid(faceOrigin);
+            const auto shape = get(state, "shape_corrections", Json{});
+            NodeRef cheekPath;
+            if (shape.is_object())
+                if (const auto path = shape.sourceObjectRef().if_contains("cheek_path_node"))
+                    cheekPath = puppet->findNodeById(uuid(*path));
+            bool pathOwnsOrigin = false;
+            for (auto node = puppet->findNodeById(faceOriginId); node; node = node->parentPtr())
+                if (node == cheekPath) pathOwnsOrigin = true;
+            const auto siblingRoots = pathOwnsOrigin
+                ? field(shape, "cheek_path_sibling_roots").sourceArrayValue()
+                : absentArray().sourceArrayValue();
             for (auto target : field(state, "targets").sourceArrayValue()) {
                 const auto domain = nativeString(field(target, "domain_id"));
                 auto grid = puppet->findNodeById(uuid(field(target, "grid")));
@@ -134,7 +147,11 @@ Json verifyRig(Json state, Json program, Task task) {
                     bool inherited = false;
                     for (auto cursor = puppet->findNodeById(uuid(field(target, "part"))); cursor;
                         cursor = cursor->parentPtr())
-                        if (cursor->getUUID() == uuid(field(program, "hierarchy", "face_origin"))) inherited = true;
+                        if (cursor->getUUID() == faceOriginId ||
+                            (pathOwnsOrigin && cursor->parentPtr() == cheekPath->parentPtr() &&
+                             std::ranges::any_of(siblingRoots, [&](const auto& id) {
+                                return cursor->getUUID() == uuid(id);
+                             }))) inherited = true;
                     enforceNative(inherited,"Facial mechanism escaped the face material origin",1656);
                 }
             }
@@ -378,6 +395,15 @@ Json verifyRig(Json state, Json program, Task task) {
             Json unsignedReport=corrections.sourceObjectRef().duplicate(); unsignedReport.sourceObjectRef().erase("content_sha256");
             enforceNative(ngRigDigest(unsignedReport).view() == field(state, "shape_corrections_sha256").as_string().view(),"Saved shape correction report ownership mismatch",1847);
             auto parameter = parameterByName(puppet, "Face::Yaw-Pitch");
+            if (const auto id = corrections.sourceObjectRef().if_contains("cheek_path_node")) {
+                auto path = puppet->findNodeById(uuid(*id));
+                enforceNative(path && path->typeId().view() == "PathDeformer",
+                    "Saved cheek PathDeformer is missing", 1848);
+                auto binding = parameter->getBinding(path, "deform");
+                const auto count = field(corrections, "cheek_path", "keys").sourceArrayValue().size();
+                enforceNative(binding && binding->getSetCount() == count,
+                    "Saved cheek PathDeformer keys are incomplete", 1849);
+            }
             for (auto operation : field(corrections, "operations").sourceArrayValue()) {
                 bool bound = false;
                 for (auto id : field(corrections, "bound_targets").sourceArrayValue())

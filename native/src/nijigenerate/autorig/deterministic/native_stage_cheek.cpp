@@ -5,6 +5,8 @@
 #include <nijigenerate/project.hpp>
 #include <nijigenerate/autorig/detail/json_first_pass_reader.hpp>
 #include <nijigenerate/commands/model/set_deform_binding_commands.hpp>
+#include <nijigenerate/commands/node/node_commands.hpp>
+#include <nodes/path_deformer.hpp>
 #include <param/binding_impl.hpp>
 #include <serde_json.hpp>
 #include <algorithm>
@@ -86,6 +88,7 @@ Json applyCheekCorrections(Json state, Json report, Task task) {
     NativeIntegerMap<std::uint64_t, bool> bound;
     NativeIntegerMap<std::uint64_t, bool> ridgeFollowers;
     NativeIntegerMap<std::uint64_t, bool> coincidentSkin;
+    NativeIntegerMap<std::uint64_t, bool> skinOutlines;
     for (auto operation : indexNative(report, "operations").sourceArrayValue())
         for (auto value : ngRigNumbers(indexNative(operation, "values")))
             if (value != 0) {
@@ -94,6 +97,7 @@ Json applyCheekCorrections(Json state, Json report, Task task) {
                 const auto kind = stringGet(operation,"kind","");
                 if (kind=="hair_ridge" || kind=="skin_outline") ridgeFollowers[id] = true;
                 if (kind=="coincident_skin") coincidentSkin[id] = true;
+                if (kind=="skin_outline") skinOutlines[id] = true;
                 break;
             }
     if (task->targetScope() || task->eligibleTargets()) {
@@ -114,6 +118,9 @@ Json applyCheekCorrections(Json state, Json report, Task task) {
         if (const auto prior = previous->sourceObjectRef().if_contains("bound_targets"))
             for (const auto& part : prior->sourceArrayValue()) priorBindings[ngRigUnsigned(part)] = true;
     compat::RetainedStringSlice rootSignature;
+    NativeIntegerMap<std::uint64_t, bool> pathDriven;
+    std::uint32_t contourId = 0;
+    core::settings::SettingsJsonArray contourSiblingRoots;
     task->runOnMainThread([&] {
         auto puppet = project::incActivePuppet(); auto parameter = parameterByName(puppet, "Face::Yaw-Pitch");
         enforceNative(bool(parameter),"Cheek correction parameter is missing",1410);
@@ -133,9 +140,121 @@ Json applyCheekCorrections(Json state, Json report, Task task) {
                 "Cheek correction would overwrite an existing Part angle binding",1413);
         }
         rootSignature = skeletonDigest(puppet->findNodeById(uuid(indexNative(state, "rigRoot"))));
+        if (!bound.contains(skinId)) return;
+        const auto isSkin = [&](std::uint32_t id) {
+            return bound.contains(id) && (id == skinId || coincidentSkin.contains(id) || skinOutlines.contains(id));
+        };
+        auto skin = puppet->findNodeById(skinId);
+        auto anchor = skin;
+        while (auto parent = anchor->parentRef()) {
+            if (!isSkin(parent->getUUID())) break;
+            anchor = parent;
+        }
+        auto parent = anchor->parentRef();
+        if (!parent) return;
+        using nicxlive::core::nodes::PathDeformer;
+        static constexpr char pathName[] = "AutoRig::Face Contour";
+        auto path = std::dynamic_pointer_cast<PathDeformer>(parent);
+        if (!path || path->getName().view() != pathName) path.reset();
+        if (path) {
+            if (const auto prior = state.sourceObjectRef().if_contains("shape_corrections"))
+                if (const auto siblings = prior->sourceObjectRef().if_contains("cheek_path_sibling_roots"))
+                    contourSiblingRoots = siblings->sourceArrayValue().duplicate();
+        }
+        std::vector<NodeRef> roots;
+        for (const auto& child : parent->childrenList())
+            if (isSkin(child->getUUID())) roots.push_back(child);
+        std::vector<NodeRef> features;
+        const auto collectFeatures = [&](const auto& self, const NodeRef& node) -> void {
+            for (const auto& child : node->childrenList()) {
+                if (isSkin(child->getUUID())) self(self, child);
+                else features.push_back(child);
+            }
+        };
+        for (const auto& node : roots) collectFeatures(collectFeatures, node);
+        const auto curve = indexNative(report, "cheek_path");
+        const auto rest = ngRigPoints(indexNative(curve, "rest"));
+        enforceNative(rest.size() >= 8 && rest[0][0] == rest[rest.size()-1][0] &&
+            rest[0][1] == rest[rest.size()-1][1],
+            "Cheek path landmarks are missing", 1415);
+        const auto keys = indexNative(curve, "keys").sourceArrayValue();
+        enforceNative(keys.size() == parameter->axisPoints[0].size()*parameter->axisPoints[1].size(),
+            "Cheek path key grid differs from the face control", 1416);
+        if (!path) {
+            using commands::node::node::AddNodeCommandT;
+            path = std::dynamic_pointer_cast<PathDeformer>(createSourceNode([] {
+                return createNativeObject<AddNodeCommandT<true>>(
+                    compat::RetainedString::fromStaticLiteral("PathDeformer"), compat::RetainedString::emptyLiteral());
+            }, [&] { return editorContext({parent}); }));
+            enforceNative(bool(path), "Could not create the cheek PathDeformer", 1417);
+            path->setName(compat::RetainedString::fromStaticLiteral(pathName).toNullableString());
+        }
+        using nicxlive::core::math::Mat4;
+        using nicxlive::core::math::Vec2;
+        const auto toPath = Mat4::multiply(Mat4::inverse(path->transform().toMat4()),
+            puppet->root->transform().toMat4());
+        const auto local = [&](const auto& p) {
+            return Vec2{static_cast<float>(toPath[0][0]*p[0]+toPath[0][1]*p[1]+toPath[0][3]),
+                        static_cast<float>(toPath[1][0]*p[0]+toPath[1][1]*p[1]+toPath[1][3])};
+        };
+        std::vector<Vec2> controls;
+        for (const auto& point : rest) controls.push_back(local(point));
+        if (path->getVertices().size() != controls.size())
+            if (const auto oldBinding = parameter->getBinding(path, "deform"))
+                parameter->removeBinding(oldBinding);
+        path->rebuffer(controls);
+        const auto moveNode = [&](const NodeRef& node, const NodeRef& destination) {
+            using commands::node::node::MoveNodeCommand;
+            commandSource([&] {
+                return createNativeObject<MoveNodeCommand>(destination, destination->childrenList().size(), true);
+            }, [&] { return editorContext({node}); });
+            enforceNative(node->parentRef() == destination, "Could not attach the cheek path target", 1418);
+        };
+        // Leave the eyes, mouth and other features on their existing Grid;
+        // the Path only receives the skin and its coincident outline layers.
+        const auto gridParent = parent == path ? path->parentRef() : parent;
+        enforceNative(bool(gridParent), "Cheek path has no original parent", 1418);
+        for (const auto& feature : features) {
+            moveNode(feature, gridParent);
+            contourSiblingRoots.append(feature->getUUID());
+        }
+        const auto link = [&](const auto& self, const NodeRef& node) -> void {
+            pathDriven[node->getUUID()] = true;
+            if (const auto binding = parameter->getBinding(node, "deform")) parameter->removeBinding(binding);
+            for (const auto& child : node->childrenList()) self(self, child);
+        };
+        for (const auto& node : roots) {
+            if (node->parentRef() != path) moveNode(node, path);
+            link(link, node);
+        }
+        path->build();
+        for (const auto& entry : keys) {
+            const auto points = ngRigPoints(indexNative(entry, "points"));
+            const auto key = ngRigNumbers(indexNative(entry, "key"));
+            enforceNative(points.size() == controls.size(), "Incomplete cheek path control key", 1419);
+            compat::Slice<float> offsets;
+            for (std::size_t i = 0; i < points.size(); ++i) {
+                const auto delta = local(points[i]) - controls[i];
+                offsets.append(delta.x);
+                offsets.append(delta.y);
+            }
+            auto context = editorContext({path});
+            context->parameters({parameter});
+            context->keyPoint({static_cast<unsigned>(key[0]), static_cast<unsigned>(key[1])});
+            context->hasExplicitKeyPoint(true);
+            commandSource([&] {
+                return createNativeObject<commands::model::set_deform_binding::SetDeformBindingCommand>(
+                    compat::RetainedString::fromStaticLiteral("deform"), offsets, true);
+            }, [&] { return context; });
+        }
+        auto pathBinding = parameter->getBinding(path, "deform");
+        enforceNative(pathBinding && pathBinding->getSetCount() == keys.size(),
+            "Cheek PathDeformer keys could not be read back", 1420);
+        contourId = path->getUUID();
     });
     for (auto operation : indexNative(report, "operations").sourceArrayValue()) {
-        if (!bound.contains(ngRigUnsigned(indexNative(operation, "part")))) continue;
+        const auto part = ngRigUnsigned(indexNative(operation, "part"));
+        if (!bound.contains(part) || pathDriven.contains(part)) continue;
         ngRigCheckpoint(task);
         auto offsets = nativeNumbers(indexNative(operation, "values")); auto indices = ngRigNumbers(indexNative(operation, "key"));
         task->runOnMainThread([&] {
@@ -179,11 +298,15 @@ Json applyCheekCorrections(Json state, Json report, Task task) {
     });
     core::settings::SettingsJsonArray targets;
     for (auto id : bound.keys()) {
-        targets.append(id);
+        if (!pathDriven.contains(id)) targets.append(id);
         if (task->targetScope()) task->recordUnit({{static_cast<std::uint32_t>(id)},
             framework::AutoRigTaskState::Succeeded, {}});
     }
     assignNative(report, "bound_targets", targets); assignNative(report, "native_grid_depth_bones_unchanged", true);
+    if (contourId) {
+        assignNative(report, "cheek_path_node", contourId);
+        assignNative(report, "cheek_path_sibling_roots", contourSiblingRoots);
+    }
     auto unsignedReport=report.sourceObjectRef().duplicate();
     unsignedReport.erase("content_sha256");
     assignNative(report, "content_sha256", core::settings::SettingsString(ngRigDigest(Json(unsignedReport))));

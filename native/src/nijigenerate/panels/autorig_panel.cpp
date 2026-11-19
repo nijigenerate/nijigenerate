@@ -2283,12 +2283,14 @@ void AutoRigPanel::renderSessionConfiguration(
                         compat::RetainedString::fromStaticLiteral("Capture source appearance for verification"))));
                     const bool captureChanged = ImGui::Checkbox(capture.data(), &compat::ngRequireObject(cached)->previews);
                     const auto ratio = deterministic::contracts::ngRigGet(cached->options,
-                        compat::RetainedString::fromStaticLiteral(deterministic::jawRidgeBlendOption),
-                        Json(deterministic::defaultJawRidgeBlend));
-                    float blend = static_cast<float>(deterministic::defaultJawRidgeBlend);
+                        compat::RetainedString::fromStaticLiteral(deterministic::upwardJawRidgeBlendOption),
+                        deterministic::contracts::ngRigGet(cached->options,
+                            compat::RetainedString::fromStaticLiteral(deterministic::jawRidgeBlendOption),
+                            Json(deterministic::defaultUpwardJawRidgeBlend)));
+                    float blend = static_cast<float>(deterministic::defaultUpwardJawRidgeBlend);
                     if (ratio.is_double() || ratio.is_int64() || ratio.is_uint64())
                         blend = static_cast<float>(deterministic::contracts::ngRigNumber(ratio));
-                    const auto blendLabel = ngTranslateCString("Jaw contour correction blend");
+                    const auto blendLabel = ngTranslateCString("Upward jaw contour correction blend");
                     const bool blendChanged = ImGui::SliderFloat(blendLabel.data(), &blend, 0.f, 1.f, "%.2f",
                         ImGuiSliderFlags_AlwaysClamp);
                     if (captureChanged || blendChanged) {
@@ -2298,7 +2300,7 @@ void AutoRigPanel::renderSessionConfiguration(
                                     compat::RetainedString::fromStaticLiteral("options")).json;
                         if (captureChanged) cached->options.sourceIndexAssignSlot("render") = Json(cached->previews);
                         if (blendChanged)
-                            cached->options.sourceIndexAssignSlot(deterministic::jawRidgeBlendOption) =
+                            cached->options.sourceIndexAssignSlot(deterministic::upwardJawRidgeBlendOption) =
                                 Json(static_cast<double>(blend));
                         run->setInput(compat::RetainedString::fromStaticLiteral("options"),
                             framework::AutoRigValue::jsonValue(cached->options));

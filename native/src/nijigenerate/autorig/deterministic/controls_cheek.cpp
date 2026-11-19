@@ -132,10 +132,17 @@ static Json compileCheekCorrections(Json state, Json program,
     if (contracts::ngRigString(state, compat::RetainedString::fromStaticLiteral("kind"),
             compat::RetainedString::fromStaticLiteral("humanoid")).view() != "humanoid")
         return record({{"applicable", Json(false)}, {"operations", Json(operations)}});
-    const double jawRidgeBlend = contracts::ngRigNumber(contracts::ngRigGet(
-        contracts::ngRigGet(state, compat::RetainedString::fromStaticLiteral("options"), Json(Object{})),
-        compat::RetainedString::fromStaticLiteral(jawRidgeBlendOption), Json(defaultJawRidgeBlend)));
-    enforce(jawRidgeBlend >= 0. && jawRidgeBlend <= 1., "jaw_ridge_blend must be between 0 and 1", __LINE__);
+    const auto options = contracts::ngRigGet(state, compat::RetainedString::fromStaticLiteral("options"), Json(Object{}));
+    const auto baseBlendOption = compat::RetainedString::fromStaticLiteral(jawRidgeBlendOption);
+    const double baseJawRidgeBlend = contracts::ngRigNumber(
+        contracts::ngRigGet(options, baseBlendOption, Json(defaultJawRidgeBlend)));
+    const double upwardJawRidgeBlend = contracts::ngRigNumber(contracts::ngRigGet(options,
+        compat::RetainedString::fromStaticLiteral(upwardJawRidgeBlendOption),
+        contracts::ngRigGet(options, baseBlendOption, Json(defaultUpwardJawRidgeBlend))));
+    enforce(baseJawRidgeBlend >= 0. && baseJawRidgeBlend <= 1.,
+        "jaw_ridge_blend must be between 0 and 1", __LINE__);
+    enforce(upwardJawRidgeBlend >= 0. && upwardJawRidgeBlend <= 1.,
+        "upward_jaw_ridge_blend must be between 0 and 1", __LINE__);
     const auto keys = read(state, "native_head_keys").as_array();
     enforce(contracts::ngRigDigest(Json(keys)).view() == read(state, "depth_angle_program_sha256").as_string().view(),
         "Native head bake ownership mismatch", 626);
@@ -608,6 +615,52 @@ static Json compileCheekCorrections(Json state, Json program,
         Point2 temple, chin, seam, upper, lower;
     };
     std::map<std::size_t,YawRidge> yawRidges;
+    const auto outlineLandmark = [&](std::size_t sideIndex, double row) {
+        return Point2{curve(profile.y, sideIndex == 0 ? profile.left : profile.right, row), row};
+    };
+    const auto jawLandmarkRow = [&](std::size_t sideIndex) {
+        const auto& joint = sideIndex == 0 ? head_template::leftJaw : head_template::rightJaw;
+        return jawRows[sideIndex].value_or(std::lerp(profile.temple, chin, (joint[1]-.38)/(1.-.38)));
+    };
+    const auto earLandmarkRow = [&](std::size_t sideIndex) {
+        const auto& ear = earsBySide[sideIndex];
+        const auto& joint = sideIndex == 0 ? head_template::leftEar : head_template::rightEar;
+        const double jaw = jawLandmarkRow(sideIndex);
+        const double row = ear.id ? profile.frame.local(ear.attachment)[1]
+            : std::lerp(profile.temple, chin, (joint[1]-.38)/(1.-.38));
+        return std::clamp(row, std::lerp(profile.temple, jaw, .10), std::lerp(profile.temple, jaw, .95));
+    };
+    // Positive Y points down. The repeated chin closes the stock spline.
+    const std::array pathSections{
+        chinTip, outlineLandmark(0,jawLandmarkRow(0)), outlineLandmark(0,earLandmarkRow(0)),
+        outlineLandmark(0,profile.temple), outlineLandmark(1,profile.temple),
+        outlineLandmark(1,earLandmarkRow(1)), outlineLandmark(1,jawLandmarkRow(1)), chinTip};
+    const auto cheekPathPoints = [&](const std::array<Point2,8>& landmarks) {
+        // Sample the convex J–M arc on both sides, retaining J and the
+        // blended M exactly. The common tangent at J lies along the face axis.
+        const auto jawArc = [&](Point2 jaw, double t) {
+            const auto start = profile.frame.local(landmarks.front());
+            const auto end = profile.frame.local(jaw);
+            const double across = 2.*.72*t*(1.-t)+t*t;
+            return toRoot({std::lerp(start[0],end[0],across),
+                           std::lerp(start[1],end[1],t*t)});
+        };
+        constexpr std::array progress{.18,.38,.59,.80};
+        Array points;
+        points.append(point(landmarks.front()));
+        for (const auto t : progress) points.append(point(jawArc(landmarks[1],t)));
+        for (std::size_t i = 1; i + 1 < landmarks.size(); ++i) points.append(point(landmarks[i]));
+        for (auto t = progress.rbegin(); t != progress.rend(); ++t)
+            points.append(point(jawArc(landmarks[6],*t)));
+        points.append(point(landmarks.back()));
+        return points;
+    };
+    Array pathRest, pathKeys;
+    if (!measureReference) {
+        auto rest = pathSections;
+        for (auto& section : rest) section = toRoot(section);
+        pathRest = cheekPathPoints(rest);
+    }
     const auto fittedLandmarks=program.sourceObjectRef().if_contains("head_anatomical_landmarks");
     std::vector<Json> skinKeys;
     for (const auto& key : keys)
@@ -626,6 +679,7 @@ static Json compileCheekCorrections(Json state, Json program,
         enforce(norm > 1e-12, "Degenerate viewing-depth axis", 731);
         const double slope = (depthAxis[0] * profile.frame.tangent[0] + depthAxis[1] * profile.frame.tangent[1]) / norm;
         const auto value = contracts::ngRigPoint(read(key, "value"));
+        const double jawRidgeBlend = std::lerp(baseJawRidgeBlend, upwardJawRidgeBlend, std::clamp(value[1], 0., 1.));
         const auto axisKey = contracts::ngRigNumbers(read(key, "key"));
         const std::array poseKey{sourceControlIndex(axisKey[0]), sourceControlIndex(axisKey[1])};
         const auto yaw = poseKey[0];
@@ -1179,6 +1233,23 @@ static Json compileCheekCorrections(Json state, Json program,
         }
         Slice<double> residualX, residualY;
         for (const auto delta : edgeResidual) { residualX.append(delta[0]); residualY.append(delta[1]); }
+        if (!measureReference) {
+            auto landmarks = pathSections;
+            for (std::size_t i = 0; i < pathSections.size(); ++i) {
+                const auto section = pathSections[i];
+                const auto world = toRoot(section);
+                auto control = world;
+                if ((side < 0 && (i == 1 || i == 2)) || (side > 0 && (i == 5 || i == 6))) {
+                    const auto row = section[1];
+                    // The parent Grid still supplies the head rotation.
+                    const auto delta = unprojectResidual(world,
+                        {curve(edgeRows,residualX,row), curve(edgeRows,residualY,row)});
+                    control = {world[0]+delta[0], world[1]+delta[1]};
+                }
+                landmarks[i] = control;
+            }
+            pathKeys.append(record({{"key",read(key,"key")},{"points",Json(cheekPathPoints(landmarks))}}));
+        }
         const auto contourRepair = [&](Point2 world) {
             const auto p = profile.frame.local(world);
             if (!side || p[1] <= profile.temple || p[1] >= chin) return Point2{0.,0.};
@@ -1646,7 +1717,7 @@ static Json compileCheekCorrections(Json state, Json program,
             {"feature_anchor_error",Json(anchorError)}}));
     }
     auto report = record({{"applicable", Json(true)}, {"mechanism", Json("alpha_near_cheek_inverse_grid")},
-        {jawRidgeBlendOption, Json(jawRidgeBlend)},
+        {jawRidgeBlendOption, Json(baseJawRidgeBlend)}, {upwardJawRidgeBlendOption, Json(upwardJawRidgeBlend)},
         {"skin", Json(skin)}, {"operations", Json(operations)}, {"observations", Json(observations)}, {"skin_protected_vertices", array(pinned)},
         {"profile", record({{"origin", point(profile.frame.origin)}, {"tangent", point(profile.frame.tangent)},
             {"y", array(profile.y)}, {"left", array(profile.left)}, {"right", array(profile.right)}, {"temple_y", Json(profile.temple)},
@@ -1654,6 +1725,8 @@ static Json compileCheekCorrections(Json state, Json program,
         {"program_sha256", read(program, "content_sha256")}, {"depth_angle_program_sha256", read(state, "depth_angle_program_sha256")},
         {"source_uv_program_sha256", read(state, "source_uv_program_sha256")}, {"source_sha256", read(state, "source_sha256")},
         {"visually_reviewed", Json(false)}});
+    if (!measureReference)
+        report.sourceIndexAssignSlot("cheek_path") = record({{"rest",Json(pathRest)},{"keys",Json(pathKeys)}});
     return report;
 }
 

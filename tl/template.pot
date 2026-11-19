@@ -1436,7 +1436,7 @@ msgid "Capture source appearance for verification"
 msgstr ""
 
 #: native/src/nijigenerate/panels/autorig_panel.cpp
-msgid "Jaw contour correction blend"
+msgid "Upward jaw contour correction blend"
 msgstr ""
 
 #: source/nijigenerate/windows/settings.d:586
