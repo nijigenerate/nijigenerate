@@ -94,11 +94,9 @@ public:
     std::exception_ptr originException() const noexcept { return origin; }
 };
 void openProject(Arguments args) {
-    if (core::settings::incSettingsGet<bool>("hasDoneQuickSetup", false) && args.size() > 1) {
-        project::incNewProject();
-        project::incOpenProject(args[1]);
-    } else {
-        project::incNewProject();
+    project::incNewProject();
+    if (args.size() > 1) core::ngRequestProjectOpen(args[1]);
+    if (args.size() <= 1 || !core::settings::incSettingsGet<bool>("hasDoneQuickSetup", false)) {
         windows::base::incPushWindow(windows::base::ngCreateWindow<windows::welcome::WelcomeWindow>());
     }
 }

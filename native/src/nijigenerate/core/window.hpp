@@ -53,6 +53,7 @@ ImGuiID ngGetViewportDockSpace();
 void ngSetDarkMode(bool darkMode);
 bool ngShouldProcess();
 void ngFinishFileDrag();
+void ngRequestProjectOpen(compat::RetainedStringSlice path);
 void ngBeginLoopNoEv();
 void ngSetDefaultLayout();
 void ngBeginLoop();

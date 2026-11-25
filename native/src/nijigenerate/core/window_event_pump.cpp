@@ -2,6 +2,7 @@
 #include "nijigenerate/core/window_state_internal.hpp"
 #include "nijigenerate/core/asyncderivedupdate.hpp"
 #include "nijigenerate/core/tasks.hpp"
+#include "nijigenerate/core/settings.hpp"
 #include "nijigenerate/backend/renderer.hpp"
 #include "nijigenerate/io/save.hpp"
 #include "nijigenerate/widgets/modal.hpp"
@@ -13,13 +14,19 @@
 #include <utility>
 
 namespace nijigenerate::core {
+namespace {
+thread_local compat::RetainedStringSlice pendingProject;
+}
+
+void ngRequestProjectOpen(compat::RetainedStringSlice path) {
+    pendingProject = std::move(path);
+}
 
 void ngBeginLoop() {
     SDL_Event event{};
     static thread_local SDL_Event deferredMouseRelease{};
     static thread_local bool hasDeferredMouseRelease = false;
     static thread_local std::uint32_t heldMouseButtons = 0;
-    static thread_local compat::RetainedStringSlice pendingProject;
 
     bool sawHeldMouseMotion = false;
     while (hasDeferredMouseRelease || SDL_PollEvent(&event)) {
@@ -42,16 +49,15 @@ void ngBeginLoop() {
             // SDL3 owns these transient bytes; retain a copy before polling again.
             if (!event.drop.data) break;
             auto path = compat::RetainedStringSlice(compat::RetainedString(event.drop.data));
-#if defined(__APPLE__)
-            // Cocoa's application:openFile: produces a drop without a target window.
+            // A file-open request has no drop target. Window-targeted drops stay in the viewport.
             const auto name = path.view();
             if (event.drop.windowID == 0 && name.size() >= 4 &&
                 std::ranges::equal(name.substr(name.size() - 4), std::string_view(".inx"),
                     [](unsigned char a, char b) { return std::tolower(a) == b; })) {
-                pendingProject = std::move(path);
-            } else
-#endif
+                ngRequestProjectOpen(std::move(path));
+            } else {
                 detail::windowState().files.append(std::move(path));
+            }
             SDL_RaiseWindow(detail::windowState().window);
             break;
         }
@@ -78,6 +84,7 @@ void ngBeginLoop() {
     tasks::ngTaskUpdate();
     ngBeginLoopNoEv();
     if (!pendingProject.empty() && !widgets::modal::ngModalIsOpen() &&
+        settings::incSettingsGet<bool>("hasDoneQuickSetup", false) &&
         !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) {
         io::save::incOpenProjectAsk(std::exchange(pendingProject, {}));
     }

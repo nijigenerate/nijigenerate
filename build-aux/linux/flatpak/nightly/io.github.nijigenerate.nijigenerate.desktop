@@ -1,6 +1,7 @@
 [Desktop Entry]
 Name=nijigenerate (Nightly)
-Exec=nijigenerate
+Exec=nijigenerate %f
+MimeType=application/inx;
 Icon=io.github.nijigenerate.nijigenerate
 Type=Application
 Categories=Utility

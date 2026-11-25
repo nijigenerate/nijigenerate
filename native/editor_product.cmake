@@ -55,12 +55,21 @@ if(APPLE)
     target_sources(nijigenerate PRIVATE "${_ng_editor_icon}")
     set_target_properties(nijigenerate PROPERTIES
         MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/build-aux/osx/NativeInfo.plist.in"
         MACOSX_BUNDLE_ICON_FILE "nijigenerate.icns"
         MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.nijigenerate.native"
         MACOSX_BUNDLE_BUNDLE_NAME "nijigenerate Native")
     add_custom_command(TARGET nijigenerate POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E touch "$<TARGET_BUNDLE_DIR:nijigenerate>"
         VERBATIM)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    include(GNUInstallDirs)
+    install(TARGETS nijigenerate RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(FILES "${PROJECT_SOURCE_DIR}/build-aux/linux/nijigenerate.desktop"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    install(FILES "${PROJECT_SOURCE_DIR}/build-aux/linux/io.github.nijigenerate.nijigenerate.xml"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages")
 endif()
 if(WIN32)
     enable_language(RC)

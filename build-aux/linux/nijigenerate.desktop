@@ -1,6 +1,7 @@
 [Desktop Entry]
 Name=nijigenerate
-Exec=nijigenerate
+Exec=nijigenerate %f
+MimeType=application/inx;
 Icon=nijigenerate
 Type=Application
 Categories=Utility
