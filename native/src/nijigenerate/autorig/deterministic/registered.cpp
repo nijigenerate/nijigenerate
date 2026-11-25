@@ -503,10 +503,9 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     const auto headYaw = options.is_object()
         ? contracts::ngRigGet(options, literalKey("head_yaw_degrees"), Json{})
         : Json{};
-    if (!headYaw.is_null()) {
-        const double degrees = ngRigNumber(headYaw);
-        enforce(degrees > 0. && degrees < 90., "Head yaw must be between 0 and 90 degrees", 265);
-    }
+    const double headYawDegrees = headYaw.is_null() ? defaultHeadYawDegrees : ngRigNumber(headYaw);
+    enforce(headYawDegrees > 0. && headYawDegrees < 90.,
+        "Head yaw must be between 0 and 90 degrees", 265);
     for(auto curve:at(common,"bone_curves").sourceArrayValue()) {
         enforce(at(curve,"interpolation").as_string().view()=="Linear","Unsupported common template interpolation",265);
         auto xs=ngRigNumbers(at(at(curve,"axes"),std::size_t{0}));
@@ -519,11 +518,11 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         const bool sharedBodyYaw = parameter.as_string().view() == "Body::Yaw-Pitch" &&
             bone.as_string().view() == "Spine" && property.as_string().view() == "transform.r.y";
         double scale = sharedBodyYaw ? .5 : (unit.view()=="torso_length" ? torso : 1.);
-        if (!headYaw.is_null() && parameter.as_string().view() == "Face::Yaw-Pitch" &&
+        if (parameter.as_string().view() == "Face::Yaw-Pitch" &&
             bone.as_string().view() == "Head" && property.as_string().view() == "transform.r.y") {
             const auto end = at(at(curve,"values"),xs.size()-1);
             const auto templateMagnitude = std::abs(ngRigNumber(at(end,std::size_t{0})));
-            scale = ngRigNumber(headYaw) * std::numbers::pi / (180. * templateMagnitude);
+            scale = headYawDegrees * std::numbers::pi / (180. * templateMagnitude);
         }
         for(std::size_t i=0;i<xs.size();++i) for(std::size_t j=0;j<ys.size();++j)
             values.append(object({objectField("key",array({indexed(xs,i,269),indexed(ys,j,269)})),
@@ -1010,8 +1009,7 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     // Seed the fitted head's placement and establish rear-hair depth.
     // A successfully fitted head supplies the final facial depth below.
     const double faceWidth = faceBounds[2]-faceBounds[0];
-    const double yaw = headYaw.is_null() ? 30. : ngRigNumber(headYaw);
-    const double tanYaw = std::tan(yaw*std::numbers::pi/180.);
+    const double tanYaw = std::tan(headYawDegrees*std::numbers::pi/180.);
     for (auto domain : at(program,"domains").sourceArrayValue()) {
         auto& surface = aa(registered,at(domain,"id").as_string().view(),399);
         const auto role = at(surface,"reference_component").as_string();
