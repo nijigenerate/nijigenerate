@@ -1,4 +1,5 @@
 #include <nijigenerate/autorig/deterministic/detail/head_look_arc.hpp>
+#include <nijigenerate/autorig/deterministic/workflow_options.hpp>
 
 #include <algorithm>
 #include <array>
@@ -182,6 +183,17 @@ void checkCardinals(double yawDegrees, double pitchDegrees) {
     }
 }
 
+void checkDefaultHeadYaw() {
+    using nijigenerate::autorig::deterministic::defaultHeadYawDegrees;
+    const Arc arc(defaultHeadYawDegrees * radians, 20. * radians);
+    for (const double input : {-1., 1.}) {
+        const auto angles = arc.euler(input, 0.);
+        near(angles[1], input * 45. * radians, "default AutoRig yaw endpoint must be 45 degrees");
+        near(angles[0], 0., "default AutoRig yaw endpoint pitch");
+        near(angles[2], 0., "default AutoRig yaw endpoint roll");
+    }
+}
+
 double checkGoldens() {
     const Arc arc45(45. * radians, 20. * radians);
     const Arc arc30(30. * radians, 20. * radians);
@@ -241,11 +253,13 @@ void checkRadialResponseAndSymmetry() {
 
 int main() {
     try {
+        checkDefaultHeadYaw();
         checkCardinals(45., 20.);
         checkCardinals(30., 20.);
         const double maximumError = checkGoldens();
         checkRadialResponseAndSymmetry();
-        std::cout << "PASS: head-look arc; 20 independent JS matrix goldens, 45/20 and 30/20 cardinals, "
+        std::cout << "PASS: default AutoRig yaw +/-45 degrees; head-look arc; "
+            "20 independent JS matrix goldens, 45/20 and 30/20 cardinals, "
             "radial response, quadrant symmetry, finite near-axis rotations.\n"
             << std::setprecision(17) << "Maximum golden matrix error: " << maximumError << '\n';
         return 0;
