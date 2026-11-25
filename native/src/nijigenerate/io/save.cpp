@@ -60,6 +60,21 @@ void incCloseProjectAsk() {
     std::allocate_shared<CloseAskHandler>(
         nicxlive::core::d_runtime::SourceAllocator<CloseAskHandler>{})->start();
 }
+namespace {
+class OpenProjectAskHandler final : public CloseAskHandler {
+    compat::RetainedStringSlice path_;
+public:
+    explicit OpenProjectAskHandler(compat::RetainedStringSlice path) : path_(std::move(path)) {}
+    void onProjectClose() override {
+        if (incOpenProject(path_)) incPopWelcomeWindow();
+    }
+};
+}
+void incOpenProjectAsk(compat::RetainedStringSlice path) {
+    if (incProjectPath().view() == path.view()) return;
+    std::allocate_shared<OpenProjectAskHandler>(
+        nicxlive::core::d_runtime::SourceAllocator<OpenProjectAskHandler>{}, std::move(path))->start();
+}
 void incCloseProject() {
     incNewProject();
     incPushWindow(ngCreateWindow<windows::welcome::WelcomeWindow>());

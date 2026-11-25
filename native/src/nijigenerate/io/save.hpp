@@ -7,6 +7,7 @@
 namespace nijigenerate::io::save {
 bool incIsProjectModified();
 bool incFileOpen();
+void incOpenProjectAsk(compat::RetainedStringSlice path);
 bool incFileSave();
 void incFileSaveAs();
 void incNewProjectAsk();

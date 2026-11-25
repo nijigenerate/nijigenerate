@@ -4,9 +4,13 @@
 #include "nijigenerate/core/tasks.hpp"
 #include "nijigenerate/backend/renderer.hpp"
 #include "nijigenerate/io/save.hpp"
+#include "nijigenerate/widgets/modal.hpp"
 
 #include <SDL3/SDL_events.h>
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
+#include <utility>
 
 namespace nijigenerate::core {
 
@@ -15,6 +19,7 @@ void ngBeginLoop() {
     static thread_local SDL_Event deferredMouseRelease{};
     static thread_local bool hasDeferredMouseRelease = false;
     static thread_local std::uint32_t heldMouseButtons = 0;
+    static thread_local compat::RetainedStringSlice pendingProject;
 
     bool sawHeldMouseMotion = false;
     while (hasDeferredMouseRelease || SDL_PollEvent(&event)) {
@@ -33,12 +38,23 @@ void ngBeginLoop() {
         case SDL_EVENT_QUIT:
             io::save::incExitSaveAsk();
             break;
-        case SDL_EVENT_DROP_FILE:
+        case SDL_EVENT_DROP_FILE: {
             // SDL3 owns these transient bytes; retain a copy before polling again.
-            detail::windowState().files.append(compat::RetainedStringSlice(
-                compat::RetainedString(event.drop.data)));
+            if (!event.drop.data) break;
+            auto path = compat::RetainedStringSlice(compat::RetainedString(event.drop.data));
+#if defined(__APPLE__)
+            // Cocoa's application:openFile: produces a drop without a target window.
+            const auto name = path.view();
+            if (event.drop.windowID == 0 && name.size() >= 4 &&
+                std::ranges::equal(name.substr(name.size() - 4), std::string_view(".inx"),
+                    [](unsigned char a, char b) { return std::tolower(a) == b; })) {
+                pendingProject = std::move(path);
+            } else
+#endif
+                detail::windowState().files.append(std::move(path));
             SDL_RaiseWindow(detail::windowState().window);
             break;
+        }
         default:
             backend::ngRendererProcessEvent(&event);
             if (event.type == SDL_EVENT_MOUSE_MOTION &&
@@ -61,6 +77,10 @@ void ngBeginLoop() {
     asyncderivedupdate::incAsyncDerivedUpdateUpdate();
     tasks::ngTaskUpdate();
     ngBeginLoopNoEv();
+    if (!pendingProject.empty() && !widgets::modal::ngModalIsOpen() &&
+        !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) {
+        io::save::incOpenProjectAsk(std::exchange(pendingProject, {}));
+    }
 }
 
 } // namespace nijigenerate::core
