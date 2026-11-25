@@ -3,6 +3,7 @@ if(TARGET nijigenerate_autorig_observation AND NOT TARGET nijigenerate_autorig_r
         src/nijigenerate/autorig/deterministic/registered_geometry.cpp
         src/nijigenerate/autorig/deterministic/registered.cpp
         src/nijigenerate/autorig/deterministic/detail/registered.hpp
+        src/nijigenerate/autorig/deterministic/detail/head_look_arc.hpp
         src/nijigenerate/autorig/deterministic/detail/registered_resource.hpp
         src/nijigenerate/autorig/deterministic/detail/sha256.hpp)
     target_include_directories(nijigenerate_autorig_registered PUBLIC "${CMAKE_CURRENT_LIST_DIR}/src")
@@ -18,3 +19,16 @@ if(TARGET nijigenerate_autorig_observation AND NOT TARGET nijigenerate_autorig_r
         target_compile_options(nijigenerate_autorig_registered PRIVATE -ffp-contract=off -fno-fast-math)
     endif()
 endif()
+
+if(BUILD_TESTING AND NOT TARGET nijigenerate_autorig_head_look_test)
+    add_executable(nijigenerate_autorig_head_look_test tests/source/autorig_head_look_test.cpp)
+    target_include_directories(nijigenerate_autorig_head_look_test PRIVATE "${CMAKE_CURRENT_LIST_DIR}/src")
+    target_compile_features(nijigenerate_autorig_head_look_test PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(nijigenerate_autorig_head_look_test PRIVATE /W4 /utf-8 /fp:strict)
+    else()
+        target_compile_options(nijigenerate_autorig_head_look_test PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off)
+    endif()
+    add_test(NAME native_autorig_head_look COMMAND nijigenerate_autorig_head_look_test)
+endif()
+

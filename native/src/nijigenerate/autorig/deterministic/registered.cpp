@@ -1,4 +1,5 @@
 #include "detail/registered.hpp"
+#include "detail/head_look_arc.hpp"
 #include "detail/head_template_data.hpp"
 #include "detail/hair_surface.hpp"
 #include "linear.hpp"
@@ -20,6 +21,61 @@ Json duplicateObject(const Json& source) {
     const auto members = source.sourceObjectRef();
     for (const auto& member : members) result[member.name] = member.item;
     return result;
+}
+
+void coupleHeadLookDrivers(SettingsJsonArray& drivers) {
+    const auto missing = drivers.size();
+    std::array<std::size_t, 3> indices{missing, missing, missing};
+    for (std::size_t i = 0; i < drivers.size(); ++i) {
+        const auto& driver = drivers[i];
+        if (at(driver,"parameter").as_string().view() != "Face::Yaw-Pitch" ||
+            at(driver,"bone").as_string().view() != "Head") continue;
+        const auto binding = at(driver,"binding").as_string();
+        if (binding.view() == "transform.r.x") indices[0] = i;
+        else if (binding.view() == "transform.r.y") indices[1] = i;
+        else if (binding.view() == "transform.r.z") indices[2] = i;
+    }
+    enforce(indices[0] != missing && indices[1] != missing,"Missing head angle drivers",265);
+    const auto pitchKeys = at(drivers[indices[0]],"values").sourceArrayValue();
+    const auto yawKeys = at(drivers[indices[1]],"values").sourceArrayValue();
+    enforce(pitchKeys.size() == yawKeys.size(),"Head angle driver keys differ",265);
+    double pitchLimit = 0., yawLimit = 0.;
+    for (std::size_t i = 0; i < pitchKeys.size(); ++i) {
+        enforce(at(pitchKeys[i],"key") == at(yawKeys[i],"key"),"Head angle driver keys differ",265);
+        const double pitch = ngRigNumber(at(pitchKeys[i],"value"));
+        const double yaw = ngRigNumber(at(yawKeys[i],"value"));
+        enforce(std::isfinite(pitch) && std::isfinite(yaw),"Nonfinite head angle driver",265);
+        pitchLimit = std::max(pitchLimit,std::abs(pitch));
+        yawLimit = std::max(yawLimit,std::abs(yaw));
+    }
+    enforce(pitchLimit > 0. && pitchLimit < std::numbers::pi/2. &&
+        yawLimit > 0. && yawLimit < std::numbers::pi/2.,
+        "Head arc limits must be between 0 and 90 degrees",265);
+    const head_look::Arc arc(yawLimit,pitchLimit);
+    std::array<SettingsJsonArray, 3> values;
+    for (std::size_t i = 0; i < pitchKeys.size(); ++i) {
+        const auto key = at(pitchKeys[i],"key");
+        const double u = ngRigNumber(at(key,std::size_t{0}));
+        const double v = ngRigNumber(at(key,std::size_t{1}));
+        enforce(std::isfinite(u) && std::isfinite(v) && std::abs(u) <= 1. && std::abs(v) <= 1.,
+            "Head arc input must be between -1 and 1",265);
+        auto angles = arc.euler(u,v);
+        if (u == 0. || v == 0.) {
+            // Keep the template's original cardinal samples, including its rounding.
+            angles = {ngRigNumber(at(pitchKeys[i],"value")),ngRigNumber(at(yawKeys[i],"value")),0.};
+        }
+        for (std::size_t axis = 0; axis < angles.size(); ++axis)
+            values[axis].append(object({objectField("key",key),objectField("value",angles[axis])}));
+    }
+    for (std::size_t axis = 0; axis < values.size(); ++axis) {
+        if (indices[axis] != missing) set(drivers[indices[axis]],"values",values[axis]);
+        else drivers.append(object({objectField("parameter",literalKey("Face::Yaw-Pitch")),
+            objectField("bone",literalKey("Head")),objectField("binding",literalKey("transform.r.z")),
+            objectField("values",values[axis])}));
+    }
+    // Only the generated head drivers change. Depth baking records this rotation's
+    // projection, which the existing cheek, skin-outline and hair corrections use.
+    // Face::Roll remains a separate parameter on both Head and Neck.
 }
 
 double neutralChestRelief(compat::Slice<double> xs, compat::Slice<double> ys,
@@ -480,6 +536,7 @@ Json ngRigRegisterProgram(Json program, Json observation) {
             drivers.append(object({objectField("parameter",parameter),objectField("bone",literalKey("Pelvis")),
                 objectField("binding",property),objectField("values",values)}));
     }
+    coupleHeadLookDrivers(drivers);
     set(program,"native_drivers",drivers);
     const auto domains = at(program,"domains").sourceArrayValue();
     const bool hasChestLayers = std::ranges::any_of(domains, [](const auto& domain) {
@@ -1481,3 +1538,4 @@ Json ngRigRegisterProgram(Json program, Json observation) {
     return program;
 }
 }
+
