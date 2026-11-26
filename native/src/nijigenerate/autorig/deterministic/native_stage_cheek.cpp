@@ -95,7 +95,7 @@ Json applyCheekCorrections(Json state, Json report, Task task) {
                 const auto id = ngRigUnsigned(indexNative(operation,"part"));
                 bound[id] = true;
                 const auto kind = stringGet(operation,"kind","");
-                if (kind=="hair_ridge" || kind=="skin_outline") ridgeFollowers[id] = true;
+                if (kind=="hair_ridge" || kind=="skin_outline" || kind=="face_surface") ridgeFollowers[id] = true;
                 if (kind=="coincident_skin") coincidentSkin[id] = true;
                 break;
             }

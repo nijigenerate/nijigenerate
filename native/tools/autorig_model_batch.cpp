@@ -285,8 +285,12 @@ int main(int argc, char** argv) {
                                 task->runOnMainThread([&] { save("before-jaw.inx"); });
                                 d::native_detail::applyCheekCorrections(isolatedState(),
                                     SettingsJsonValue(corrections->sourceObjectRef().duplicate()),task);
+                                auto audit = SettingsJsonValue(fit->sourceObjectRef().duplicate());
+                                for (const auto name : {"classified_face_surfaces","face_surfaces","bound_targets"})
+                                    if (const auto value = corrections->sourceObjectRef().if_contains(name))
+                                        audit.sourceIndexAssignSlot(name) = *value;
                                 std::ofstream(directory / "jaw-fit.json") <<
-                                    core::settings::ngSettingsJsonString(*fit);
+                                    core::settings::ngSettingsJsonString(audit);
                             }
                         }
                     }

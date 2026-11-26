@@ -498,12 +498,76 @@ static Json compileCheekCorrections(Json state, Json program,
     };
     std::vector<HairTarget> hairTargets;
     std::vector<Json> skinOutlines;
+    using FaceKeyIndex = std::array<std::size_t,2>;
+    struct FaceGrid {
+        Slice<double> frame, xs, ys;
+        double determinant;
+        bool dynamic;
+        std::map<FaceKeyIndex,Slice<Point2>> offsets;
+    };
+    const auto loadFaceGrid = [&](Json target) {
+        const auto frame = contracts::ngRigNumbers(read(target,"parent_to_root"));
+        FaceGrid grid{frame,contracts::ngRigNumbers(read(target,"xs")),
+            contracts::ngRigNumbers(read(target,"ys")),frame[0]*frame[4]-frame[1]*frame[3],
+            contracts::ngRigGet(target,compat::RetainedString::fromStaticLiteral("grid_dynamic"),Json(false)).as_bool(),{}};
+        for (const auto& key : keys) {
+            if (read(key,"grid") != read(target,"grid")) continue;
+            const auto index = contracts::ngRigNumbers(read(key,"key"));
+            const auto values = contracts::ngRigNumbers(read(key,"offsets"));
+            auto& offsets = grid.offsets[{sourceControlIndex(index[0]),sourceControlIndex(index[1])}];
+            for (std::size_t i=0; i<values.size(); i+=2)
+                offsets.append(Point2{values[i],values[i+1]});
+        }
+        return grid;
+    };
     struct SkinFollower {
         std::uint64_t id;
+        Slice<double> rootToLocal;
+        FaceGrid grid;
+        bool sameGrid;
         std::vector<ContourSample> samples;
+        std::array<std::vector<ContourSample>,2> lowerBoundary;
     };
-    std::vector<SkinFollower> coincidentSkin;
+    std::vector<SkinFollower> faceFollowers;
+    Array classifiedFaceSurfaces;
     const auto skinMaterial = readControlMap(materials, skin, 704);
+    using Triangle = std::array<std::size_t,3>;
+    const auto meshIndices = [&](Json triangles) {
+        std::vector<Triangle> indices;
+        for (const auto& triangle : triangles.as_array()) {
+            const auto ids = contracts::ngRigNumbers(triangle);
+            indices.push_back({sourceControlIndex(ids[0]),sourceControlIndex(ids[1]),sourceControlIndex(ids[2])});
+        }
+        return indices;
+    };
+    const auto skinIndices = meshIndices(skinTriangles);
+    const auto surfaceSample = [&](Point2 p, Slice<Point2> vertices, const std::vector<Triangle>& triangles,
+            bool extend) {
+        ContourSample sample{p};
+        double bestDistance = std::numeric_limits<double>::infinity();
+        for (const auto& triangle : triangles) {
+            const auto a = vertices[triangle[0]], b = vertices[triangle[1]], c = vertices[triangle[2]];
+            const auto weights = controls_detail::barycentric(p,a,b,c);
+            if (weights[0]>=-1e-7 && weights[1]>=-1e-7 && weights[2]>=-1e-7)
+                return ContourSample{p,triangle,weights,true};
+            if (!extend) continue;
+            for (std::size_t j=0; j<3; ++j) {
+                const auto first=vertices[triangle[j]], second=vertices[triangle[(j+1)%3]];
+                const Point2 edge{second[0]-first[0],second[1]-first[1]};
+                const double length=square(edge[0])+square(edge[1]);
+                if (length<=1e-12) continue;
+                const double t=std::clamp(((p[0]-first[0])*edge[0]+(p[1]-first[1])*edge[1])/length,0.,1.);
+                const double distance=square(p[0]-first[0]-t*edge[0])+square(p[1]-first[1]-t*edge[1]);
+                if (distance>=bestDistance) continue;
+                Point3 closest{0.,0.,0.};
+                closest[j]=1.-t;
+                closest[(j+1)%3]=t;
+                sample={p,triangle,closest,true};
+                bestDistance=distance;
+            }
+        }
+        return sample;
+    };
     const double faceWidth = curve(profile.y,profile.right,profile.eye)-
         curve(profile.y,profile.left,profile.eye);
     const double hairBand = .20*(curve(profile.y,profile.right,profile.eye)-
@@ -520,33 +584,48 @@ static Json compileCheekCorrections(Json state, Json program,
     }
     for (const auto& [id, material] : materials) {
         const auto role = read(material,"role").as_string().view();
+        if (!measureReference && role=="face" && !read(material,"static").as_bool())
+            classifiedFaceSurfaces.append(Json(id));
         if (!targets.contains(id) || id==skin) continue;
         const bool sameGrid = read(targets[id],"grid")==read(skinTarget,"grid");
-        if (sameGrid && role == "face" &&
-            read(material,"texture_size") == read(skinMaterial,"texture_size") &&
-            read(material,"source_root_mapping") == read(skinMaterial,"source_root_mapping") &&
-            read(material,"alpha_runs_32") == read(skinMaterial,"alpha_runs_32") &&
-            read(material,"alpha_runs_128") == read(skinMaterial,"alpha_runs_128") &&
-            read(targets[id],"origin") == read(skinTarget,"origin") &&
-            read(targets[id],"root_to_local_direction") == read(skinTarget,"root_to_local_direction")) {
-            SkinFollower follower{id, {}};
-            for (const auto world : contracts::ngRigPoints(read(targets[id], "world"))) {
-                ContourSample sample{world};
-                for (const auto& triangle : skinTriangles.as_array()) {
-                    const auto ids = contracts::ngRigNumbers(triangle);
-                    const std::array vertices{sourceControlIndex(ids[0]), sourceControlIndex(ids[1]),
-                        sourceControlIndex(ids[2])};
-                    const auto weights = controls_detail::barycentric(world, skinWorld[vertices[0]],
-                        skinWorld[vertices[1]], skinWorld[vertices[2]]);
-                    if (!(weights[0] >= -1e-7 && weights[1] >= -1e-7 && weights[2] >= -1e-7)) continue;
-                    sample.vertices = vertices;
-                    sample.weights = weights;
-                    sample.mapped = true;
-                    break;
+        if (role=="face") {
+            if (measureReference) continue;
+            const auto target=targets[id];
+            auto grid=loadFaceGrid(target);
+            if (grid.offsets.empty()) continue;
+            const auto vertices=contracts::ngRigPoints(read(target,"world"));
+            SkinFollower follower{id,contracts::ngRigNumbers(read(target,"root_to_local_direction")),
+                std::move(grid),sameGrid,{},{}};
+            for (const auto world : vertices)
+                follower.samples.push_back(surfaceSample(world,skinWorld,skinIndices,true));
+
+            // Exact alpha copies provide no additional silhouette evidence.
+            // Nonidentical Parts can still paint part of the visible jaw.
+            const bool identical = read(material,"texture_size")==read(skinMaterial,"texture_size") &&
+                read(material,"source_root_mapping")==read(skinMaterial,"source_root_mapping") &&
+                read(material,"alpha_runs_32")==read(skinMaterial,"alpha_runs_32") &&
+                read(material,"alpha_runs_128")==read(skinMaterial,"alpha_runs_128");
+            if (!identical && !material.sourceObjectRef().if_contains("receiver")) {
+                const auto indices=meshIndices(read(read(target,"mapping"),"triangles"));
+                const auto points=contracts::ngRigPoints(read(observation::ngRigAlphaContour(material,context),"points"));
+                std::array<std::map<long,Point2>,2> boundary;
+                for (const auto world : points) {
+                    const auto local=profile.frame.local(world);
+                    if (local[1]<profile.mouth || local[1]>chin) continue;
+                    const std::size_t side=local[0]<profile.midline(local[1]) ? 0 : 1;
+                    const auto& edge=side==0 ? paintedEdges[0] : paintedEdges[1];
+                    if (std::abs(local[0]-curve(profile.y,edge,local[1]))>.035*faceWidth) continue;
+                    auto [sample,inserted]=boundary[side].try_emplace(std::lround(local[1]/step),local);
+                    if (!inserted && (side==0 ? local[0]<sample->second[0] : local[0]>sample->second[0]))
+                        sample->second=local;
                 }
-                follower.samples.push_back(sample);
+                for (std::size_t side=0; side<2; ++side)
+                    for (const auto& [row,local] : boundary[side]) {
+                        auto sample=surfaceSample(toRoot(local),vertices,indices,false);
+                        if (sample.mapped) follower.lowerBoundary[side].push_back(sample);
+                    }
             }
-            coincidentSkin.push_back(std::move(follower));
+            faceFollowers.push_back(std::move(follower));
             continue;
         }
         if (sameGrid && role!="hair_front" && role!="hair_side") {
@@ -616,6 +695,66 @@ static Json compileCheekCorrections(Json state, Json program,
     const double m10 = matrix[3];
     const double determinant = m00 * m11 - m01 * m10;
     auto xs = contracts::ngRigNumbers(read(skinTarget, "xs")), ys = contracts::ngRigNumbers(read(skinTarget, "ys"));
+    const bool skinDynamic = contracts::ngRigGet(skinTarget,
+        compat::RetainedString::fromStaticLiteral("grid_dynamic"),Json(false)).as_bool();
+    const auto projectSkin = [&](Point2 world, Slice<Point2> offsets) {
+        return controls_detail::projected(profile.frame.local(world),profile,matrix,determinant,offsets,xs,ys);
+    };
+    const auto projectFollower = [&](const SkinFollower& follower, Point2 world, Slice<Point2> offsets) {
+        const auto& grid=follower.grid;
+        return controls_detail::projected(profile.frame.local(world),profile,grid.frame,grid.determinant,offsets,
+            grid.xs,grid.ys);
+    };
+    const auto fieldAt = [](const ContourSample& sample, Slice<Point2> field) {
+        Point2 delta{0.,0.};
+        if (sample.mapped) for (std::size_t j=0; j<3; ++j)
+            for (std::size_t axis=0; axis<2; ++axis)
+                delta[axis]+=sample.weights[j]*field[sample.vertices[j]][axis];
+        return delta;
+    };
+    const auto skinMotion = [&](Point2 world, Point2 delta, Slice<Point2> offsets) {
+        if (!skinDynamic) return delta;
+        const auto before=projectSkin(world,offsets);
+        const auto after=projectSkin({world[0]+delta[0],world[1]+delta[1]},offsets);
+        return Point2{after[0]-before[0],after[1]-before[1]};
+    };
+    const auto followerValues = [&](const SkinFollower& follower, FaceKeyIndex key,
+            Slice<Point2> offsets, Slice<Point2> field) {
+        Slice<double> values;
+        const auto other=follower.grid.offsets.find(key);
+        enforce(other!=follower.grid.offsets.end(),"Face surface is missing its native angle key",719);
+        for (const auto& sample : follower.samples) {
+            auto delta=fieldAt(sample,field);
+            const auto world=sample.section;
+            if (!follower.sameGrid || follower.grid.dynamic!=skinDynamic) {
+                const auto motion=skinMotion(world,delta,offsets);
+                delta=motion;
+                if (follower.grid.dynamic && (motion[0]!=0. || motion[1]!=0.)) {
+                    const auto before=projectFollower(follower,world,other->second);
+                    for (unsigned pass=0; pass<12; ++pass) {
+                        const Point2 moved{world[0]+delta[0],world[1]+delta[1]};
+                        const auto result=projectFollower(follower,moved,other->second);
+                        const Point2 error{before[0]+motion[0]-result[0],before[1]+motion[1]-result[1]};
+                        if (std::hypot(error[0],error[1])<1e-5) break;
+                        constexpr double h=.01;
+                        const auto dx=projectFollower(follower,{moved[0]+h,moved[1]},other->second);
+                        const auto dy=projectFollower(follower,{moved[0],moved[1]+h},other->second);
+                        const double a=(dx[0]-result[0])/h,b=(dy[0]-result[0])/h;
+                        const double c=(dx[1]-result[1])/h,d=(dy[1]-result[1])/h;
+                        const double det=a*d-b*c;
+                        enforce(std::isfinite(det) && std::abs(det)>1e-8,
+                            "Face surface projection is singular",733);
+                        delta[0]+=(d*error[0]-b*error[1])/det;
+                        delta[1]+=(a*error[1]-c*error[0])/det;
+                    }
+                }
+            }
+            const auto& frame=follower.rootToLocal;
+            values.append(frame[0]*delta[0]+frame[1]*delta[1]);
+            values.append(frame[2]*delta[0]+frame[3]*delta[1]);
+        }
+        return values;
+    };
     struct YawRidge {
         int side;
         Point2 temple, chin, seam, upper, lower;
@@ -1470,7 +1609,6 @@ static Json compileCheekCorrections(Json state, Json program,
             anchorError = std::max(anchorError, std::hypot(error[0], error[1]));
         }
 
-        const auto id = skin;
         const auto& target = skinTarget;
         const auto& world = skinWorld;
         const auto& allowed = allowedSkin;
@@ -1526,20 +1664,11 @@ static Json compileCheekCorrections(Json state, Json program,
                     (inverse[0]*displacement[2*v+1]-inverse[2]*displacement[2*v])/inverseDet});
             jawKeys.push_back({poseKey,value,offsets,baseField,chin-.52*(chin-templateEarRow)});
             operations.append(operation);
-        }
-        if (!measureReference) for (const auto& follower : coincidentSkin) {
-            Slice<double> values;
-            for (const auto& sample : follower.samples) {
-                Point2 delta{0., 0.};
-                if (sample.mapped)
-                    for (std::size_t j=0; j<3; ++j)
-                        for (std::size_t axis=0; axis<2; ++axis)
-                            delta[axis] += sample.weights[j]*displacement[2*sample.vertices[j]+axis];
-                values.append(delta[0]);
-                values.append(delta[1]);
+            for (const auto& follower : faceFollowers) {
+                const auto values=followerValues(follower,poseKey,offsets,baseField);
+                operations.append(record({{"part",Json(follower.id)},{"key",read(key,"key")},
+                    {"values",array(values)},{"kind",Json("face_surface")}}));
             }
-            operations.append(record({{"part",Json(follower.id)},{"key",read(key,"key")},
-                {"values",array(values)},{"kind",Json("coincident_skin")}}));
         }
         if (measureReference) for (const auto& line : skinOutlines) {
             const auto local = contracts::ngRigNumbers(read(line,"root_to_local_direction"));
@@ -1714,11 +1843,17 @@ static Json compileCheekCorrections(Json state, Json program,
         }
         struct Term { std::size_t index; double weight; };
         struct Row { std::vector<Term> terms; double gap; };
+        struct SurfacePose {
+            const SkinFollower* surface;
+            std::vector<Point2> vertices;
+            std::vector<const ContourSample*> samples;
+        };
         struct JawPose {
             std::vector<Term> keys;
             Slice<Point2> offsets;
             Slice<Point2> base;
             std::vector<const ContourSample*> samples;
+            std::vector<SurfacePose> surfaces;
             Point2 start;
             double width, height, slope;
             int side;
@@ -1853,7 +1988,32 @@ static Json compileCheekCorrections(Json state, Json program,
                     const double t=pose.side*(pose.start[0]-before[0])/pose.width;
                     if (t>0. && t<1.) pose.samples.push_back(&*it);
                 }
-                if (!pose.samples.empty()) poses.push_back(std::move(pose));
+                for (const auto& follower : faceFollowers) {
+                    const auto& boundary=follower.lowerBoundary[pose.side<0 ? 0 : 1];
+                    if (boundary.empty()) continue;
+                    Slice<Point2> other;
+                    other.resize(follower.grid.offsets.begin()->second.size(),Point2{0.,0.});
+                    for (const auto blend : pose.keys) {
+                        const auto& offsets=follower.grid.offsets.at(jawKeys[blend.index].index);
+                        for (std::size_t i=0; i<other.size(); ++i)
+                            for (std::size_t axis=0; axis<2; ++axis)
+                                other[i][axis]+=blend.weight*offsets[i][axis];
+                    }
+                    SurfacePose surface{&follower,{},{}};
+                    for (const auto& mapping : follower.samples)
+                        surface.vertices.push_back(projectFollower(follower,mapping.section,other));
+                    std::vector<Point2> reference;
+                    for (const auto& mapping : follower.samples)
+                        reference.push_back(profile.frame.local(projectSkin(mapping.section,pose.offsets)));
+                    for (const auto& sample : boundary) {
+                        if (profile.frame.local(sample.section)[1]<=jawRow) continue;
+                        const auto p=at(sample,reference);
+                        const double t=pose.side*(pose.start[0]-p[0])/pose.width;
+                        if (t>0. && t<1.) surface.samples.push_back(&sample);
+                    }
+                    if (!surface.samples.empty()) pose.surfaces.push_back(std::move(surface));
+                }
+                if (!pose.samples.empty() || !pose.surfaces.empty()) poses.push_back(std::move(pose));
             }
         }
         const auto target = [](const JawPose& pose, double x) {
@@ -1863,16 +2023,25 @@ static Json compileCheekCorrections(Json state, Json program,
             const double slope=-pose.side*(6.*pose.height*t*u+pose.slope*u*(1.-3.*t))/pose.width;
             return Point2{y,slope};
         };
-        const auto sampleCount=std::accumulate(poses.begin(),poses.end(),std::size_t{0},
+        const auto mainSamples=std::accumulate(poses.begin(),poses.end(),std::size_t{0},
             [](std::size_t count,const JawPose& pose) { return count+pose.samples.size(); });
+        const auto secondarySamples=std::accumulate(poses.begin(),poses.end(),std::size_t{0},
+            [](std::size_t count,const JawPose& pose) {
+                for (const auto& surface : pose.surfaces) count+=surface.samples.size();
+                return count;
+            });
+        constexpr double surfaceWeight=.5;
+        const double weightedSamples=static_cast<double>(mainSamples)+square(surfaceWeight)*secondarySamples;
         std::vector<double> field(variableCount);
         const auto linearize = [&](const std::vector<double>& current, std::vector<Row>* rows) {
             double error=0.;
             for (const auto& pose : poses) {
+                std::vector<double> displacement(vertexCount);
                 std::vector<Point2> points(vertexCount), derivative(vertexCount,Point2{0.,0.});
                 for (std::size_t v=0; v<vertexCount; ++v) {
-                    double delta=0.;
-                    for (const auto term : pose.keys) delta+=term.weight*current[term.index*vertexCount+v];
+                    for (const auto term : pose.keys)
+                        displacement[v]+=term.weight*current[term.index*vertexCount+v];
+                    const double delta=displacement[v];
                     points[v]=projectVertex(pose,v,delta);
                     if (rows && std::ranges::binary_search(movable,v)) {
                         if (dynamic) {
@@ -1884,30 +2053,83 @@ static Json compileCheekCorrections(Json state, Json program,
                         }
                     }
                 }
-                for (const auto* sample : pose.samples) {
-                    const auto p=at(*sample,points);
+                const auto constrain = [&](Point2 p, double weight, auto addCoefficients) {
                     const auto guide=target(pose,p[0]);
                     const double invLength=1./std::hypot(1.,guide[1]);
                     const double gap=(guide[0]-p[1])*invLength;
-                    error+=square(gap);
-                    if (!rows) continue;
-                    Row row{{},pose.weight*gap};
-                    for (std::size_t j=0; j<3; ++j) {
-                        const auto v=sample->vertices[j];
-                        const auto d=derivative[v];
-                        const double weight=pose.weight*sample->weights[j]*invLength*(d[1]-guide[1]*d[0]);
-                        if (std::abs(weight)<1e-10) continue;
+                    error+=square(weight*gap);
+                    if (!rows) return;
+                    Row row{{},pose.weight*weight*gap};
+                    const auto coefficient = [&](std::size_t v, Point2 tangent, double scale) {
+                        if (!std::ranges::binary_search(movable,v)) return;
+                        const double a=pose.weight*weight*scale*invLength*(tangent[1]-guide[1]*tangent[0]);
+                        if (std::abs(a)<1e-10) return;
                         for (const auto term : pose.keys)
-                            if (freeKey(term.index)) row.terms.push_back({term.index*vertexCount+v,term.weight*weight});
-                    }
+                            if (freeKey(term.index))
+                                row.terms.push_back({term.index*vertexCount+v,term.weight*a});
+                    };
+                    addCoefficients(coefficient);
                     if (!row.terms.empty()) rows->push_back(std::move(row));
+                };
+                for (const auto* sample : pose.samples)
+                    constrain(at(*sample,points),1.,[&](auto coefficient) {
+                        for (std::size_t j=0; j<3; ++j) {
+                            const auto v=sample->vertices[j];
+                            coefficient(v,derivative[v],sample->weights[j]);
+                        }
+                    });
+                for (const auto& surface : pose.surfaces) {
+                    const auto& mappings=surface.surface->samples;
+                    std::vector<Point2> posed, nativeGap, directions;
+                    for (std::size_t v=0; v<mappings.size(); ++v) {
+                        const auto& mapping=mappings[v];
+                        const auto world=mapping.section;
+                        auto base=fieldAt(mapping,pose.base);
+                        double delta=0.;
+                        if (mapping.mapped) for (std::size_t j=0; j<3; ++j)
+                            delta+=mapping.weights[j]*displacement[mapping.vertices[j]];
+                        for (std::size_t axis=0; axis<2; ++axis)
+                            base[axis]+=delta*profile.frame.normal[axis];
+                        const auto motion=skinMotion(world,base,pose.offsets);
+                        const auto native=surface.vertices[v];
+                        posed.push_back(profile.frame.local({native[0]+motion[0],native[1]+motion[1]}));
+                        const auto ref=profile.frame.local(projectSkin(world,pose.offsets));
+                        const auto own=profile.frame.local(native);
+                        nativeGap.push_back({own[0]-ref[0],own[1]-ref[1]});
+                        if (!rows) continue;
+                        Point2 direction{0.,1.};
+                        if (dynamic) {
+                            const auto next=skinMotion(world,{base[0]+.01*profile.frame.normal[0],
+                                base[1]+.01*profile.frame.normal[1]},pose.offsets);
+                            const auto prev=skinMotion(world,{base[0]-.01*profile.frame.normal[0],
+                                base[1]-.01*profile.frame.normal[1]},pose.offsets);
+                            const auto a=profile.frame.local(next), b=profile.frame.local(prev);
+                            direction={(a[0]-b[0])/.02,(a[1]-b[1])/.02};
+                        }
+                        directions.push_back(direction);
+                    }
+                    for (const auto* sample : surface.samples) {
+                        const auto p=at(*sample,posed), gap=at(*sample,nativeGap);
+                        // Preserve depth-derived offsets while fitting the
+                        // painted outline on the layer's own triangle mesh.
+                        constrain({p[0]-gap[0],p[1]-gap[1]},surfaceWeight,[&](auto coefficient) {
+                            for (std::size_t j=0; j<3; ++j) {
+                                const auto v=sample->vertices[j];
+                                const auto& mapping=mappings[v];
+                                if (!mapping.mapped) continue;
+                                for (std::size_t n=0; n<3; ++n)
+                                    coefficient(mapping.vertices[n],directions[v],
+                                        sample->weights[j]*mapping.weights[n]);
+                            }
+                        });
+                    }
                 }
             }
             return error;
         };
         const double beforeError=linearize(field,nullptr);
         double currentError=beforeError;
-        for (unsigned iteration=0; iteration<2 && sampleCount; ++iteration) {
+        for (unsigned iteration=0; iteration<2 && weightedSamples>0.; ++iteration) {
             contracts::ngRigCheckpoint(context);
             std::vector<Row> rows;
             linearize(field,&rows);
@@ -1963,7 +2185,7 @@ static Json compileCheekCorrections(Json state, Json program,
             }
             if (!accepted) break;
         }
-        if (sampleCount) {
+        if (weightedSamples>0.) {
             const auto inverse=contracts::ngRigNumbers(read(skinTarget,"root_to_local_direction"));
             const Point2 localNormal{inverse[0]*profile.frame.normal[0]+inverse[1]*profile.frame.normal[1],
                 inverse[2]*profile.frame.normal[0]+inverse[3]*profile.frame.normal[1]};
@@ -1989,28 +2211,26 @@ static Json compileCheekCorrections(Json state, Json program,
                     operation.sourceObjectRef().erase("ridge_rms_error");
                     operation.sourceObjectRef().erase("ridge_max_error");
                 } else {
-                    const auto follower=std::ranges::find(coincidentSkin,id,[](const auto& f) { return f.id; });
-                    if (follower==coincidentSkin.end()) {
+                    const auto follower=std::ranges::find(faceFollowers,id,[](const auto& f) { return f.id; });
+                    if (follower==faceFollowers.end()) {
                         adjusted.append(operation);
                         continue;
                     }
-                    for (const auto& sample : follower->samples) {
-                        double delta=0.;
-                        if (sample.mapped) for (std::size_t j=0; j<3; ++j)
-                            delta+=sample.weights[j]*field[k*vertexCount+sample.vertices[j]];
-                        const auto i=values.size();
+                    auto combined=jawKeys[k].base.duplicate();
+                    for (const auto v : movable)
                         for (std::size_t axis=0; axis<2; ++axis)
-                            values.append(old[i+axis]+delta*localNormal[axis]);
-                    }
+                            combined[v][axis]+=field[k*vertexCount+v]*profile.frame.normal[axis];
+                    values=followerValues(*follower,jawKeys[k].index,jawKeys[k].offsets,combined);
                 }
                 operation.sourceIndexAssignSlot("before_jaw")=record({{"values",read(operation,"values")}});
                 operation.sourceIndexAssignSlot("values")=array(values);
                 adjusted.append(operation);
             }
             operations=std::move(adjusted);
-            jawFit=record({{"poses",Json(poses.size())},{"samples",Json(sampleCount)},
-                {"before_rms",Json(std::sqrt(beforeError/static_cast<double>(sampleCount)))},
-                {"after_rms",Json(std::sqrt(currentError/static_cast<double>(sampleCount)))}});
+            jawFit=record({{"poses",Json(poses.size())},{"samples",Json(mainSamples+secondarySamples)},
+                {"secondary_face_samples",Json(secondarySamples)},
+                {"before_rms",Json(std::sqrt(beforeError/weightedSamples))},
+                {"after_rms",Json(std::sqrt(currentError/weightedSamples))}});
         }
     }
     auto report = record({{"applicable", Json(true)}, {"mechanism", Json("alpha_near_cheek_inverse_grid")},
@@ -2022,7 +2242,14 @@ static Json compileCheekCorrections(Json state, Json program,
         {"program_sha256", read(program, "content_sha256")}, {"depth_angle_program_sha256", read(state, "depth_angle_program_sha256")},
         {"source_uv_program_sha256", read(state, "source_uv_program_sha256")}, {"source_sha256", read(state, "source_sha256")},
         {"visually_reviewed", Json(false)}});
-    if (!measureReference) report.sourceIndexAssignSlot("jaw_fit")=jawFit;
+    if (!measureReference) {
+        report.sourceIndexAssignSlot("jaw_fit")=jawFit;
+        Array surfaces;
+        surfaces.append(Json(skin));
+        for (const auto& follower : faceFollowers) surfaces.append(Json(follower.id));
+        report.sourceIndexAssignSlot("face_surfaces")=surfaces;
+        report.sourceIndexAssignSlot("classified_face_surfaces")=classifiedFaceSurfaces;
+    }
     return report;
 }
 
