@@ -68,6 +68,7 @@ double curve(Slice<double> axis, Slice<double> values, double x) {
         std::span<const double>(values.data(), values.size()), x);
 }
 double square(double value) { return value * value; }
+
 double smootherStep(double value) {
     const double t = std::clamp(value, 0., 1.);
     return t*t*t*(t*(6*t - 15) + 10);
@@ -279,6 +280,7 @@ static Json compileCheekCorrections(Json state, Json program,
         if (fittedMesh.size()==head_surface::rowCount*head_surface_reference::columns)
             profile.temple=profile.y[0];
     }
+    const std::array paintedEdges{profile.left.duplicate(), profile.right.duplicate()};
     smoothSilhouette(profile, std::max(2*step, (profile.mouth-profile.eye)/6));
     auto skinTarget = readControlMap(targets, skin, 704);
     auto skinWorld = contracts::ngRigPoints(read(skinTarget, "world"));
@@ -290,11 +292,13 @@ static Json compileCheekCorrections(Json state, Json program,
         Point3 weights{};
         bool mapped = false;
     };
-    std::array<std::vector<ContourSample>, 2> contourSamples;
+    std::array<std::vector<ContourSample>, 2> contourSamples, paintedContours;
     for (std::size_t sideIndex = 0; sideIndex < contourSamples.size(); ++sideIndex) {
         const auto& edge = sideIndex == 0 ? profile.left : profile.right;
-        for (std::size_t i = 0; i < profile.y.size(); ++i)
+        for (std::size_t i = 0; i < profile.y.size(); ++i) {
             contourSamples[sideIndex].push_back({{edge[i], profile.y[i]}});
+            paintedContours[sideIndex].push_back({{paintedEdges[sideIndex][i], profile.y[i]}});
+        }
     }
     const double chin = profile.y[profile.y.size()-1];
     const std::array jawRows{jawAngleRow(profile,-1,step),jawAngleRow(profile,1,step)};
@@ -318,8 +322,6 @@ static Json compileCheekCorrections(Json state, Json program,
     }
     anchors = interiorAnchors;
     anchors.append(toRoot(chinTip));
-    anchors.append(toRoot({profile.left[profile.left.size()-1],chin}));
-    anchors.append(toRoot({profile.right[profile.right.size()-1],chin}));
     anchors.append(toRoot({curve(profile.y,profile.left,profile.temple),profile.temple}));
     anchors.append(toRoot({curve(profile.y,profile.right,profile.temple),profile.temple}));
     const auto originalCount = skinWorld.size();
@@ -395,7 +397,7 @@ static Json compileCheekCorrections(Json state, Json program,
         const double upper = std::max({first[1],second[1],third[1]});
         auto row = std::lower_bound(profile.y.begin(),profile.y.end(),lower-1e-7);
         for (; row != profile.y.end() && *row <= upper+1e-7; ++row) {
-            for (auto& edge : contourSamples) {
+            for (auto* pair : {&contourSamples,&paintedContours}) for (auto& edge : *pair) {
                 auto& sample = edge[static_cast<std::size_t>(row-profile.y.begin())];
                 if (sample.mapped) continue;
                 const auto weights = controls_detail::barycentric(sample.section,first,second,third);
@@ -421,7 +423,10 @@ static Json compileCheekCorrections(Json state, Json program,
         const double middle = profile.midline(p[1]);
         const double radius = (curve(profile.y, profile.right, p[1]) -
             curve(profile.y, profile.left, p[1])) / 2.;
-        if (p[1] <= profile.temple || std::abs(p[0] - middle) <= .22 * radius)
+        // The chin position is fixed by its interpolated anchor. Pinning its
+        // neighboring vertices as well can lock an entire lower triangle.
+        const bool underChin = p[1] > std::lerp(profile.mouth,chin,.55);
+        if (p[1] <= profile.temple || (!underChin && std::abs(p[0] - middle) <= .22 * radius))
             pinned[i] = true;
     }
     // Use the painted neck boundary in the same root coordinates as the face.
@@ -617,6 +622,14 @@ static Json compileCheekCorrections(Json state, Json program,
     };
     std::map<std::size_t,YawRidge> yawRidges;
     const auto fittedLandmarks=program.sourceObjectRef().if_contains("head_anatomical_landmarks");
+    struct JawKey {
+        std::array<std::size_t,2> index;
+        Point2 value;
+        Slice<Point2> offsets, base;
+        double jawRow;
+    };
+    std::vector<JawKey> jawKeys;
+    Json jawFit;
     std::vector<Json> skinKeys;
     for (const auto& key : keys)
         if (read(key,"grid") == read(skinTarget,"grid")) skinKeys.push_back(key);
@@ -928,8 +941,8 @@ static Json compileCheekCorrections(Json state, Json program,
                 guide.append(Json(samples));
             }
             neckJunction.sourceIndexAssignSlot("guide") = Json(guide);
-            if (!registeredRidge->lower.empty())
-                neckJunction.sourceIndexAssignSlot("lower_depth_end")=point(registeredRidge->depthEnd);
+            if (registeredRidge->depthEnd)
+                neckJunction.sourceIndexAssignSlot("lower_depth_end")=point(*registeredRidge->depthEnd);
         } else if (useHeadTemplate) {
             const auto project3D = [&](Point3 p) {
                 return Point2{projection[0]*p[0]+projection[2]*p[1]+projection[4]*p[2]+projection[6],
@@ -1048,20 +1061,20 @@ static Json compileCheekCorrections(Json state, Json program,
         }
         Slice<Point2> edgeResidual;
         Array ridgeSamples;
+        const auto inheritedPoint = [&](const ContourSample& sample) {
+            if (!sample.mapped) return projected(sample.section);
+            Point2 current{0.,0.};
+            for (std::size_t i=0; i<3; ++i) {
+                const auto q = projected(profile.frame.local(skinWorld[sample.vertices[i]]));
+                for (std::size_t axis=0; axis<2; ++axis) current[axis] += sample.weights[i]*q[axis];
+            }
+            return current;
+        };
         if (side) {
             const double strength = useHeadTemplate ? smootherStep(std::abs(value[0])/.5) :
                 seam ? 1. : smootherStep(std::abs(slope)/.34);
             // Match the lower ridge blend at E without a step in the upper ridge.
             const double earTransition = .2*(templateEarRow-profile.temple);
-            const auto inheritedPoint = [&](const ContourSample& sample) {
-                if (!sample.mapped) return projected(sample.section);
-                Point2 current{0.,0.};
-                for (std::size_t i=0; i<3; ++i) {
-                    const auto q = projected(profile.frame.local(skinWorld[sample.vertices[i]]));
-                    for (std::size_t axis=0; axis<2; ++axis) current[axis] += sample.weights[i]*q[axis];
-                }
-                return current;
-            };
             std::vector<Point2> inherited;
             inherited.reserve(outline.size());
             for (const auto& sample : outline) inherited.push_back(inheritedPoint(sample));
@@ -1174,20 +1187,17 @@ static Json compileCheekCorrections(Json state, Json program,
                     edgeResidual[i]={target[0]-inherited[i][0],target[1]-inherited[i][1]};
                 }
             }
-            for (std::size_t i=0;i<outline.size();++i) {
-                const auto& sample=outline[i];
-                const auto y=sample.section[1];
-                if (!sample.mapped || y<=profile.temple || y>=chin) continue;
-                const auto current=inherited[i], residual=edgeResidual[i];
-                const Point2 target{current[0]+residual[0],current[1]+residual[1]};
-                ridgeSamples.append(record({{"target",point(target)},{"before",point(current)},
-                    {"section_y",Json(y)},{"ear_junction",Json(useHeadTemplate ? y==templateEarRow : seam && y==seamRow)},
-                    {"weights",array(Slice<double>{sample.weights[0],sample.weights[1],sample.weights[2]})},
-                    {"vertices",array(Slice<std::size_t>{sample.vertices[0],sample.vertices[1],sample.vertices[2]})}}));
-            }
         }
         Slice<double> residualX, residualY;
-        for (const auto delta : edgeResidual) { residualX.append(delta[0]); residualY.append(delta[1]); }
+        const auto cacheContourResidual = [&] {
+            residualX = {};
+            residualY = {};
+            for (const auto delta : edgeResidual) {
+                residualX.append(delta[0]);
+                residualY.append(delta[1]);
+            }
+        };
+        cacheContourResidual();
         const auto contourRepair = [&](Point2 world) {
             const auto p = profile.frame.local(world);
             if (!side || p[1] <= profile.temple || p[1] >= chin) return Point2{0.,0.};
@@ -1205,23 +1215,32 @@ static Json compileCheekCorrections(Json state, Json program,
             for (const auto vertex : sample.vertices) {
                 const auto section = profile.frame.local(skinWorld[vertex]);
                 const double middle = profile.midline(section[1]);
-                if (!pinned[vertex] && side*(section[0]-middle) >
-                    .5*side*(curve(profile.y,edge,section[1])-middle))
+                const bool lowerEdge=sample.section[1]>std::lerp(profile.mouth,chin,.55) &&
+                    section[1]>std::lerp(profile.mouth,chin,.55);
+                if (!pinned[vertex] && (lowerEdge || side*(section[0]-middle) >
+                    .5*side*(curve(profile.y,edge,section[1])-middle)))
                     allowedSkin[vertex] = true;
             }
         }
-        Slice<Point2> skinField;
-        for (std::size_t i = 0; i < skinWorld.size(); ++i) {
-            const auto world = skinWorld[i];
-            auto result = !pinned[i] ? contourRepair(world) : Point2{0.,0.};
-            if (result[0] != 0. || result[1] != 0.) allowedSkin[i] = true;
-            result = unprojectResidual(world,result);
-            const auto skinInverse = contracts::ngRigNumbers(read(skinTarget, "root_to_local_direction"));
-            const Point2 rounded{std::rint((skinInverse[0] * result[0] + skinInverse[1] * result[1]) * 1e5) / 1e5,
-                std::rint((skinInverse[2] * result[0] + skinInverse[3] * result[1]) * 1e5) / 1e5};
-            const double skinDeterminant = skinInverse[0] * skinInverse[3] - skinInverse[1] * skinInverse[2];
-            skinField.append(Point2{(skinInverse[3] * rounded[0] - skinInverse[1] * rounded[1]) / skinDeterminant,
-                (skinInverse[0] * rounded[1] - skinInverse[2] * rounded[0]) / skinDeterminant});
+        const auto initializeSkinField = [&] {
+            Slice<Point2> field;
+            for (std::size_t i = 0; i < skinWorld.size(); ++i) {
+                const auto world = skinWorld[i];
+                const auto repair = !pinned[i] ? contourRepair(world) : Point2{0.,0.};
+                const auto result = unprojectResidual(world,repair);
+                const auto skinInverse = contracts::ngRigNumbers(read(skinTarget, "root_to_local_direction"));
+                const Point2 rounded{std::rint((skinInverse[0] * result[0] + skinInverse[1] * result[1]) * 1e5) / 1e5,
+                    std::rint((skinInverse[2] * result[0] + skinInverse[3] * result[1]) * 1e5) / 1e5};
+                const double skinDeterminant = skinInverse[0] * skinInverse[3] - skinInverse[1] * skinInverse[2];
+                field.append(Point2{(skinInverse[3] * rounded[0] - skinInverse[1] * rounded[1]) / skinDeterminant,
+                    (skinInverse[0] * rounded[1] - skinInverse[2] * rounded[0]) / skinDeterminant});
+            }
+            return field;
+        };
+        for (std::size_t i=0; i<skinWorld.size(); ++i) {
+            if (pinned[i]) continue;
+            const auto repair = contourRepair(skinWorld[i]);
+            if (repair[0] != 0. || repair[1] != 0.) allowedSkin[i] = true;
         }
         // Preserve the interpolated feature point, not every corner of its
         // containing triangle. Coarse real meshes otherwise lose most of their
@@ -1298,80 +1317,95 @@ static Json compileCheekCorrections(Json state, Json program,
                 for (std::size_t axis=0;axis<2;++axis)
                     field[i][axis] += junctionDirection[i]*wanted[axis];
         };
-        preserveAnchors(skinField);
-        constrainJunction(skinField,junctionDelta);
-        // Fit the painted contour inside the triangles. A mesh vertex can
-        // sit well outside the painted outline, so assigning the offset at
-        // the vertex's own height alone misses the recess between vertices.
-        if (side) {
-            struct ContourConstraint {
-                const ContourSample* sample;
-                Point2 displacement;
-            };
-            std::vector<ContourConstraint> constraints;
-            const auto appendConstraint = [&](const ContourSample& sample, Point2 residual) {
-                const auto gridPoint = projected(sample.section);
-                constraints.push_back({&sample,invertGrid(toRoot(sample.section),
-                    {gridPoint[0]+residual[0],gridPoint[1]+residual[1]})});
-            };
-            for (std::size_t i=0; i<outline.size(); ++i) {
-                const auto& sample = outline[i];
-                if (!sample.mapped || sample.section[1] <= profile.temple || sample.section[1] >= chin) continue;
-                // The triangle sample is already in rendered coordinates.
-                // Translate its residual to the Grid sampling point before inversion.
-                appendConstraint(sample, edgeResidual[i]);
-            }
-            const auto initial = skinField.duplicate();
-            const auto rhs = [&](Slice<Point2> field, bool target) {
-                Slice<Point2> result;
-                result.resize(field.size(),Point2{0.,0.});
-                for (const auto& constraint : constraints) {
-                    const auto& sample = *constraint.sample;
-                    Point2 residual = target ? constraint.displacement : Point2{0.,0.};
-                    for (std::size_t j=0;j<3;++j)
-                        for (std::size_t axis=0;axis<2;++axis)
-                            residual[axis] -= sample.weights[j]*field[sample.vertices[j]][axis];
-                    for (std::size_t j=0;j<3;++j) {
-                        const auto vertex = sample.vertices[j];
-                        if (!allowedSkin[vertex] || pinned[vertex]) continue;
-                        for (std::size_t axis=0;axis<2;++axis)
-                            result[vertex][axis] += sample.weights[j]*residual[axis];
-                    }
+        const auto fitSkin = [&] {
+            auto skinField = initializeSkinField();
+            preserveAnchors(skinField);
+            constrainJunction(skinField,junctionDelta);
+            // Fit the painted contour inside the triangles. A mesh vertex can
+            // sit well outside the painted outline, so assigning the offset at
+            // the vertex's own height alone misses the recess between vertices.
+            if (side) {
+                struct ContourConstraint {
+                    const ContourSample* sample;
+                    Point2 displacement;
+                };
+                std::vector<ContourConstraint> constraints;
+                const auto appendConstraint = [&](const ContourSample& sample, Point2 residual) {
+                    const auto gridPoint = projected(sample.section);
+                    constraints.push_back({&sample,invertGrid(toRoot(sample.section),
+                        {gridPoint[0]+residual[0],gridPoint[1]+residual[1]})});
+                };
+                for (std::size_t i=0; i<outline.size(); ++i) {
+                    const auto& sample = outline[i];
+                    if (!sample.mapped || sample.section[1] <= profile.temple || sample.section[1] >= chin) continue;
+                    // The triangle sample is already in rendered coordinates.
+                    // Translate its residual to the Grid sampling point before inversion.
+                    appendConstraint(sample, edgeResidual[i]);
                 }
-                constexpr double regularization = .12;
-                for (std::size_t i=0;i<field.size();++i)
-                    for (std::size_t axis=0;axis<2;++axis)
-                        result[i][axis] -= regularization*(field[i][axis]-(target ? initial[i][axis] : 0.));
-                preserveAnchors(result);
-                constrainJunction(result,{0.,0.});
-                return result;
-            };
-            const auto dot = [](Slice<Point2> a, Slice<Point2> b) {
-                double value = 0.;
-                for (std::size_t i=0;i<a.size();++i)
-                    value += a[i][0]*b[i][0]+a[i][1]*b[i][1];
-                return value;
-            };
-            auto residual = rhs(skinField,true);
-            auto direction = residual.duplicate();
-            double norm = dot(residual,residual);
-            for (unsigned pass=0;pass<80 && norm>1e-12;++pass) {
-                auto negativeProduct = rhs(direction,false);
-                const double denominator = -dot(direction,negativeProduct);
-                if (denominator <= 1e-12) break;
-                const double gain = norm/denominator;
-                for (std::size_t i=0;i<skinField.size();++i)
-                    for (std::size_t axis=0;axis<2;++axis) {
-                        skinField[i][axis] += gain*direction[i][axis];
-                        residual[i][axis] += gain*negativeProduct[i][axis];
+                const auto initial = skinField.duplicate();
+                const auto rhs = [&](Slice<Point2> field, bool target) {
+                    Slice<Point2> result;
+                    result.resize(field.size(),Point2{0.,0.});
+                    for (const auto& constraint : constraints) {
+                        const auto& sample = *constraint.sample;
+                        Point2 residual = target ? constraint.displacement : Point2{0.,0.};
+                        for (std::size_t j=0;j<3;++j)
+                            for (std::size_t axis=0;axis<2;++axis)
+                                residual[axis] -= sample.weights[j]*field[sample.vertices[j]][axis];
+                        for (std::size_t j=0;j<3;++j) {
+                            const auto vertex = sample.vertices[j];
+                            if (!allowedSkin[vertex] || pinned[vertex]) continue;
+                            for (std::size_t axis=0;axis<2;++axis)
+                                result[vertex][axis] += sample.weights[j]*residual[axis];
+                        }
                     }
-                const double nextNorm = dot(residual,residual);
-                for (std::size_t i=0;i<direction.size();++i)
-                    for (std::size_t axis=0;axis<2;++axis)
-                        direction[i][axis] = residual[i][axis]+nextNorm/norm*direction[i][axis];
-                norm = nextNorm;
+                    constexpr double regularization = .12;
+                    for (std::size_t i=0;i<field.size();++i)
+                        for (std::size_t axis=0;axis<2;++axis)
+                            result[i][axis] -= regularization*(field[i][axis]-(target ? initial[i][axis] : 0.));
+                    preserveAnchors(result);
+                    constrainJunction(result,{0.,0.});
+                    return result;
+                };
+                const auto dot = [](Slice<Point2> a, Slice<Point2> b) {
+                    double value = 0.;
+                    for (std::size_t i=0;i<a.size();++i)
+                        value += a[i][0]*b[i][0]+a[i][1]*b[i][1];
+                    return value;
+                };
+                auto residual = rhs(skinField,true);
+                auto direction = residual.duplicate();
+                double norm = dot(residual,residual);
+                for (unsigned pass=0;pass<80 && norm>1e-12;++pass) {
+                    auto negativeProduct = rhs(direction,false);
+                    const double denominator = -dot(direction,negativeProduct);
+                    if (denominator <= 1e-12) break;
+                    const double gain = norm/denominator;
+                    for (std::size_t i=0;i<skinField.size();++i)
+                        for (std::size_t axis=0;axis<2;++axis) {
+                            skinField[i][axis] += gain*direction[i][axis];
+                            residual[i][axis] += gain*negativeProduct[i][axis];
+                        }
+                    const double nextNorm = dot(residual,residual);
+                    for (std::size_t i=0;i<direction.size();++i)
+                        for (std::size_t axis=0;axis<2;++axis)
+                            direction[i][axis] = residual[i][axis]+nextNorm/norm*direction[i][axis];
+                    norm = nextNorm;
+                }
             }
-
+            return skinField;
+        };
+        auto skinField = fitSkin();
+        if (side) for (std::size_t i=0; i<outline.size(); ++i) {
+            const auto& sample = outline[i];
+            const auto y = sample.section[1];
+            if (!sample.mapped || y<=profile.temple || y>=chin) continue;
+            const auto current = inheritedPoint(sample), residual = edgeResidual[i];
+            const Point2 target{current[0]+residual[0],current[1]+residual[1]};
+            ridgeSamples.append(record({{"target",point(target)},{"before",point(current)},
+                {"section_y",Json(y)},{"ear_junction",Json(useHeadTemplate ? y==templateEarRow : seam && y==seamRow)},
+                {"weights",array(Slice<double>{sample.weights[0],sample.weights[1],sample.weights[2]})},
+                {"vertices",array(Slice<std::size_t>{sample.vertices[0],sample.vertices[1],sample.vertices[2]})}}));
         }
         if (measureReference && side) {
             for (std::size_t i=0;i<outline.size();++i) {
@@ -1484,7 +1518,15 @@ static Json compileCheekCorrections(Json state, Json program,
             operation.sourceIndexAssignSlot("ridge_rms_error") = Json(std::sqrt(squaredFitError/ridgeSamples.size()));
             operation.sourceIndexAssignSlot("ridge_max_error") = Json(maximumFitError);
         }
-        if (!measureReference) operations.append(operation);
+        if (!measureReference) {
+            Slice<Point2> baseField;
+            for (std::size_t v=0; v<world.size(); ++v)
+                baseField.append(Point2{
+                    (inverse[3]*displacement[2*v]-inverse[1]*displacement[2*v+1])/inverseDet,
+                    (inverse[0]*displacement[2*v+1]-inverse[2]*displacement[2*v])/inverseDet});
+            jawKeys.push_back({poseKey,value,offsets,baseField,chin-.52*(chin-templateEarRow)});
+            operations.append(operation);
+        }
         if (!measureReference) for (const auto& follower : coincidentSkin) {
             Slice<double> values;
             for (const auto& sample : follower.samples) {
@@ -1654,6 +1696,323 @@ static Json compileCheekCorrections(Json state, Json program,
             {"near_depth_slope",Json(slope)},{"maximum_local_residual",Json(maximum)},
             {"feature_anchor_error",Json(anchorError)}}));
     }
+    if (!measureReference && !jawKeys.empty() && !fittedMesh.empty()) {
+        const std::size_t vertexCount = skinWorld.size();
+        const std::size_t variableCount = jawKeys.size()*vertexCount;
+        const bool dynamic = contracts::ngRigGet(skinTarget,
+            compat::RetainedString::fromStaticLiteral("grid_dynamic"), Json(false)).as_bool();
+        using Index = std::array<std::size_t,2>;
+        std::map<Index,std::size_t> indices;
+        std::array<std::vector<double>,2> axes;
+        for (std::size_t i=0; i<jawKeys.size(); ++i) {
+            const auto& key = jawKeys[i];
+            indices.emplace(key.index,i);
+            for (std::size_t axis=0; axis<2; ++axis) {
+                axes[axis].resize(std::max(axes[axis].size(),key.index[axis]+1));
+                axes[axis][key.index[axis]] = key.value[axis];
+            }
+        }
+        struct Term { std::size_t index; double weight; };
+        struct Row { std::vector<Term> terms; double gap; };
+        struct JawPose {
+            std::vector<Term> keys;
+            Slice<Point2> offsets;
+            Slice<Point2> base;
+            std::vector<const ContourSample*> samples;
+            Point2 start;
+            double width, height, slope;
+            int side;
+            double weight;
+        };
+        std::vector<std::size_t> movable;
+        for (std::size_t v=0; v<vertexCount; ++v)
+            if (!pinned[v] && profile.frame.local(skinWorld[v])[1] > std::lerp(profile.mouth,chin,.42))
+                movable.push_back(v);
+        std::vector<std::vector<double>> anchors;
+        for (const auto& anchor : anchorConstraints) {
+            std::vector<double> row(vertexCount);
+            for (std::size_t j=0; j<3; ++j)
+                if (std::ranges::binary_search(movable,anchor.vertices[j]))
+                    row[anchor.vertices[j]] = anchor.weights[j];
+            for (unsigned pass=0; pass<2; ++pass) for (const auto& basis : anchors) {
+                const double dot = std::inner_product(row.begin(),row.end(),basis.begin(),0.);
+                for (const auto v : movable) row[v] -= dot*basis[v];
+            }
+            const double norm = std::sqrt(std::inner_product(row.begin(),row.end(),row.begin(),0.));
+            if (norm<1e-8) continue;
+            for (const auto v : movable) row[v] /= norm;
+            anchors.push_back(std::move(row));
+        }
+        const auto freeKey = [&](std::size_t k) { return std::abs(jawKeys[k].value[0])>1e-6; };
+        const auto preserveAnchors = [&](std::vector<double>& field) {
+            for (std::size_t k=0; k<jawKeys.size(); ++k) {
+                if (!freeKey(k)) continue;
+                for (const auto& anchor : anchors) {
+                    double dot = 0.;
+                    for (const auto v : movable) dot += field[k*vertexCount+v]*anchor[v];
+                    for (const auto v : movable) field[k*vertexCount+v] -= dot*anchor[v];
+                }
+            }
+        };
+        std::vector<Row> smoothness;
+        for (const auto& [index,key] : indices) {
+            for (std::size_t axis=0; axis<2; ++axis) {
+                if (index[axis]==0) continue;
+                auto left=index, right=index;
+                --left[axis];
+                ++right[axis];
+                const auto a=indices.find(left), b=indices.find(right);
+                if (a==indices.end() || b==indices.end()) continue;
+                // Penalize changes in velocity across a key; a linear motion is free.
+                const double stepLeft=jawKeys[key].value[axis]-jawKeys[a->second].value[axis];
+                const double stepRight=jawKeys[b->second].value[axis]-jawKeys[key].value[axis];
+                if (stepLeft<=0. || stepRight<=0.) continue;
+                const double ratio=stepLeft/(stepLeft+stepRight);
+                for (const auto v : movable) {
+                    Row row{{},0.};
+                    for (const auto term : {Term{a->second,.55*(1.-ratio)},Term{key,-.55},
+                            Term{b->second,.55*ratio}})
+                        if (freeKey(term.index)) row.terms.push_back({term.index*vertexCount+v,term.weight});
+                    if (!row.terms.empty()) smoothness.push_back(std::move(row));
+                }
+            }
+        }
+
+        std::vector<JawPose> poses;
+        const auto project = [&](const JawPose& pose, Point2 p) {
+            return controls_detail::projected(profile.frame.local(p),profile,matrix,determinant,pose.offsets,xs,ys);
+        };
+        const auto projectVertex = [&](const JawPose& pose, std::size_t v, double delta) {
+            const auto world=skinWorld[v], base=pose.base[v];
+            const Point2 shift{base[0]+delta*profile.frame.normal[0],base[1]+delta*profile.frame.normal[1]};
+            const auto p=dynamic ? project(pose,{world[0]+shift[0],world[1]+shift[1]}) : project(pose,world);
+            return profile.frame.local(dynamic ? p : Point2{p[0]+shift[0],p[1]+shift[1]});
+        };
+        const auto at = [](const ContourSample& sample, const std::vector<Point2>& vertices) {
+            Point2 p{0.,0.};
+            for (std::size_t j=0; j<3; ++j)
+                for (std::size_t axis=0; axis<2; ++axis)
+                    p[axis] += sample.weights[j]*vertices[sample.vertices[j]][axis];
+            return p;
+        };
+        // A half-grid includes every saved key, every edge midpoint and
+        // every cell center. Its terms use the same bilinear key weights.
+        for (std::size_t x=0; x+1<2*axes[0].size(); ++x) {
+            for (std::size_t y=0; y+1<2*axes[1].size(); ++y) {
+                JawPose pose{};
+                const Index low{x/2,y/2}, high{(x+1)/2,(y+1)/2};
+                const double yaw=std::midpoint(axes[0][low[0]],axes[0][high[0]]);
+                if (std::abs(yaw)<=1e-6) continue;
+                pose.side=yaw < 0. ? 1 : -1;
+                const std::size_t count=(high[0]-low[0]+1)*(high[1]-low[1]+1);
+                pose.weight=1./std::sqrt(static_cast<double>(count));
+                pose.offsets.resize(jawKeys.front().offsets.size(),Point2{0.,0.});
+                pose.base.resize(vertexCount,Point2{0.,0.});
+                double jawRow=0.;
+                for (std::size_t a=low[0]; a<=high[0]; ++a)
+                    for (std::size_t b=low[1]; b<=high[1]; ++b) {
+                        const auto found=indices.find({a,b});
+                        if (found==indices.end()) continue;
+                        const auto k=found->second;
+                        const double blend=1./static_cast<double>(count);
+                        pose.keys.push_back({k,blend});
+                        jawRow+=blend*jawKeys[k].jawRow;
+                        for (std::size_t i=0; i<pose.offsets.size(); ++i)
+                            for (std::size_t axis=0; axis<2; ++axis)
+                                pose.offsets[i][axis]+=blend*jawKeys[k].offsets[i][axis];
+                        for (std::size_t v=0; v<vertexCount; ++v)
+                            for (std::size_t axis=0; axis<2; ++axis)
+                                pose.base[v][axis]+=blend*jawKeys[k].base[v][axis];
+                    }
+                if (pose.keys.size()!=count) continue;
+                const auto& contour=paintedContours[pose.side<0 ? 0 : 1];
+                auto first=std::ranges::lower_bound(contour,jawRow,{},
+                    [](const ContourSample& sample) { return sample.section[1]; });
+                while (first!=contour.end() && !first->mapped) ++first;
+                if (first==contour.end() || !contour.back().mapped) continue;
+                auto upstream=first;
+                while (upstream!=contour.begin() && (upstream->section[1]>jawRow-4.*step || !upstream->mapped))
+                    --upstream;
+                if (!upstream->mapped || upstream==first) continue;
+                std::vector<Point2> raw, prepared;
+                for (std::size_t v=0; v<vertexCount; ++v) {
+                    raw.push_back(profile.frame.local(project(pose,skinWorld[v])));
+                    prepared.push_back(projectVertex(pose,v,0.));
+                }
+                pose.start=at(*first,prepared);
+                const auto tip=at(contour.back(),raw);
+                const auto entry=at(*upstream,prepared);
+                pose.width=pose.side*(pose.start[0]-tip[0]);
+                pose.height=tip[1]-pose.start[1];
+                const double lead=pose.side*(entry[0]-pose.start[0]);
+                if (pose.width<=step || pose.height<=step || lead<=.25*step) continue;
+                pose.slope=std::clamp((pose.start[1]-entry[1])*pose.width/lead,0.,3.*pose.height);
+                for (auto it=first+1; it+1<contour.end(); ++it) {
+                    if (!it->mapped) continue;
+                    const auto before=at(*it,raw);
+                    const double t=pose.side*(pose.start[0]-before[0])/pose.width;
+                    if (t>0. && t<1.) pose.samples.push_back(&*it);
+                }
+                if (!pose.samples.empty()) poses.push_back(std::move(pose));
+            }
+        }
+        const auto target = [](const JawPose& pose, double x) {
+            const double t=std::clamp(pose.side*(pose.start[0]-x)/pose.width,0.,1.);
+            const double u=1.-t;
+            const double y=pose.start[1]+pose.height*t*t*(3.-2.*t)+pose.slope*t*u*u;
+            const double slope=-pose.side*(6.*pose.height*t*u+pose.slope*u*(1.-3.*t))/pose.width;
+            return Point2{y,slope};
+        };
+        const auto sampleCount=std::accumulate(poses.begin(),poses.end(),std::size_t{0},
+            [](std::size_t count,const JawPose& pose) { return count+pose.samples.size(); });
+        std::vector<double> field(variableCount);
+        const auto linearize = [&](const std::vector<double>& current, std::vector<Row>* rows) {
+            double error=0.;
+            for (const auto& pose : poses) {
+                std::vector<Point2> points(vertexCount), derivative(vertexCount,Point2{0.,0.});
+                for (std::size_t v=0; v<vertexCount; ++v) {
+                    double delta=0.;
+                    for (const auto term : pose.keys) delta+=term.weight*current[term.index*vertexCount+v];
+                    points[v]=projectVertex(pose,v,delta);
+                    if (rows && std::ranges::binary_search(movable,v)) {
+                        if (dynamic) {
+                            const auto next=projectVertex(pose,v,delta+.01);
+                            const auto previous=projectVertex(pose,v,delta-.01);
+                            derivative[v]={(next[0]-previous[0])/.02,(next[1]-previous[1])/.02};
+                        } else {
+                            derivative[v]={0.,1.};
+                        }
+                    }
+                }
+                for (const auto* sample : pose.samples) {
+                    const auto p=at(*sample,points);
+                    const auto guide=target(pose,p[0]);
+                    const double invLength=1./std::hypot(1.,guide[1]);
+                    const double gap=(guide[0]-p[1])*invLength;
+                    error+=square(gap);
+                    if (!rows) continue;
+                    Row row{{},pose.weight*gap};
+                    for (std::size_t j=0; j<3; ++j) {
+                        const auto v=sample->vertices[j];
+                        const auto d=derivative[v];
+                        const double weight=pose.weight*sample->weights[j]*invLength*(d[1]-guide[1]*d[0]);
+                        if (std::abs(weight)<1e-10) continue;
+                        for (const auto term : pose.keys)
+                            if (freeKey(term.index)) row.terms.push_back({term.index*vertexCount+v,term.weight*weight});
+                    }
+                    if (!row.terms.empty()) rows->push_back(std::move(row));
+                }
+            }
+            return error;
+        };
+        const double beforeError=linearize(field,nullptr);
+        double currentError=beforeError;
+        for (unsigned iteration=0; iteration<2 && sampleCount; ++iteration) {
+            contracts::ngRigCheckpoint(context);
+            std::vector<Row> rows;
+            linearize(field,&rows);
+            for (auto row : smoothness) {
+                for (const auto term : row.terms) row.gap-=term.weight*field[term.index];
+                rows.push_back(std::move(row));
+            }
+            const auto multiply = [&](const std::vector<double>& input, bool desired) {
+                std::vector<double> output(variableCount);
+                for (const auto& row : rows) {
+                    double value=row.gap;
+                    if (!desired) {
+                        value=0.;
+                        for (const auto term : row.terms) value+=term.weight*input[term.index];
+                    }
+                    for (const auto term : row.terms) output[term.index]+=term.weight*value;
+                }
+                for (std::size_t i=0; i<variableCount; ++i)
+                    output[i]+=.18*(desired ? -field[i] : input[i]);
+                preserveAnchors(output);
+                return output;
+            };
+            std::vector<double> delta(variableCount);
+            auto residual=multiply(delta,true), direction=residual;
+            const auto dot=[](const auto& a,const auto& b) {
+                return std::inner_product(a.begin(),a.end(),b.begin(),0.);
+            };
+            double norm=dot(residual,residual);
+            for (unsigned pass=0; pass<80 && norm>1e-10; ++pass) {
+                const auto product=multiply(direction,false);
+                const double denominator=dot(direction,product);
+                if (denominator<=1e-12) break;
+                const double gain=norm/denominator;
+                for (std::size_t i=0; i<variableCount; ++i) {
+                    delta[i]+=gain*direction[i];
+                    residual[i]-=gain*product[i];
+                }
+                const double next=dot(residual,residual);
+                for (std::size_t i=0; i<variableCount; ++i)
+                    direction[i]=residual[i]+(next/norm)*direction[i];
+                norm=next;
+            }
+            auto candidate=field;
+            bool accepted=false;
+            for (const double gain : {1.,.5,.25}) {
+                for (std::size_t i=0; i<variableCount; ++i) candidate[i]=field[i]+gain*delta[i];
+                const double error=linearize(candidate,nullptr);
+                if (error>=currentError) continue;
+                field=std::move(candidate);
+                currentError=error;
+                accepted=true;
+                break;
+            }
+            if (!accepted) break;
+        }
+        if (sampleCount) {
+            const auto inverse=contracts::ngRigNumbers(read(skinTarget,"root_to_local_direction"));
+            const Point2 localNormal{inverse[0]*profile.frame.normal[0]+inverse[1]*profile.frame.normal[1],
+                inverse[2]*profile.frame.normal[0]+inverse[3]*profile.frame.normal[1]};
+            Array adjusted;
+            for (auto operation : operations) {
+                const auto index=contracts::ngRigNumbers(read(operation,"key"));
+                const auto k=indices.at({sourceControlIndex(index[0]),sourceControlIndex(index[1])});
+                const auto id=contracts::ngRigUnsigned(read(operation,"part"));
+                const auto old=contracts::ngRigNumbers(read(operation,"values"));
+                Slice<double> values;
+                operation=Json(operation.sourceObjectRef().duplicate());
+                if (id==skin) {
+                    Array allowed;
+                    const auto prior=read(operation,"allowed_vertices").sourceArrayValue();
+                    for (std::size_t v=0; v<vertexCount; ++v) {
+                        const double delta=field[k*vertexCount+v];
+                        for (std::size_t axis=0; axis<2; ++axis)
+                            values.append(old[2*v+axis]+delta*localNormal[axis]);
+                        allowed.append(Json(prior[v].as_bool() || std::abs(delta)>1e-10));
+                    }
+                    operation.sourceIndexAssignSlot("allowed_vertices")=allowed;
+                    operation.sourceIndexAssignSlot("requested_cheek_values")=array(values);
+                    operation.sourceObjectRef().erase("ridge_rms_error");
+                    operation.sourceObjectRef().erase("ridge_max_error");
+                } else {
+                    const auto follower=std::ranges::find(coincidentSkin,id,[](const auto& f) { return f.id; });
+                    if (follower==coincidentSkin.end()) {
+                        adjusted.append(operation);
+                        continue;
+                    }
+                    for (const auto& sample : follower->samples) {
+                        double delta=0.;
+                        if (sample.mapped) for (std::size_t j=0; j<3; ++j)
+                            delta+=sample.weights[j]*field[k*vertexCount+sample.vertices[j]];
+                        const auto i=values.size();
+                        for (std::size_t axis=0; axis<2; ++axis)
+                            values.append(old[i+axis]+delta*localNormal[axis]);
+                    }
+                }
+                operation.sourceIndexAssignSlot("before_jaw")=record({{"values",read(operation,"values")}});
+                operation.sourceIndexAssignSlot("values")=array(values);
+                adjusted.append(operation);
+            }
+            operations=std::move(adjusted);
+            jawFit=record({{"poses",Json(poses.size())},{"samples",Json(sampleCount)},
+                {"before_rms",Json(std::sqrt(beforeError/static_cast<double>(sampleCount)))},
+                {"after_rms",Json(std::sqrt(currentError/static_cast<double>(sampleCount)))}});
+        }
+    }
     auto report = record({{"applicable", Json(true)}, {"mechanism", Json("alpha_near_cheek_inverse_grid")},
         {jawRidgeBlendOption, Json(baseJawRidgeBlend)}, {upwardJawRidgeBlendOption, Json(upwardJawRidgeBlend)},
         {"skin", Json(skin)}, {"operations", Json(operations)}, {"observations", Json(observations)}, {"skin_protected_vertices", array(pinned)},
@@ -1663,6 +2022,7 @@ static Json compileCheekCorrections(Json state, Json program,
         {"program_sha256", read(program, "content_sha256")}, {"depth_angle_program_sha256", read(state, "depth_angle_program_sha256")},
         {"source_uv_program_sha256", read(state, "source_uv_program_sha256")}, {"source_sha256", read(state, "source_sha256")},
         {"visually_reviewed", Json(false)}});
+    if (!measureReference) report.sourceIndexAssignSlot("jaw_fit")=jawFit;
     return report;
 }
 

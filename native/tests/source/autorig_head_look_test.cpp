@@ -1,4 +1,5 @@
 #include <nijigenerate/autorig/deterministic/detail/head_look_arc.hpp>
+#include <nijigenerate/autorig/deterministic/detail/head_contour_curve.hpp>
 #include <nijigenerate/autorig/deterministic/workflow_options.hpp>
 
 #include <algorithm>
@@ -249,6 +250,40 @@ void checkRadialResponseAndSymmetry() {
         checkProperRotation(previewMatrix(arc.euler(input[0], input[1])), "near-axis finite rotation");
     }
 }
+void checkContourJoins() {
+    using Point = std::array<double, 2>;
+    nijigenerate::autorig::deterministic::head_surface::ContourCurve<Point> curve;
+    const std::array<Point, 5> points{{{0.,0.}, {1.,2.}, {.7,3.}, {1.1,3.2}, {2.,4.}}};
+    std::array<double, points.size()> lengths{};
+    for (std::size_t i=0; i<points.size(); ++i) {
+        curve.append(points[i]);
+        lengths[i]=curve.length();
+        curve.append(points[i]); // The adjoining guides can share a knot.
+    }
+    curve.fit();
+    for (std::size_t i=0; i<points.size(); ++i) {
+        const auto value=curve.at(lengths[i]);
+        for (std::size_t axis=0; axis<2; ++axis)
+            near(value[axis], points[i][axis], "contour retains anchors");
+    }
+    for (std::size_t i=1; i+1<points.size(); ++i) {
+        constexpr double h=1e-6;
+        const auto before=curve.at(lengths[i]-h), center=curve.at(lengths[i]), after=curve.at(lengths[i]+h);
+        for (std::size_t axis=0; axis<2; ++axis)
+            if (std::abs((after[axis]-2.*center[axis]+before[axis])/h)>1e-5)
+                throw std::runtime_error("Contour tangent jumps at a join");
+    }
+    for (std::size_t i=0; i+1<points.size(); ++i) {
+        for (int step=1; step<32; ++step) {
+            const auto p=curve.at(std::lerp(lengths[i],lengths[i+1],step/32.));
+            for (std::size_t axis=0; axis<2; ++axis) {
+                const auto [lo,hi]=std::minmax(points[i][axis],points[i+1][axis]);
+                if (p[axis]<lo-tolerance || p[axis]>hi+tolerance)
+                    throw std::runtime_error("Contour overshoots between knots");
+            }
+        }
+    }
+}
 } // namespace
 
 int main() {
@@ -258,9 +293,10 @@ int main() {
         checkCardinals(30., 20.);
         const double maximumError = checkGoldens();
         checkRadialResponseAndSymmetry();
+        checkContourJoins();
         std::cout << "PASS: default AutoRig yaw +/-45 degrees; head-look arc; "
             "20 independent JS matrix goldens, 45/20 and 30/20 cardinals, "
-            "radial response, quadrant symmetry, finite near-axis rotations.\n"
+            "radial response, quadrant symmetry, finite near-axis rotations, continuous contour joins.\n"
             << std::setprecision(17) << "Maximum golden matrix error: " << maximumError << '\n';
         return 0;
     } catch (const std::exception& error) {

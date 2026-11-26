@@ -72,6 +72,80 @@ bool compensateNeckPitch(const compat::Slice<Point2>& rest,
     }
     return changed;
 }
+
+void bakeSharedNeckRoll(const Json& state, const std::shared_ptr<nicxlive::core::Puppet>& puppet,
+    const std::shared_ptr<nicxlive::core::param::Parameter>& parameter) {
+    const auto root=std::dynamic_pointer_cast<ext::nodes::ExDepthRigRoot>(
+        puppet->findNodeById(uuid(state.sourceIndexValue("rigRoot"))));
+    std::shared_ptr<ext::nodes::ExDepthBone> head, neck;
+    for (auto bone : root->depthBones()) {
+        if (bone->boneId.view()=="Head") head=bone;
+        if (bone->boneId.view()=="Neck") neck=bone;
+    }
+    enforceNative(head && neck,"Face roll needs head and neck bones",1575);
+
+    // The head has its own pivot at the upper attachment. Follow that same
+    // rotation across the upper neck, fading to the stationary shoulder end.
+    const Point2 top{head->restHead.x,head->restHead.y};
+    const Point2 base{neck->restHead.x,neck->restHead.y};
+    const auto span=std::hypot(base[0]-top[0],base[1]-top[1]);
+    if (span<=1e-6) return;
+    const Point2 down{(base[0]-top[0])/span,(base[1]-top[1])/span};
+    const auto headLength=std::hypot(head->restTail.x-top[0],head->restTail.y-top[1]);
+    const auto neckProfile=get(state,"neck_pitch_attachment",Json{});
+    const double radius=neckProfile.is_null() ? .24*headLength : ngRigNumbers(neckProfile)[2];
+    if (radius<=1e-6) return;
+    const auto smooth=[](double t) {
+        t=std::clamp(t,0.,1.);
+        return t*t*(3.-2.*t);
+    };
+    const auto neutral=parameter->findClosestKeypoint(parameter->defaults).x;
+    NativeIntegerMap<std::uint32_t,bool> seen;
+    for (auto target : state.sourceIndexValue("targets").sourceArrayValue()) {
+        const auto chart=stringGet(target,"chart","");
+        if (stringGet(target,"owner","")!="torso" || (chart!="body" && chart!="neck")) continue;
+        const auto id=uuid(target.sourceIndexValue("grid"));
+        if (seen.contains(id)) continue;
+        seen[id]=true;
+        const auto grid=puppet->findNodeById(id);
+        const auto binding=std::dynamic_pointer_cast<nicxlive::core::param::DeformationParameterBinding>(
+            parameter->getBinding(grid,"deform"));
+        enforceNative(bool(binding),"Missing torso roll bake",1575);
+        const auto xs=ngRigNumbers(target.sourceIndexValue("xs")), ys=ngRigNumbers(target.sourceIndexValue("ys"));
+        const auto frame=ngRigNumbers(target.sourceIndexValue("parent_to_root"));
+        compat::Slice<Point2> points;
+        compat::Slice<double> weights;
+        for (auto y : ys) for (auto x : xs) {
+            const Point2 p{x+frame[2]-top[0],y+frame[5]-top[1]};
+            const double along=p[0]*down[0]+p[1]*down[1];
+            const double across=std::abs(p[0]*down[1]-p[1]*down[0]);
+            points.append(p);
+            weights.append((1.-smooth(along/span))*(1.-smooth((across-radius)/radius)));
+        }
+        for (std::size_t x=0; x<parameter->axisPoints[0].size(); ++x) {
+            if (x==neutral) continue;
+            const nicxlive::core::param::Vec2u key{static_cast<unsigned>(x),0};
+            const auto original=binding->getValue(key).vertexOffsets;
+            enforceNative(original.size()==points.size(),"Neck roll grid size differs from the bake",1575);
+            const auto projection=commands::depth::bone::ngDepthBoneKeyProjection(
+                root,head->getUUID(),parameter,{key.x,key.y});
+            compat::Slice<float> offsets;
+            for (std::size_t i=0; i<points.size(); ++i) {
+                const auto p=points[i];
+                offsets.append(static_cast<float>(original[i].x+
+                    weights[i]*((projection[0]-1.)*p[0]+projection[2]*p[1])));
+                offsets.append(static_cast<float>(original[i].y+
+                    weights[i]*(projection[1]*p[0]+(projection[3]-1.)*p[1])));
+            }
+            auto context=editorContext({grid});
+            context->parameters({parameter});
+            context->keyPoint({key.x,key.y});
+            context->hasExplicitKeyPoint(true);
+            commandSource([&] {return createNativeObject<commands::model::set_deform_binding::SetDeformBindingCommand>(
+                compat::RetainedString::fromStaticLiteral("deform"),offsets,true,false);},[&] {return context;});
+        }
+    }
+}
 }
 Json validateDepthInputs(Json state, Json program, Task task) {
     core::settings::SettingsJsonArray surfaces;
@@ -262,6 +336,11 @@ Json bakeAngles(Json state, Task task) {
             auto parameter = parameterByName(puppet, name);
             if (name.view()=="Face::Yaw-Pitch") {
                 assignNative(state,"head_draw_order",head_draw_order::apply(state,headKeys,puppet,parameter));
+            }
+            if (name.view()=="Face::Roll") {
+                parameter->value=parameter->defaults;
+                puppet->update();
+                bakeSharedNeckRoll(state,puppet,parameter);
             }
             if (name.view()=="Body::Yaw-Pitch") {
                 const auto neck = get(state,"neck_pitch_attachment",Json{});

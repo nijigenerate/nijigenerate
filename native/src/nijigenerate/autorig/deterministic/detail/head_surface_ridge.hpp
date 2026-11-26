@@ -1,6 +1,7 @@
 #pragma once
 
 #include "head_surface_lower.hpp"
+#include "head_contour_curve.hpp"
 
 namespace nijigenerate::autorig::deterministic::head_surface {
 
@@ -21,41 +22,49 @@ struct PoseFrame {
     }
 };
 
-inline double curveAt(std::span<const Point2> points, double y) {
-    if (y<=points.front()[1]) return points.front()[0];
-    if (y>=points.back()[1]) return points.back()[0];
-    const auto b=std::ranges::upper_bound(points,y,{},[](Point2 p) {return p[1];});
-    const auto a=b-1;
-    return std::lerp((*a)[0],(*b)[0],(y-(*a)[1])/((*b)[1]-(*a)[1]));
-}
-
 struct Ridge {
-    PoseFrame frame;
-    // Each curve is stored from upper to lower projected Y.
-    std::array<std::vector<Point2>,3> curves;
+    ContourCurve<Point2> curve;
+    std::array<double,4> stations{};
     std::array<Point2,4> anchors{};
     Point2 originalJaw{};
-    std::vector<Point2> lower;
-    std::vector<double> cumulative;
-    double jawPosition=0.;
-    Point2 depthEnd{};
+    std::optional<Point2> depthEnd;
 
     Point2 at(std::size_t interval, double t) const {
-        if (interval && !lower.empty()) {
-            const double wanted=interval==1 ? t*jawPosition :
-                std::lerp(jawPosition,cumulative.back(),t);
-            auto end=std::ranges::upper_bound(cumulative,wanted);
-            if (end==cumulative.end()) return lower.back();
-            const auto i=static_cast<std::size_t>(end-cumulative.begin());
-            if (i==0) return lower.front();
-            const double u=(wanted-cumulative[i-1])/(cumulative[i]-cumulative[i-1]);
-            return {std::lerp(lower[i-1][0],lower[i][0],u),std::lerp(lower[i-1][1],lower[i][1],u)};
-        }
-        const auto& curve=curves[interval];
-        const double y=std::lerp(curve.front()[1],curve.back()[1],std::clamp(t,0.,1.));
-        return frame.world({curveAt(curve,y),y});
+        return curve.at(std::lerp(stations[interval],stations[interval+1],std::clamp(t,0.,1.)));
     }
 };
+
+inline void smoothLowerGuide(std::vector<Point2>& points) {
+    std::vector<double> stations(points.size());
+    for (std::size_t i=1;i<points.size();++i)
+        stations[i]=stations[i-1]+std::hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]);
+    const double length=stations.back();
+    if (length<1e-8) return;
+    const auto sample=[&](double s) {
+        if (s<=0.) return points.front();
+        if (s>=length) return points.back();
+        const auto i=std::ranges::upper_bound(stations,s)-stations.begin();
+        const double t=(s-stations[i-1])/(stations[i]-stations[i-1]);
+        return Point2{std::lerp(points[i-1][0],points[i][0],t),
+                      std::lerp(points[i-1][1],points[i][1],t)};
+    };
+    auto smooth=points;
+    for (std::size_t i=1;i+1<points.size();++i) {
+        const auto s=stations[i];
+        // The shrinking window pins the ear and chin while rounding short
+        // bends left by the mesh edge walk.
+        const double radius=std::min({.11*length,s,length-s});
+        Point2 average{0.,0.};
+        for (int j=-3;j<=3;++j) {
+            const auto p=sample(s+radius*j/3.);
+            const double weight=(4-std::abs(j))/16.;
+            average[0]+=weight*p[0];
+            average[1]+=weight*p[1];
+        }
+        smooth[i]=average;
+    }
+    points=std::move(smooth);
+}
 
 inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
     std::array<Point3,4> joints, std::span<const Point3> lowerSection,
@@ -67,19 +76,19 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
     const double length=posedChin[1]-posedUpper[1];
     if (length<1e-6 || !(q[1]+1e-6<e[1] && e[1]+1e-6<j[1])) return {};
     Ridge result;
-    result.frame={posedUpper,side};
+    const PoseFrame frame{posedUpper,side};
     const auto screen=[&](Point3 p) {
         const auto xy=project(p,projection);
         // Blend only the endpoint errors. A pose-wide similarity rotates the
         // ear and its depth section away from the upper-neck attachment.
         const double upper=ease((e[1]-xy[1])/(e[1]-q[1]));
         const double lower=ease((xy[1]-e[1])/(j[1]-e[1]));
-        return result.frame.section({xy[0]+upper*(posedUpper[0]-q[0])+lower*(posedChin[0]-j[0]),
+        return frame.section({xy[0]+upper*(posedUpper[0]-q[0])+lower*(posedChin[0]-j[0]),
             xy[1]+upper*(posedUpper[1]-q[1])+lower*(posedChin[1]-j[1])});
     };
-    const Point2 upper{0.,0.}, ear=result.frame.section(paintedEar.value_or(e)), chin=result.frame.section(posedChin);
+    const Point2 upper{0.,0.}, ear=frame.section(paintedEar.value_or(e)), chin=frame.section(posedChin);
     auto jaw=screen(joints[2]);
-    result.originalJaw=result.frame.world(jaw);
+    result.originalJaw=frame.world(jaw);
     const double step=std::max(tolerance,1e-6);
     if (!(step<ear[1] && ear[1]+2.*step<length)) return {};
     jaw[1]=std::clamp(jaw[1],ear[1]+step,length-step);
@@ -136,9 +145,9 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
         return hull;
     };
     const auto upperGuide=convex(upper,ear);
-    result.curves[1]=convex(ear,jaw);
-    result.curves[2]=convex(jaw,chin);
-    if (upperGuide.empty() || result.curves[1].empty() || result.curves[2].empty()) return {};
+    const auto jawGuide=convex(ear,jaw);
+    const auto chinGuide=convex(jaw,chin);
+    if (upperGuide.empty() || jawGuide.empty() || chinGuide.empty()) return {};
     // Interpolate Q–E in the projection plane using the facial silhouette
     // as a guide. Limit tangents to avoid extra extrema between guide points.
     const auto secant=[&](std::size_t i) {
@@ -152,7 +161,7 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
         const double a=secant(i-1), b=secant(i);
         tangents[i]=a*b>0. ? 2.*a*b/(a+b) : 0.;
     }
-    auto& curve=result.curves[0];
+    result.curve.append(posedUpper);
     for (std::size_t i=0;i+1<upperGuide.size();++i) {
         const auto a=upperGuide[i], b=upperGuide[i+1];
         const double span=b[1]-a[1];
@@ -162,12 +171,12 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
             const double y=std::lerp(a[1],b[1],t);
             const double x=std::lerp(a[0],b[0],t*t*(3.-2.*t))+
                 span*t*u*(u*tangents[i]-t*tangents[i+1]);
-            curve.push_back({std::max(x,outer(y)),y});
+            if (i || j) result.curve.append(frame.world({std::max(x,outer(y)),y}));
         }
     }
-    curve.front()=upper;
-    curve.push_back(ear);
-    result.anchors={posedUpper,result.frame.world(ear),result.frame.world(jaw),posedChin};
+    result.curve.append(frame.world(ear));
+    result.stations[1]=result.curve.length();
+    std::vector<Point2> lower;
     if (lowerSection.size()>=2) {
         const auto blue=blueChinPath(mesh,rawProjection,lowerSection.back(),joints[1]);
         if (!blue.empty()) {
@@ -180,30 +189,34 @@ inline std::optional<Ridge> projectedRidge(std::span<const Point3> mesh,
                 return Point2{p[0]+std::lerp((*paintedEar)[0]-e[0],posedChin[0]-j[0],blend),
                     std::lerp((*paintedEar)[1],posedChin[1],pose)};
             };
-            auto append=[&](Point3 p) {
-                const auto q=alignLower(project(p,projection));
-                double distance=0.;
-                if (!result.lower.empty()) {
-                    distance=std::hypot(q[0]-result.lower.back()[0],q[1]-result.lower.back()[1]);
-                    if (distance<1e-8) return;
-                }
-                result.lower.push_back(q);
-                result.cumulative.push_back(distance+(result.cumulative.empty()?0.:result.cumulative.back()));
-            };
-            for (const auto p : lowerSection) append(p);
-            result.depthEnd=result.lower.back();
-            for (const auto p : blue) append(p);
-            const double length=result.cumulative.back();
-            if (result.lower.size()>2 && length>0.) {
-                const auto jawPoint=alignLower(project(joints[2],projection));
-                auto nearest=std::ranges::min_element(result.lower,{},[&](Point2 p) {
-                    return std::hypot(p[0]-jawPoint[0],p[1]-jawPoint[1]);
-                });
-                result.jawPosition=std::clamp(result.cumulative[nearest-result.lower.begin()],.05*length,.95*length);
-                result.anchors[2]=result.at(1,1.);
+            for (const auto p : lowerSection) lower.push_back(alignLower(project(p,projection)));
+            result.depthEnd=lower.back();
+            // The graph path starts at the last depth-section point.
+            for (std::size_t i=1;i<blue.size();++i) lower.push_back(alignLower(project(blue[i],projection)));
+            lower.front()=frame.world(ear);
+            lower.back()=posedChin;
+            smoothLowerGuide(lower);
+            const auto jawPoint=alignLower(project(joints[2],projection));
+            const auto nearest=std::ranges::min_element(lower,{},[&](Point2 p) {
+                return std::hypot(p[0]-jawPoint[0],p[1]-jawPoint[1]);
+            });
+            for (auto it=lower.begin();it!=lower.end();++it) {
+                result.curve.append(*it);
+                if (it==nearest) result.stations[2]=result.curve.length();
             }
+            const double length=result.curve.length()-result.stations[1];
+            result.stations[2]=std::clamp(result.stations[2],
+                result.stations[1]+.05*length,result.stations[1]+.95*length);
         }
     }
+    if (lower.empty()) {
+        for (const auto p : jawGuide) result.curve.append(frame.world(p));
+        result.stations[2]=result.curve.length();
+        for (const auto p : chinGuide) result.curve.append(frame.world(p));
+    }
+    result.stations[3]=result.curve.length();
+    result.curve.fit();
+    result.anchors={posedUpper,frame.world(ear),result.at(1,1.),posedChin};
     return result;
 }
 }

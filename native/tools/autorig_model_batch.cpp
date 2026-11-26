@@ -1,5 +1,6 @@
 #include <nijigenerate/autorig/deterministic/processor.hpp>
 #include <nijigenerate/autorig/deterministic/native.hpp>
+#include "../src/nijigenerate/autorig/deterministic/native_stage.hpp"
 #include <nijigenerate/autorig/deterministic/workflow_options.hpp>
 #include <nijigenerate/autorig/workflow.hpp>
 #include <nijigenerate/autorig/json.hpp>
@@ -248,7 +249,7 @@ int main(int argc, char** argv) {
         });
         auto processor = std::make_shared<d::processor::AnimeFrontViewRigProcessor>(
             d::processor::AnimeFrontViewRigProcessor::Projection{}, d::pipeline::RigNativeStage{
-                [&directory](auto stage, auto state, auto program, auto model, auto task) {
+                [&directory,&save](auto stage, auto state, auto program, auto model, auto task) {
                     if (stage.view() == "apply-shape-corrections" && std::getenv("NJCX_AUTORIG_REPLAY_DATA")) {
                         // Keep the actual compiler input for repeatable comparison of cheek fields.
                         core::settings::SettingsJsonObject input;
@@ -258,6 +259,37 @@ int main(int argc, char** argv) {
                             core::settings::ngSettingsJsonString(core::settings::SettingsJsonValue(input));
                     }
                     auto result = d::native::ngRigNativeStage(stage, state, program, model, task);
+                    if (stage.view() == "apply-shape-corrections" && std::getenv("NJCX_AUTORIG_BEFORE_JAW")) {
+                        using core::settings::SettingsJsonArray;
+                        using core::settings::SettingsJsonValue;
+                        if (const auto corrections = result.sourceObjectRef().if_contains("shape_corrections")) {
+                            const auto* fit = corrections->sourceObjectRef().if_contains("jaw_fit");
+                            if (fit && fit->is_object()) {
+                                // Render the compiled pre-fit fields using the same binding
+                                // writer. Restore the accepted fields before the run resumes.
+                                SettingsJsonArray previous;
+                                for (auto operation : corrections->sourceIndexValue("operations").sourceArrayValue()) {
+                                    if (const auto original = operation.sourceObjectRef().if_contains("before_jaw")) {
+                                        const auto values = original->sourceIndexValue("values");
+                                        operation = SettingsJsonValue(operation.sourceObjectRef().duplicate());
+                                        operation.sourceIndexAssignSlot("values") = values;
+                                    }
+                                    previous.append(operation);
+                                }
+                                auto before = SettingsJsonValue(corrections->sourceObjectRef().duplicate());
+                                before.sourceIndexAssignSlot("operations") = previous;
+                                const auto isolatedState = [&] {
+                                    return SettingsJsonValue(result.sourceObjectRef().duplicate());
+                                };
+                                d::native_detail::applyCheekCorrections(isolatedState(),before,task);
+                                task->runOnMainThread([&] { save("before-jaw.inx"); });
+                                d::native_detail::applyCheekCorrections(isolatedState(),
+                                    SettingsJsonValue(corrections->sourceObjectRef().duplicate()),task);
+                                std::ofstream(directory / "jaw-fit.json") <<
+                                    core::settings::ngSettingsJsonString(*fit);
+                            }
+                        }
+                    }
                     if (stage.view() == "apply-shape-corrections" && std::getenv("NJCX_AUTORIG_REPLAY_DATA"))
                         if (const auto shapes = result.sourceObjectRef().if_contains("rear_hair_silhouettes"))
                             std::ofstream(directory / "rear-hair-silhouettes.json") <<

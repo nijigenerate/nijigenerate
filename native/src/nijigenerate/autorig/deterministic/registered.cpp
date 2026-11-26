@@ -75,7 +75,7 @@ void coupleHeadLookDrivers(SettingsJsonArray& drivers) {
     }
     // Only the generated head drivers change. Depth baking records this rotation's
     // projection, which the existing cheek, skin-outline and hair corrections use.
-    // Face::Roll remains a separate parameter on both Head and Neck.
+    // Face::Roll is baked separately around the head-neck attachment.
 }
 
 double neutralChestRelief(compat::Slice<double> xs, compat::Slice<double> ys,
@@ -515,6 +515,8 @@ Json ngRigRegisterProgram(Json program, Json observation) {
         const auto parameter = at(curve,"parameter");
         const auto bone = at(curve,"bone");
         const auto property = at(curve,"property");
+        if (parameter.as_string().view()=="Face::Roll" && bone.as_string().view()=="Neck" &&
+            property.as_string().view()=="transform.r.z") continue;
         const bool sharedBodyYaw = parameter.as_string().view() == "Body::Yaw-Pitch" &&
             bone.as_string().view() == "Spine" && property.as_string().view() == "transform.r.y";
         double scale = sharedBodyYaw ? .5 : (unit.view()=="torso_length" ? torso : 1.);
